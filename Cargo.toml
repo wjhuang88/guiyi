@@ -1,0 +1,48 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/engine_core",
+  "crates/engine_schema",
+  "crates/engine_validation",
+  "crates/engine_content",
+  "crates/engine_command",
+  "crates/engine_query",
+  "crates/engine_asset",
+  "crates/engine_build",
+  "crates/engine_authoring",
+  "crates/engine_runtime",
+  "crates/engine_protocol",
+  "crates/engine_agent_tools",
+  "crates/engine_agent_host",
+  "crates/engine_preview",
+  "crates/engine_cli",
+  "crates/engine_editor",
+  "crates/engine_testkit",
+  "toolkits/tactical_rpg/content",
+  "toolkits/tactical_rpg/runtime",
+  "toolkits/tactical_rpg/tools",
+  "toolkits/tactical_rpg/validation",
+  "examples/minimal_project",
+  "examples/tactical_demo",
+  "examples/mock_agent_workflow"
+]
+
+[workspace.package]
+version = "0.1.0-alpha.1"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://example.invalid/guiyi-engine"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+clap = { version = "4.5", features = ["derive"] }
+bevy_app = { version = "0.18", default-features = false }
+bevy_ecs = { version = "0.18", default-features = false }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"

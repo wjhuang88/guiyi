@@ -1,0 +1,624 @@
+{
+  "package": "guiyi-engine",
+  "version": "0.1.0-alpha.1",
+  "generated": "2026-07-28",
+  "file_count": 123,
+  "total_bytes": 226296,
+  "files": [
+    {
+      "path": ".editorconfig",
+      "bytes": 221,
+      "sha256": "a45ee75004bad6c7d99351cec936c39db612c68d3a343644b18014138dc52e2e"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/story.yml",
+      "bytes": 432,
+      "sha256": "192c5d5a4c9929adb297e36a6c74addb18bfc3742fca64752a8f074bfa1a7956"
+    },
+    {
+      "path": ".github/dependabot.yml",
+      "bytes": 228,
+      "sha256": "b733129e1e2495792da33c43b3fa8dbfa274ee4dff5bdeab209555d0dccd25d5"
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "bytes": 215,
+      "sha256": "aa727cd2703721d01cace57bd9b632ea13460b14ad634955de491149f03c0326"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 1218,
+      "sha256": "f19db2bc584692b835e6ed1014e3fccdda76f3aa1dbc06c8f467eac2f2386110"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 125,
+      "sha256": "a2605d85317635e0f0b3c790576e94cff6bad9a754aab3123eda7eea1ee974fc"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 436,
+      "sha256": "962812bae594eadafea14a87deec90047a0bc11f6071bc6d6488f690a3082477"
+    },
+    {
+      "path": "CODE_OF_CONDUCT.md",
+      "bytes": 197,
+      "sha256": "67d5d77b41b54e9f66616ca1a92e0f7b8b9c748377be6d5dfd6874da49a0528a"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "bytes": 710,
+      "sha256": "83a79142db286b744908acc3e7009d68169a4872bfb68412bb4d5b9448d61d68"
+    },
+    {
+      "path": "Cargo.toml",
+      "bytes": 1248,
+      "sha256": "f53a8efa7342d5d822f60bcbd86c09b58502315821f18d91668ca1a25e3cbb69"
+    },
+    {
+      "path": "LICENSE-APACHE",
+      "bytes": 691,
+      "sha256": "d72bed4447b82a7d1d222afd67119c99130e5896fd5f2225c58b85fadabb0815"
+    },
+    {
+      "path": "LICENSE-MIT",
+      "bytes": 1082,
+      "sha256": "09d79bb5d1b05efe68d977ce0ca3210910c8e2dd4a20849d6ad64b6f96c718a1"
+    },
+    {
+      "path": "Makefile",
+      "bytes": 356,
+      "sha256": "3cd3423d37ba9a13bdce8c0e06f8f1793cc98d0710da7cc2f249dfa850bc759e"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2649,
+      "sha256": "da423d5dca0b264d181a99d667b94ad65f3eb7cb0e4c12134b11f0007571e061"
+    },
+    {
+      "path": "SECURITY.md",
+      "bytes": 298,
+      "sha256": "cc28a2146f233ee0f3d48cbb27c0a47206e5c8e3c75bd88d5e134d7a908054d1"
+    },
+    {
+      "path": "crates/engine_agent_host/Cargo.toml",
+      "bytes": 568,
+      "sha256": "13c828ccfb84fe6d6f0e43cfe4ed43a61bdfd6d080708e82c5e16a361d668993"
+    },
+    {
+      "path": "crates/engine_agent_host/src/lib.rs",
+      "bytes": 11775,
+      "sha256": "ee0e9ec5da9de3198da58102702a5586821286b412d8d948aed4b0b11083d675"
+    },
+    {
+      "path": "crates/engine_agent_tools/Cargo.toml",
+      "bytes": 364,
+      "sha256": "e45bd8589a0874c264c09292dba74732d0dc6e56f0c2d49cf673ae93dcc0b16f"
+    },
+    {
+      "path": "crates/engine_agent_tools/src/lib.rs",
+      "bytes": 3738,
+      "sha256": "a2031a1f3b3be26993a3ecb878bf3ef4eb23120883cbbed8b9e56c80a5e9fc61"
+    },
+    {
+      "path": "crates/engine_asset/Cargo.toml",
+      "bytes": 286,
+      "sha256": "e4359d3f1778cf268effa0a916d4a79e04a008875005d5280e0a430578e3aa32"
+    },
+    {
+      "path": "crates/engine_asset/src/lib.rs",
+      "bytes": 2554,
+      "sha256": "939b908803c116f7a0fe5064ed9b14cb82b9fbdd30e78e9a045b8c4e1b124198"
+    },
+    {
+      "path": "crates/engine_authoring/Cargo.toml",
+      "bytes": 390,
+      "sha256": "804304b5f138e4808b71189666dacabb08474569342147a9f24bb6d585e43276"
+    },
+    {
+      "path": "crates/engine_authoring/src/lib.rs",
+      "bytes": 3356,
+      "sha256": "a5116e3bffcccd3702f22517faccffa9970438a47fc10930d7261ab756b06ff1"
+    },
+    {
+      "path": "crates/engine_build/Cargo.toml",
+      "bytes": 292,
+      "sha256": "6b9b2174da92033f855e871709eb506d439b274ff6fd1a6607ceb3c650b2c4c8"
+    },
+    {
+      "path": "crates/engine_build/src/lib.rs",
+      "bytes": 2112,
+      "sha256": "02db0177b3b6902a054470f54deee1c97946ec17fa94b336b5812bec21c02f4c"
+    },
+    {
+      "path": "crates/engine_cli/Cargo.toml",
+      "bytes": 855,
+      "sha256": "376e13a4838327ac1f8fe84cb4c5edf22dde4ca48132c7e91ec0bf6cc28ec3f9"
+    },
+    {
+      "path": "crates/engine_cli/src/main.rs",
+      "bytes": 10646,
+      "sha256": "04b2712372ac78c52b90c52e2aa770be0506b62b9c7632799966ea9f52f16e21"
+    },
+    {
+      "path": "crates/engine_command/Cargo.toml",
+      "bytes": 397,
+      "sha256": "9d4dd7a7284326a7f300a9ec3bbe26bfb1ebdcbcf4f01cbbc85b917baae39c5a"
+    },
+    {
+      "path": "crates/engine_command/src/lib.rs",
+      "bytes": 16023,
+      "sha256": "441b8b592533335cd7aeaa4586f043b17cec1c463ede5650beb0f6ab33e9d5bc"
+    },
+    {
+      "path": "crates/engine_content/Cargo.toml",
+      "bytes": 283,
+      "sha256": "daeb41ec3ff99b18cd7fedf4d9d9ff85e9b9a2deacd0464204166e0dabd48665"
+    },
+    {
+      "path": "crates/engine_content/src/lib.rs",
+      "bytes": 7232,
+      "sha256": "bc717895952d22d8f30c2fb4422991b2a8a57d9780a48fb1e42dacb96396ec6b"
+    },
+    {
+      "path": "crates/engine_core/Cargo.toml",
+      "bytes": 204,
+      "sha256": "3580ba10f66eecbc91dbd52cd38163ab643a3a732e59a82e0e21814516398ce0"
+    },
+    {
+      "path": "crates/engine_core/src/lib.rs",
+      "bytes": 5234,
+      "sha256": "6f293cb09d3e0c17597b1c8a2e00374c0aaa079175dd20a97872eddc73fe2ed0"
+    },
+    {
+      "path": "crates/engine_editor/Cargo.toml",
+      "bytes": 720,
+      "sha256": "6307cc92e54fc2b8db164143801a04bbd1ccf51851f2430954682d94d7cfa6c1"
+    },
+    {
+      "path": "crates/engine_editor/src/main.rs",
+      "bytes": 5409,
+      "sha256": "9c6170a1360820fa07b3b96c4515a18bf7158282118f5e1db8be2dfe16636bcc"
+    },
+    {
+      "path": "crates/engine_preview/Cargo.toml",
+      "bytes": 401,
+      "sha256": "2698d402854fc2a2587518c513ee596f4e10d798710a18524d2778922767c8b1"
+    },
+    {
+      "path": "crates/engine_preview/src/main.rs",
+      "bytes": 1368,
+      "sha256": "ac68bf0bec9fde1d05d77849514deb9be4787ca7f414fff65c3333e655e4570c"
+    },
+    {
+      "path": "crates/engine_protocol/Cargo.toml",
+      "bytes": 284,
+      "sha256": "48101d0f6b1d96750769252585ccf5f129ed6bae63e7dbd2531891109985067d"
+    },
+    {
+      "path": "crates/engine_protocol/src/lib.rs",
+      "bytes": 2146,
+      "sha256": "e69473d826b00f77559c5d4a81983c6cf4d15b0640b33b629130fcc5daf2e5d1"
+    },
+    {
+      "path": "crates/engine_query/Cargo.toml",
+      "bytes": 395,
+      "sha256": "4e75ca47764c1a2588bdc0596990ee14bf93c138b1cf727c905ab47f030eb3d4"
+    },
+    {
+      "path": "crates/engine_query/src/lib.rs",
+      "bytes": 12132,
+      "sha256": "a37bf4cb22cc2e06ce5f0295266fc00118a597100e5c6fdef9a21742a8fe366c"
+    },
+    {
+      "path": "crates/engine_runtime/Cargo.toml",
+      "bytes": 366,
+      "sha256": "026724beeadd268ae614f050217c2a43e868d1fc650397842f5f53c2e3d2dd15"
+    },
+    {
+      "path": "crates/engine_runtime/src/lib.rs",
+      "bytes": 5095,
+      "sha256": "6721018a9d92462f4fd076fe0db497f24fa84f90629acd0697404511a33e48f7"
+    },
+    {
+      "path": "crates/engine_schema/Cargo.toml",
+      "bytes": 282,
+      "sha256": "c782276401908676559ea313ca3d3926e1a52191cd36a2111585f67fffb8b3c7"
+    },
+    {
+      "path": "crates/engine_schema/src/lib.rs",
+      "bytes": 4088,
+      "sha256": "ddfd124980943582c07657958a85b5a6fd700852ce63b83b7acac674b817b77b"
+    },
+    {
+      "path": "crates/engine_testkit/Cargo.toml",
+      "bytes": 391,
+      "sha256": "9fe7b8e6ac80edf38376442c4b4c4d99553a3610044cfd30781c920ea46ff4a4"
+    },
+    {
+      "path": "crates/engine_testkit/src/lib.rs",
+      "bytes": 1413,
+      "sha256": "9d0d2f433e42e9d7c6283b6672ed45f95674fb4e176f06dade97d993178748bc"
+    },
+    {
+      "path": "crates/engine_validation/Cargo.toml",
+      "bytes": 231,
+      "sha256": "0821498863570e1ccf5fdcda7c846a16d6a08952e7757178c407ac1a46ed6efe"
+    },
+    {
+      "path": "crates/engine_validation/src/lib.rs",
+      "bytes": 3158,
+      "sha256": "9d099e9826450ede1dccce6678a9fda2b323411b8e2dd725113f2fa6d9b16ec8"
+    },
+    {
+      "path": "docs/README.md",
+      "bytes": 1145,
+      "sha256": "6a6afcf64305efcf7719b6d4d8cc229ef533d59bd46ffce0405664e0a0611b0a"
+    },
+    {
+      "path": "docs/archive/README.md",
+      "bytes": 71,
+      "sha256": "841afddafb54cc60a00429a657663a39f7b5bf7ad163dc20ac056b1461d7df95"
+    },
+    {
+      "path": "docs/archive/bootstrap/ADR-REGISTER.md",
+      "bytes": 1155,
+      "sha256": "ba842c5ce5a479453d02eb1c64bc267ae378d4197f24327416bc26a25ad673a5"
+    },
+    {
+      "path": "docs/archive/bootstrap/ARCHITECTURE-BOUNDARIES.md",
+      "bytes": 2021,
+      "sha256": "cd1fd102c7db547d74d004798929a0164606eb8bfc2c6233237e4f1586583169"
+    },
+    {
+      "path": "docs/archive/bootstrap/EXTRACTION-PLAN.md",
+      "bytes": 3189,
+      "sha256": "e806131e165c02252b44aff62a206e2279bb826f4f6f55fd42464e7d46114c45"
+    },
+    {
+      "path": "docs/archive/bootstrap/INITIAL-BACKLOG.md",
+      "bytes": 3860,
+      "sha256": "2df987daafe7c3642a581d48df754f910b160788d6dc19eb97bee422bc3da844"
+    },
+    {
+      "path": "docs/archive/bootstrap/ITERATION-PLAYBOOK.md",
+      "bytes": 2340,
+      "sha256": "0f05f3c3aeca97a3b3517a9ca47f6b9ba198212e8d14c94ff8ccce7e783d1bfc"
+    },
+    {
+      "path": "docs/archive/bootstrap/MIGRATION-MATRIX.md",
+      "bytes": 1751,
+      "sha256": "018c27e7af6b7f395cd1db80b5d45aaf508d36c6984f16b9669494cfe49ebdf1"
+    },
+    {
+      "path": "docs/archive/bootstrap/PROJECT-CHARTER.md",
+      "bytes": 2967,
+      "sha256": "81fcc03a45a880a23dfb478ae27bca20e2f5b82e36854514748318d2f877d41e"
+    },
+    {
+      "path": "docs/archive/bootstrap/QUALITY-GATES.md",
+      "bytes": 2124,
+      "sha256": "1841bcb1b39975a88d83c3cc5fa5860638ffe2b139fa5046dc472e0447a94c49"
+    },
+    {
+      "path": "docs/archive/bootstrap/README.md",
+      "bytes": 2028,
+      "sha256": "f24c5fff61ec8694526b0df97083512f5dc55dae3b4e3bdb86be2e17c89babf0"
+    },
+    {
+      "path": "docs/archive/bootstrap/ROADMAP.md",
+      "bytes": 5205,
+      "sha256": "d30a341baf9f5f23a2e963dc4e0ee0fa554b4797ce8d43d9cfbad9d5b264d70d"
+    },
+    {
+      "path": "docs/archive/bootstrap/SOP-DEVELOPMENT.md",
+      "bytes": 2034,
+      "sha256": "031bf1a0270af4fecc6f898e178cd40885fac2b564dff33e47a60368ddf582c5"
+    },
+    {
+      "path": "docs/archive/bootstrap/TEMPLATES.md",
+      "bytes": 1135,
+      "sha256": "b58f1762caeeb2cd7683a5e87da500fe7f7b4568c9b3f6aecb38e31f7ae42023"
+    },
+    {
+      "path": "docs/backlog/PRODUCT-BACKLOG.md",
+      "bytes": 1874,
+      "sha256": "b6e8ce0c65e0492175049b59c7780a68cdfc9b9065002ea69d076c60b8713443"
+    },
+    {
+      "path": "docs/bootstrap/FIRST-RUN.md",
+      "bytes": 1047,
+      "sha256": "a30090fc290c38b64a8e7e0fa9683d0526af5a1239aca32618ce50876b1a473a"
+    },
+    {
+      "path": "docs/bootstrap/PACKAGE-REPORT.md",
+      "bytes": 1777,
+      "sha256": "a94985d8941e5586fa64d22cdc919e7e914bd48aa5aa997cbc85b55be9a75857"
+    },
+    {
+      "path": "docs/decisions/ADR-0001-PROJECT-LAYERS.md",
+      "bytes": 477,
+      "sha256": "4fa0c086950284c0da28ef94013758ea306b80e25ad2c6baaddce5373965988d"
+    },
+    {
+      "path": "docs/decisions/ADR-0002-DOCUMENT-ARTIFACT-RUNTIME.md",
+      "bytes": 500,
+      "sha256": "dc16b059261fce85d3faea825aada76dcaf65cb2475a41f39b04388e483932c5"
+    },
+    {
+      "path": "docs/decisions/ADR-0003-STABLE-IDS.md",
+      "bytes": 474,
+      "sha256": "9a43b643a4326852834ad974105711c44c0c952c951de30bbf9500cefffb3d10"
+    },
+    {
+      "path": "docs/decisions/ADR-0004-STATIC-EXTENSIONS.md",
+      "bytes": 456,
+      "sha256": "2f71a438f597c8940e19b08c0fea56b7a5aca5741dfd0e5ce06ac7a0b91c9afe"
+    },
+    {
+      "path": "docs/decisions/ADR-0005-EXTERNAL-PREVIEW.md",
+      "bytes": 458,
+      "sha256": "7c37a80c918613ad456ad52797382bceca6e86840990289de5c4b6cb13c885df"
+    },
+    {
+      "path": "docs/decisions/ADR-0006-AI-FIRST-CLASS.md",
+      "bytes": 461,
+      "sha256": "77d2de3592095c9d4018af6a49206634368aae496da22b79a769f28da2b649b3"
+    },
+    {
+      "path": "docs/decisions/ADR-0007-TYPED-COMMANDS.md",
+      "bytes": 454,
+      "sha256": "eca53a94bcd70e1ee0a7ea26e30abf7ccf3b82f4c5a70ddbcd5f859470bd4077"
+    },
+    {
+      "path": "docs/decisions/ADR-0008-TRANSACTIONS.md",
+      "bytes": 468,
+      "sha256": "c031703fc62dfdc7e327c1e51f53d98c3cded9bf2435ff04bbe4faa36de0ff2d"
+    },
+    {
+      "path": "docs/decisions/ADR-0009-AGENT-LOOP-DECOUPLING.md",
+      "bytes": 473,
+      "sha256": "51d12135ded557fbc3feb3e601a1f8bc1ec2419d4e195ad46cb348b3e6c93602"
+    },
+    {
+      "path": "docs/decisions/ADR-0010-DIAGNOSTICS.md",
+      "bytes": 459,
+      "sha256": "75a0ed7ea5336380d1de21eb194df4fb0c209eaed1afeca9849e588c24e53840"
+    },
+    {
+      "path": "docs/decisions/ADR-0011-PROJECT-GRAPH.md",
+      "bytes": 461,
+      "sha256": "db377097605c21164de004e0c1e385d53e59cb480f64abba1bbbc57c11addf04"
+    },
+    {
+      "path": "docs/decisions/ADR-0012-LEAST-PRIVILEGE.md",
+      "bytes": 458,
+      "sha256": "5a71df4ddc8e6851608cf8384278f97965e845359946eaae7a601693d9979e24"
+    },
+    {
+      "path": "docs/decisions/ADR-0013-HEADLESS-FIRST.md",
+      "bytes": 438,
+      "sha256": "794815d7ea68e49a5fd5359e7ea8749d4fb4a5d19d9e4ab4717a7285c493e80d"
+    },
+    {
+      "path": "docs/decisions/ADR-0014-UI-CLIENT.md",
+      "bytes": 455,
+      "sha256": "47e3872f38ed4004efdda00b420261f86907706a6ad28523ee66baeaf74f0583"
+    },
+    {
+      "path": "docs/decisions/README.md",
+      "bytes": 893,
+      "sha256": "2f5fbdffded6d0d21b6fcf3c0e45de056b067d14775e804b2a185d0877c3f33e"
+    },
+    {
+      "path": "docs/iterations/iteration-001/PLAN.md",
+      "bytes": 907,
+      "sha256": "fc6efb9ca854423027a4598cdf7c2a457bef512cc5222ce669fbf8b8263b232a"
+    },
+    {
+      "path": "docs/iterations/iteration-001/RETROSPECTIVE.md",
+      "bytes": 854,
+      "sha256": "f6e48ecb778ce5b45fadfebb7db6e0d2cf786fb135ebf31414832ab9dbecde38"
+    },
+    {
+      "path": "docs/iterations/iteration-001/VALIDATION.md",
+      "bytes": 1533,
+      "sha256": "593f2c7301e5b0ffc9a17cb9af0a651644b3d11f7fefccdd99b9527b9108e95f"
+    },
+    {
+      "path": "docs/proposals/README.md",
+      "bytes": 81,
+      "sha256": "e847e89c7a5e86027ecb3fae5f33b545fb65e514c8494b264a9d6402281e5a57"
+    },
+    {
+      "path": "docs/reference/AI-NATIVE-PLATFORM.md",
+      "bytes": 1345,
+      "sha256": "5e4e3c240957ec57fe1a340e6713ccf34677791685884025216f2cc1f987086f"
+    },
+    {
+      "path": "docs/reference/ARCHITECTURE.md",
+      "bytes": 1258,
+      "sha256": "463c2088a1df3a8ed3a748e24b5de891cbc5f0f528bb72284ecaa82830731a17"
+    },
+    {
+      "path": "docs/reference/COMMAND-QUERY-PROTOCOL.md",
+      "bytes": 1131,
+      "sha256": "78688017783239ff1249eaef5f98cefc715dd73aa1cf35f718905198217c143c"
+    },
+    {
+      "path": "docs/reference/PROJECT-CHARTER.md",
+      "bytes": 1386,
+      "sha256": "ba0aa71974208f6e55d8d69a3f653385767821803896cb5196ce3b07fdb732fa"
+    },
+    {
+      "path": "docs/reference/STAGE-MODEL.md",
+      "bytes": 872,
+      "sha256": "968d838de59f7bc249a77d1af921d6f715c679024adec93c21f26dd7449c6eb9"
+    },
+    {
+      "path": "docs/reference/WUXIA-EXTRACTION-LESSONS.md",
+      "bytes": 1461,
+      "sha256": "0e215e1e83401e827a89478ebf276fe070b7092e90deda6f550aedf3c8b56eb3"
+    },
+    {
+      "path": "docs/roadmap/IMPLEMENTATION-ROADMAP.md",
+      "bytes": 1380,
+      "sha256": "106f32bb2f01187fe8fb464d60f8c40f85cd1673bb7b582b3c25d391f0a21d49"
+    },
+    {
+      "path": "docs/sop/AGENT-OPERATIONS.md",
+      "bytes": 619,
+      "sha256": "c7ceffa026fe6dd3a57099e8aa32d83d8f4fec309b113d3162ee132913dcc4cb"
+    },
+    {
+      "path": "docs/sop/DEVELOPMENT.md",
+      "bytes": 586,
+      "sha256": "2db1d6398677082f6f66f5f1a9347b8ea81d8cddaf799506609ae15a40f9daf9"
+    },
+    {
+      "path": "docs/sop/ITERATION.md",
+      "bytes": 481,
+      "sha256": "b5d4835984e4b17057559101130ff36c39eb32ad532ffeb0603680997c10a82b"
+    },
+    {
+      "path": "docs/sop/QUALITY-GATES.md",
+      "bytes": 872,
+      "sha256": "fd6f731b5b9d37087ae5727c6c59f31f74270f9bf2f43c8c1305d703e88f954c"
+    },
+    {
+      "path": "docs/sop/RELEASE.md",
+      "bytes": 316,
+      "sha256": "b4777208fb2d1228e54f049be3d083c040c5dde36d8c513998553310fed445fa"
+    },
+    {
+      "path": "docs/templates/STORY-TEMPLATE.md",
+      "bytes": 250,
+      "sha256": "2ccc37773d7e4eb4bf9bcfe66440188d8f088f3081b0c9832625d99e73f527b7"
+    },
+    {
+      "path": "docs/templates/VALIDATION-REPORT-TEMPLATE.md",
+      "bytes": 200,
+      "sha256": "fd86c16b841ed21ffb62413f07abc91b37bf0f340281d694436e99c835396e01"
+    },
+    {
+      "path": "examples/minimal_project/Cargo.toml",
+      "bytes": 385,
+      "sha256": "964f7072ed35313b30798b23d8a2bc556daef5a3f1282604cf683a2d7326b9db"
+    },
+    {
+      "path": "examples/minimal_project/src/main.rs",
+      "bytes": 519,
+      "sha256": "ee3f4ec381e1475b4e6235094a0ab916b59cde6b8f9b5fd8e1f887f5294b030f"
+    },
+    {
+      "path": "examples/mock_agent_workflow/Cargo.toml",
+      "bytes": 793,
+      "sha256": "6ff3f1b28561e79946f73243c46b5fdb2399a0a65832e42077f2c79710966c5f"
+    },
+    {
+      "path": "examples/mock_agent_workflow/src/main.rs",
+      "bytes": 2542,
+      "sha256": "2e7e7d15455b211f7c669967ae9003ea3fbd7296ffef90daeb7a0d2f056ab4eb"
+    },
+    {
+      "path": "examples/tactical_demo/Cargo.toml",
+      "bytes": 735,
+      "sha256": "7738c6fa28843aa21f56cc2d8b8710df89962e45c883e0e7c3b1476ea84d4978"
+    },
+    {
+      "path": "examples/tactical_demo/src/main.rs",
+      "bytes": 2285,
+      "sha256": "d620315bb097bbe575865e0dc506b0bff2083333c9727be62632603293e046f3"
+    },
+    {
+      "path": "protocol_examples/create_stage.jsonl",
+      "bytes": 455,
+      "sha256": "b4bb1419fa4ebb3d8dfcc93a3b0eaf1a88b542f4a86a718764832cbfe1c84f3c"
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "bytes": 86,
+      "sha256": "3e18e70208ee460635e239a91c142cf67371feafb718b05617ff06f388bf96df"
+    },
+    {
+      "path": "sample_projects/agent_tactical_demo/README.md",
+      "bytes": 362,
+      "sha256": "b08af8232f11850f4d82733094de540826956b27b1f24b289c19a1f7b3b8ae13"
+    },
+    {
+      "path": "sample_projects/agent_tactical_demo/content/stages/demo.stage.json",
+      "bytes": 1069,
+      "sha256": "3f7a355a8be2fc4543d5ef6316ba4018e727639004485038849d3204b4a20278"
+    },
+    {
+      "path": "sample_projects/agent_tactical_demo/engine-project.json",
+      "bytes": 255,
+      "sha256": "ff223cdacbcab0d906000a99720c5ff69613d41f67cbef16229ebe9af82c9e05"
+    },
+    {
+      "path": "scripts/check_architecture.py",
+      "bytes": 1733,
+      "sha256": "f4e5c2fdc0ef304b3ddd3f36d43ccc8accb74353d05653dda2a1244f7913baca"
+    },
+    {
+      "path": "scripts/check_docs.py",
+      "bytes": 742,
+      "sha256": "f3e605b6ae33eac24aeba831216d3e8ba9d2e2e80d9cc7badd34784022b931b2"
+    },
+    {
+      "path": "scripts/first_run.sh",
+      "bytes": 664,
+      "sha256": "b7bf9a8d75c1ef9abc5f826ce77f858d57c4bdab472deecacd95c1c83213bafc"
+    },
+    {
+      "path": "scripts/static_rust_check.py",
+      "bytes": 3499,
+      "sha256": "ba81a36ec25948631e2a296d36ea9a7ba4ed4cdac90619de341ba81a7e0d9093"
+    },
+    {
+      "path": "scripts/validate_repository.py",
+      "bytes": 1104,
+      "sha256": "91e5f59c95bf4afccfd4c770b8729494fdf010e5f5ae033af156b94ad5b457fa"
+    },
+    {
+      "path": "toolkits/tactical_rpg/content/Cargo.toml",
+      "bytes": 336,
+      "sha256": "b8211f2b616d90c9b0d4bb9b76c8b425a4c5a8e06484b65d0606cee0d42bd465"
+    },
+    {
+      "path": "toolkits/tactical_rpg/content/src/lib.rs",
+      "bytes": 9854,
+      "sha256": "1f328a2acb1650ccee08a4456b5ea2461e52ae9053c9dfe42c88666fc99df9ac"
+    },
+    {
+      "path": "toolkits/tactical_rpg/runtime/Cargo.toml",
+      "bytes": 406,
+      "sha256": "2fff2fc7232ada69012a7afa1de268579e0a429fc0b030b361176eab94f3c420"
+    },
+    {
+      "path": "toolkits/tactical_rpg/runtime/src/lib.rs",
+      "bytes": 1676,
+      "sha256": "ca29b24ab4b9e736abfa6a53d09b8697520188bc134782f6318ffda299da5584"
+    },
+    {
+      "path": "toolkits/tactical_rpg/tools/Cargo.toml",
+      "bytes": 637,
+      "sha256": "be202892fb8a9c6e8b67ade2c7954b2155fcb6ca4150ac0fc7f6840ebdbfa4df"
+    },
+    {
+      "path": "toolkits/tactical_rpg/tools/src/lib.rs",
+      "bytes": 18281,
+      "sha256": "b3db751e7c5dc5d309280f2df5d29cb1833e2f3007d143272f26edc892aec473"
+    },
+    {
+      "path": "toolkits/tactical_rpg/validation/Cargo.toml",
+      "bytes": 389,
+      "sha256": "2fad7066d1d137e93fd6825a849b6d5efa2d098182063ef39b0d421ea9d1861b"
+    },
+    {
+      "path": "toolkits/tactical_rpg/validation/src/lib.rs",
+      "bytes": 4555,
+      "sha256": "f3300915330e3bce27ccb80ce63df6a9939d1ef464f1817ace32cbdaa75f53db"
+    }
+  ]
+}

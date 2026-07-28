@@ -1,0 +1,13 @@
+/target/
+/.idea/
+/.vscode/
+.DS_Store
+*.swp
+*.tmp
+*.log
+/build-cache/
+/artifacts/
+.agent-sessions/
+.env
+.env.*
+!/.env.example

@@ -1,0 +1,55 @@
+{
+  "header": {
+    "id": "stage.demo",
+    "type_id": "tactical.stage.document",
+    "schema_version": 1,
+    "display_name": "Agent Test Range"
+  },
+  "references": [],
+  "payload": {
+    "id": "stage.demo",
+    "name": "Agent Test Range",
+    "coordinate_space": {
+      "kind": "hex_axial",
+      "width": 8,
+      "height": 8
+    },
+    "layers": [
+      "gameplay"
+    ],
+    "objects": [
+      {
+        "id": "spawn.player",
+        "position": {
+          "q": 1,
+          "r": 1
+        },
+        "object": {
+          "kind": "spawn_point",
+          "profile": "player"
+        },
+        "properties": {}
+      },
+      {
+        "id": "trigger.exit",
+        "position": {
+          "q": 6,
+          "r": 6
+        },
+        "object": {
+          "kind": "trigger",
+          "activation": "on_interact",
+          "conditions": [],
+          "effects": [
+            {
+              "type": "emit_signal",
+              "signal": "demo.complete"
+            }
+          ]
+        },
+        "properties": {}
+      }
+    ],
+    "connections": []
+  }
+}

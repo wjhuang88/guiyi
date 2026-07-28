@@ -1,0 +1,19 @@
+[package]
+name = "tactical-rpg-tools"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+guiyi-engine-core = { path = "../../../crates/engine_core" }
+guiyi-engine-content = { path = "../../../crates/engine_content" }
+guiyi-engine-command = { path = "../../../crates/engine_command" }
+guiyi-engine-query = { path = "../../../crates/engine_query" }
+guiyi-engine-validation = { path = "../../../crates/engine_validation" }
+tactical-rpg-content = { path = "../content" }
+tactical-rpg-validation = { path = "../validation" }
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,23 @@
+[package]
+name = "guiyi-example-tactical-demo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "guiyi-example-tactical-demo"
+path = "src/main.rs"
+
+[dependencies]
+guiyi-engine-core = { path = "../../crates/engine_core" }
+guiyi-engine-content = { path = "../../crates/engine_content" }
+guiyi-engine-command = { path = "../../crates/engine_command" }
+guiyi-engine-build = { path = "../../crates/engine_build" }
+guiyi-engine-runtime = { path = "../../crates/engine_runtime" }
+tactical-rpg-content = { path = "../../toolkits/tactical_rpg/content" }
+tactical-rpg-tools = { path = "../../toolkits/tactical_rpg/tools" }
+bevy_ecs.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

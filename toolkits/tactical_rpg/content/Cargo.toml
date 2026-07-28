@@ -1,0 +1,14 @@
+[package]
+name = "tactical-rpg-content"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+guiyi-engine-core = { path = "../../../crates/engine_core" }
+guiyi-engine-content = { path = "../../../crates/engine_content" }
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

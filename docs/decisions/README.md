@@ -1,0 +1,16 @@
+# Architecture decision register
+
+- [ADR-0001 Project layers](ADR-0001-PROJECT-LAYERS.md)
+- [ADR-0002 Document, Artifact, Runtime](ADR-0002-DOCUMENT-ARTIFACT-RUNTIME.md)
+- [ADR-0003 Stable IDs](ADR-0003-STABLE-IDS.md)
+- [ADR-0004 Static extensions](ADR-0004-STATIC-EXTENSIONS.md)
+- [ADR-0005 External preview](ADR-0005-EXTERNAL-PREVIEW.md)
+- [ADR-0006 AI is a first-class client](ADR-0006-AI-FIRST-CLASS.md)
+- [ADR-0007 Typed commands](ADR-0007-TYPED-COMMANDS.md)
+- [ADR-0008 Transactions and dry-run](ADR-0008-TRANSACTIONS.md)
+- [ADR-0009 Agent loop decoupling](ADR-0009-AGENT-LOOP-DECOUPLING.md)
+- [ADR-0010 Machine-readable diagnostics](ADR-0010-DIAGNOSTICS.md)
+- [ADR-0011 Semantic project graph](ADR-0011-PROJECT-GRAPH.md)
+- [ADR-0012 Least privilege](ADR-0012-LEAST-PRIVILEGE.md)
+- [ADR-0013 Headless first](ADR-0013-HEADLESS-FIRST.md)
+- [ADR-0014 UI is a client](ADR-0014-UI-CLIENT.md)

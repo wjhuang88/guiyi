@@ -1,0 +1,16 @@
+[package]
+name = "guiyi-engine-query"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+guiyi-engine-core = { path = "../engine_core" }
+guiyi-engine-content = { path = "../engine_content" }
+guiyi-engine-validation = { path = "../engine_validation" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

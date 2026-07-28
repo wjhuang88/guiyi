@@ -1,0 +1,17 @@
+[package]
+name = "guiyi-example-minimal-project"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "guiyi-example-minimal-project"
+path = "src/main.rs"
+
+[dependencies]
+guiyi-engine-core = { path = "../../crates/engine_core" }
+guiyi-engine-content = { path = "../../crates/engine_content" }
+serde_json.workspace = true
+
+[lints]
+workspace = true

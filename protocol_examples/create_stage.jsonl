@@ -1,0 +1,4 @@
+{"id":"1","tool":"stage.create","input":{"id":"stage.ai","name":"AI Stage","width":8,"height":8},"dry_run":true}
+{"id":"2","tool":"stage.create","input":{"id":"stage.ai","name":"AI Stage","width":8,"height":8},"dry_run":false}
+{"id":"3","tool":"stage.create_spawn","input":{"stage_id":"stage.ai","object_id":"spawn.player","profile":"player","q":1,"r":1},"dry_run":false}
+{"id":"4","tool":"stage.validate","input":{"stage_id":"stage.ai"},"dry_run":false}

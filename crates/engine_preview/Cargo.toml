@@ -1,0 +1,19 @@
+[package]
+name = "guiyi-engine-preview"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "guiyi-engine-preview"
+path = "src/main.rs"
+
+[dependencies]
+guiyi-engine-content = { path = "../engine_content" }
+guiyi-engine-runtime = { path = "../engine_runtime" }
+bevy_ecs.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

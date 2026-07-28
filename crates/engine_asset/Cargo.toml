@@ -1,0 +1,13 @@
+[package]
+name = "guiyi-engine-asset"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+guiyi-engine-core = { path = "../engine_core" }
+guiyi-engine-validation = { path = "../engine_validation" }
+serde.workspace = true
+
+[lints]
+workspace = true

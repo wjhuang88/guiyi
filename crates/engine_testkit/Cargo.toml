@@ -1,0 +1,15 @@
+[package]
+name = "guiyi-engine-testkit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+guiyi-engine-core = { path = "../engine_core" }
+guiyi-engine-content = { path = "../engine_content" }
+guiyi-engine-command = { path = "../engine_command" }
+guiyi-engine-query = { path = "../engine_query" }
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,22 @@
+name: Engine Story
+about: Propose a validated implementation Story
+labels: [story]
+body:
+  - type: input
+    id: goal
+    attributes:
+      label: Goal
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+    validations:
+      required: true
+  - type: textarea
+    id: gates
+    attributes:
+      label: Validation gates
+    validations:
+      required: true

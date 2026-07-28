@@ -1,0 +1,23 @@
+[package]
+name = "guiyi-example-mock-agent-workflow"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "guiyi-example-mock-agent-workflow"
+path = "src/main.rs"
+
+[dependencies]
+guiyi-engine-core = { path = "../../crates/engine_core" }
+guiyi-engine-content = { path = "../../crates/engine_content" }
+guiyi-engine-command = { path = "../../crates/engine_command" }
+guiyi-engine-query = { path = "../../crates/engine_query" }
+guiyi-engine-agent-tools = { path = "../../crates/engine_agent_tools" }
+guiyi-engine-agent-host = { path = "../../crates/engine_agent_host" }
+guiyi-engine-protocol = { path = "../../crates/engine_protocol" }
+tactical-rpg-tools = { path = "../../toolkits/tactical_rpg/tools" }
+serde_json.workspace = true
+
+[lints]
+workspace = true

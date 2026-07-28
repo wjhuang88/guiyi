@@ -1,0 +1,17 @@
+[package]
+name = "guiyi-engine-authoring"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+guiyi-engine-command = { path = "../engine_command" }
+guiyi-engine-content = { path = "../engine_content" }
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+guiyi-engine-core = { path = "../engine_core" }

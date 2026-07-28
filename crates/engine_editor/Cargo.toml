@@ -1,0 +1,24 @@
+[package]
+name = "guiyi-engine-editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "guiyi-engine-workbench"
+path = "src/main.rs"
+
+[dependencies]
+guiyi-engine-core = { path = "../engine_core" }
+guiyi-engine-content = { path = "../engine_content" }
+guiyi-engine-command = { path = "../engine_command" }
+guiyi-engine-query = { path = "../engine_query" }
+guiyi-engine-agent-tools = { path = "../engine_agent_tools" }
+guiyi-engine-agent-host = { path = "../engine_agent_host" }
+guiyi-engine-protocol = { path = "../engine_protocol" }
+tactical-rpg-tools = { path = "../../toolkits/tactical_rpg/tools" }
+clap.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true
