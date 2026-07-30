@@ -4,7 +4,7 @@
 
 use guiyi_engine_content::{ContentError, DocumentEnvelope, DocumentHeader, DocumentStore};
 use guiyi_engine_core::{
-    DocumentId, EngineTypeId, Permission, PermissionSet, ToolId, TransactionId,
+    DocumentAccessPlan, DocumentId, EngineTypeId, Permission, PermissionSet, ToolId, TransactionId,
 };
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
 use serde::{Deserialize, Serialize};
@@ -44,6 +44,14 @@ pub struct CommandContext {
 
 pub trait CommandHandler: Send + Sync {
     fn descriptor(&self) -> CommandDescriptor;
+
+    /// Declares the documents that must be present in an agent working set.
+    ///
+    /// The conservative default is a project scan, which restricted sessions
+    /// reject for mutations until the handler declares a bounded access plan.
+    fn document_access(&self, _input: &Value) -> Result<DocumentAccessPlan, CommandError> {
+        Ok(DocumentAccessPlan::project())
+    }
 
     fn validate(&self, _input: &Value, _state: &EngineState) -> DiagnosticBag {
         DiagnosticBag::default()
@@ -137,11 +145,32 @@ impl CommandExecutor {
         &self.audit
     }
 
+    pub fn document_access(
+        &self,
+        request: &CommandRequest,
+    ) -> Result<DocumentAccessPlan, CommandError> {
+        self.registry
+            .handler(&request.command)?
+            .document_access(&request.input)
+    }
+
     pub fn execute(
         &mut self,
         request: CommandRequest,
         context: &CommandContext,
         state: &mut EngineState,
+    ) -> Result<TransactionReport, CommandError> {
+        self.execute_scoped(request, context, state, None)
+    }
+
+    /// Executes a command and verifies its actual transaction diff against the
+    /// allowed document set before committing any state.
+    pub fn execute_scoped(
+        &mut self,
+        request: CommandRequest,
+        context: &CommandContext,
+        state: &mut EngineState,
+        allowed_documents: Option<&BTreeSet<DocumentId>>,
     ) -> Result<TransactionReport, CommandError> {
         let handler = self.registry.handler(&request.command)?;
         let descriptor = handler.descriptor();
@@ -164,6 +193,16 @@ impl CommandExecutor {
         let mut working = state.clone();
         let output = handler.apply(&request.input, &mut working)?;
         let diffs = diff_stores(&before.documents, &working.documents)?;
+        if let Some(allowed) = allowed_documents {
+            let denied = diffs
+                .iter()
+                .filter(|diff| !allowed.contains(&diff.document_id))
+                .map(|diff| diff.document_id.clone())
+                .collect::<Vec<_>>();
+            if !denied.is_empty() {
+                return Err(CommandError::WorkingSetDenied(denied));
+            }
+        }
         let status = if request.dry_run {
             TransactionStatus::Previewed
         } else {
@@ -232,6 +271,8 @@ pub enum CommandError {
     CommandNotFound(ToolId),
     #[error("permission denied for command: {0}")]
     PermissionDenied(ToolId),
+    #[error("command modified documents outside the working set: {0:?}")]
+    WorkingSetDenied(Vec<DocumentId>),
     #[error("invalid command input: {0}")]
     InvalidInput(String),
     #[error("command validation failed")]
@@ -281,6 +322,11 @@ impl CommandHandler for CreateDocumentCommand {
             side_effects: vec!["creates_document".into()],
             related_tools: vec![ToolId::from_static("project.document.get")],
         }
+    }
+
+    fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
+        let input: CreateDocumentInput = serde_json::from_value(input.clone())?;
+        Ok(DocumentAccessPlan::document(input.id))
     }
 
     fn validate(&self, input: &Value, state: &EngineState) -> DiagnosticBag {
@@ -344,6 +390,11 @@ impl CommandHandler for DeleteDocumentCommand {
         }
     }
 
+    fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
+        let input: DeleteDocumentInput = serde_json::from_value(input.clone())?;
+        Ok(DocumentAccessPlan::document(input.document_id))
+    }
+
     fn apply(&self, input: &Value, state: &mut EngineState) -> Result<Value, CommandError> {
         let input: DeleteDocumentInput = serde_json::from_value(input.clone())?;
         state.documents.remove(&input.document_id)?;
@@ -380,6 +431,11 @@ impl CommandHandler for SetDocumentFieldCommand {
             side_effects: vec!["modifies_document".into()],
             related_tools: vec![ToolId::from_static("project.document.get")],
         }
+    }
+
+    fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
+        let input: SetFieldInput = serde_json::from_value(input.clone())?;
+        Ok(DocumentAccessPlan::document(input.document_id))
     }
 
     fn apply(&self, input: &Value, state: &mut EngineState) -> Result<Value, CommandError> {
@@ -430,6 +486,31 @@ mod tests {
         CommandExecutor::new(registry)
     }
 
+    fn context() -> CommandContext {
+        CommandContext {
+            actor: "test-agent".into(),
+            permissions: PermissionSet::content_author(),
+        }
+    }
+
+    fn create_document(executor: &mut CommandExecutor, state: &mut EngineState, id: &str) {
+        executor
+            .execute(
+                CommandRequest {
+                    command: ToolId::from_static("document.create"),
+                    input: json!({
+                        "id": id,
+                        "type_id": "example.document",
+                        "display_name": id
+                    }),
+                    dry_run: false,
+                },
+                &context(),
+                state,
+            )
+            .unwrap();
+    }
+
     #[test]
     fn dry_run_does_not_mutate_state() {
         let mut executor = executor();
@@ -445,10 +526,7 @@ mod tests {
                     }),
                     dry_run: true,
                 },
-                &CommandContext {
-                    actor: "test-agent".into(),
-                    permissions: PermissionSet::content_author(),
-                },
+                &context(),
                 &mut state,
             )
             .unwrap();
@@ -460,25 +538,7 @@ mod tests {
     fn failed_commands_are_atomic() {
         let mut executor = executor();
         let mut state = EngineState::default();
-        let context = CommandContext {
-            actor: "test-agent".into(),
-            permissions: PermissionSet::content_author(),
-        };
-        executor
-            .execute(
-                CommandRequest {
-                    command: ToolId::from_static("document.create"),
-                    input: json!({
-                        "id": "doc.one",
-                        "type_id": "example.document",
-                        "display_name": "One"
-                    }),
-                    dry_run: false,
-                },
-                &context,
-                &mut state,
-            )
-            .unwrap();
+        create_document(&mut executor, &mut state, "doc.one");
         let before = state.clone();
         let result = executor.execute(
             CommandRequest {
@@ -486,10 +546,69 @@ mod tests {
                 input: json!({"document_id": "doc.one", "path": [], "value": 3}),
                 dry_run: false,
             },
-            &context,
+            &context(),
             &mut state,
         );
         assert!(result.is_err());
+        assert_eq!(state, before);
+    }
+
+    #[test]
+    fn scoped_execution_rejects_actual_cross_document_effects_atomically() {
+        struct CrossDocumentCommand;
+
+        impl CommandHandler for CrossDocumentCommand {
+            fn descriptor(&self) -> CommandDescriptor {
+                CommandDescriptor {
+                    id: ToolId::from_static("test.cross_document"),
+                    title: "Cross document".into(),
+                    description: "Test command".into(),
+                    input_schema: json!({"type": "object"}),
+                    output_schema: json!({"type": "object"}),
+                    required_permissions: PermissionSet::new([Permission::EditContent]),
+                    side_effects: vec!["modifies_document".into()],
+                    related_tools: Vec::new(),
+                }
+            }
+
+            fn document_access(
+                &self,
+                _input: &Value,
+            ) -> Result<DocumentAccessPlan, CommandError> {
+                Ok(DocumentAccessPlan::document(DocumentId::from_static("doc.a")))
+            }
+
+            fn apply(
+                &self,
+                _input: &Value,
+                state: &mut EngineState,
+            ) -> Result<Value, CommandError> {
+                state.documents.get_mut(&DocumentId::from_static("doc.b"))?.payload =
+                    json!({"changed": true});
+                Ok(json!({}))
+            }
+        }
+
+        let mut registry = CommandRegistry::default();
+        register_builtin_document_commands(&mut registry).unwrap();
+        registry.register(CrossDocumentCommand).unwrap();
+        let mut executor = CommandExecutor::new(registry);
+        let mut state = EngineState::default();
+        create_document(&mut executor, &mut state, "doc.a");
+        create_document(&mut executor, &mut state, "doc.b");
+        let before = state.clone();
+        let allowed = BTreeSet::from([DocumentId::from_static("doc.a")]);
+        let result = executor.execute_scoped(
+            CommandRequest {
+                command: ToolId::from_static("test.cross_document"),
+                input: json!({}),
+                dry_run: false,
+            },
+            &context(),
+            &mut state,
+            Some(&allowed),
+        );
+        assert!(matches!(result, Err(CommandError::WorkingSetDenied(_))));
         assert_eq!(state, before);
     }
 }
