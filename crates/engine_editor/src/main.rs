@@ -7,9 +7,10 @@ use guiyi_engine_command::{
     register_builtin_document_commands, CommandExecutor, CommandRegistry, EngineState,
 };
 use guiyi_engine_content::{
-    DocumentEnvelope, DocumentStore, ProjectFilesystem, ProjectManifest, ProjectPath,
+    DocumentEnvelope, DocumentStore, ProjectManifest, ProjectPath, ProjectStorage,
+    ProjectTransaction,
 };
-use guiyi_engine_core::{AgentSessionId, DocumentId, PermissionSet};
+use guiyi_engine_core::{AgentSessionId, DocumentId, PermissionSet, TransactionId};
 use guiyi_engine_protocol::{encode_line, ToolCall, ToolResult, ToolResultStatus};
 use guiyi_engine_query::{register_builtin_queries, QueryExecutor, QueryRegistry};
 use serde_json::json;
@@ -96,7 +97,14 @@ fn run(args: Args) -> Result<(), String> {
         let result = execute_line(&mut host, &mut session, &line);
         if !args.read_only && result.status == ToolResultStatus::Ok && result.transaction.is_some()
         {
-            persist_project(&storage, &mut manifest, &mut paths, &host.state.documents)?;
+            persist_project(
+                &storage,
+                &mut manifest,
+                &mut paths,
+                &host.state.documents,
+                &session,
+                &result,
+            )?;
         }
         writeln!(
             stdout,
@@ -142,20 +150,20 @@ fn protocol_error(call_id: &str, code: &str, message: String) -> ToolResult {
     }
 }
 
-type DocumentPaths = BTreeMap<guiyi_engine_core::DocumentId, ProjectPath>;
+type DocumentPaths = BTreeMap<DocumentId, ProjectPath>;
 
 fn load_project(
     root: &Path,
 ) -> Result<
     (
-        ProjectFilesystem,
+        ProjectStorage,
         ProjectManifest,
         DocumentStore,
         DocumentPaths,
     ),
     String,
 > {
-    let storage = ProjectFilesystem::open(root).map_err(|error| error.to_string())?;
+    let storage = ProjectStorage::open(root).map_err(|error| error.to_string())?;
     let manifest: ProjectManifest = storage
         .load_json(&logical("engine-project.json")?)
         .map_err(|error| error.to_string())?;
@@ -172,48 +180,66 @@ fn load_project(
 }
 
 fn persist_project(
-    storage: &ProjectFilesystem,
+    storage: &ProjectStorage,
     manifest: &mut ProjectManifest,
     paths: &mut DocumentPaths,
     store: &DocumentStore,
+    session: &AgentSession,
+    result: &ToolResult,
 ) -> Result<(), String> {
-    let stale = paths
+    let report = result
+        .transaction
+        .clone()
+        .ok_or_else(|| "successful mutation has no transaction report".to_string())?;
+    let transaction_id = report
+        .get("transaction_id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "transaction report has no transaction_id".to_string())?;
+    let transaction_id = TransactionId::new(transaction_id).map_err(|error| error.to_string())?;
+    let mut transaction = ProjectTransaction::new(
+        transaction_id,
+        session.id.clone(),
+        session.id.to_string(),
+        report,
+    );
+    let mut next_manifest = manifest.clone();
+    let mut next_paths = paths.clone();
+
+    let stale = next_paths
         .keys()
         .filter(|id| store.get(id).is_err())
         .cloned()
         .collect::<Vec<_>>();
     for id in stale {
-        if let Some(relative) = paths.remove(&id) {
-            if storage
-                .exists(&relative)
-                .map_err(|error| error.to_string())?
-            {
-                storage
-                    .remove_file(&relative)
-                    .map_err(|error| error.to_string())?;
-            }
+        if let Some(relative) = next_paths.remove(&id) {
+            transaction.delete(relative);
         }
     }
     for (id, document) in store.iter() {
-        let relative = if let Some(existing) = paths.get(id) {
+        let relative = if let Some(existing) = next_paths.get(id) {
             existing.clone()
         } else {
             let path = ProjectPath::new(format!("content/generated/{}.json", id.as_str()))
                 .map_err(|error| error.to_string())?;
-            manifest.documents.push(path.clone());
-            paths.insert(id.clone(), path.clone());
+            next_manifest.documents.push(path.clone());
+            next_paths.insert(id.clone(), path.clone());
             path
         };
-        storage
-            .save_json(&relative, document)
+        transaction
+            .write_json(relative, document)
             .map_err(|error| error.to_string())?;
     }
-    manifest
+    next_manifest
         .documents
-        .retain(|path| paths.values().any(|known| known == path));
-    storage
-        .save_json(&logical("engine-project.json")?, manifest)
+        .retain(|path| next_paths.values().any(|known| known == path));
+    transaction
+        .write_manifest_json(logical("engine-project.json")?, &next_manifest)
         .map_err(|error| error.to_string())?;
+    storage
+        .commit(transaction)
+        .map_err(|error| error.to_string())?;
+    *manifest = next_manifest;
+    *paths = next_paths;
     Ok(())
 }
 
