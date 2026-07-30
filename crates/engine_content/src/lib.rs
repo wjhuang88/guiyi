@@ -64,7 +64,10 @@ impl ProjectPath {
             ));
         }
         if value.starts_with('/') || Path::new(&value).is_absolute() {
-            return Err(ProjectPathError::invalid(value, "absolute paths are not allowed"));
+            return Err(ProjectPathError::invalid(
+                value,
+                "absolute paths are not allowed",
+            ));
         }
         let bytes = value.as_bytes();
         if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
@@ -248,7 +251,11 @@ impl ProjectFilesystem {
         Ok(serde_json::from_slice(&self.read(logical)?)?)
     }
 
-    pub fn write(&self, logical: &ProjectPath, bytes: impl AsRef<[u8]>) -> Result<(), ContentError> {
+    pub fn write(
+        &self,
+        logical: &ProjectPath,
+        bytes: impl AsRef<[u8]>,
+    ) -> Result<(), ContentError> {
         let path = self.resolve_for_write(logical)?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
@@ -575,7 +582,10 @@ mod tests {
         let first = ProjectPath::new("content/first.json").unwrap();
         let second = ProjectPath::new("content/second.json").unwrap();
         storage.save_json(&first, &json!({"ok": true})).unwrap();
-        assert_eq!(storage.load_json::<Value>(&first).unwrap(), json!({"ok": true}));
+        assert_eq!(
+            storage.load_json::<Value>(&first).unwrap(),
+            json!({"ok": true})
+        );
         storage.rename(&first, &second).unwrap();
         assert!(!storage.exists(&first).unwrap());
         assert!(storage.exists(&second).unwrap());

@@ -164,11 +164,7 @@ fn doctor(root: &Path, as_json: bool) -> Result<(), String> {
         &logical("engine-project.json")?,
         "project_manifest",
     ));
-    checks.push(check(
-        &storage,
-        &logical("content")?,
-        "content_directory",
-    ));
+    checks.push(check(&storage, &logical("content")?, "content_directory"));
     checks.push(check(
         &storage,
         &logical("artifacts")?,

@@ -89,12 +89,7 @@ fn run(args: Args) -> Result<(), String> {
         };
         if !args.read_only && result.status == ToolResultStatus::Ok && result.transaction.is_some()
         {
-            persist_project(
-                &storage,
-                &mut manifest,
-                &mut paths,
-                &host.state.documents,
-            )?;
+            persist_project(&storage, &mut manifest, &mut paths, &host.state.documents)?;
         }
         writeln!(
             stdout,
