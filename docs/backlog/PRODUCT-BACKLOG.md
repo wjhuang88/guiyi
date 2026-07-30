@@ -108,16 +108,15 @@ authorization.
 - Gate: library, CLI, and examples share strict build semantics; failed builds report every skipped document and produce no partial artifacts.
 - Evidence: `docs/validation/ENG-016.md`; CI run `30561168272` (run number 112) passed on 2026-07-30.
 
-## Ready — Immediate safety
-
 ### ENG-017 Validate artifact integrity before runtime load
 
 - Type: Runtime
 - Priority: P0
-- Status: Ready
-- GitHub: [#13](https://github.com/wjhuang88/guiyi/issues/13) — Open
+- Status: Done
+- GitHub: [#13](https://github.com/wjhuang88/guiyi/issues/13) — completed by PR #28
 - Goal: reject incompatible, corrupted, or semantically invalid artifacts before spawning ECS entities.
 - Gate: type, version, checksum/integrity, duplicate ID, and object validation failures are atomic and structured; valid artifacts retain the repeated load/unload guarantee.
+- Evidence: `docs/validation/ENG-017.md`; CI run `30562016077` (run number 118) passed on 2026-07-30.
 
 ## Ready — Iteration 002
 
