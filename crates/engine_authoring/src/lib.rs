@@ -1,12 +1,14 @@
 #![forbid(unsafe_code)]
 
-//! Authoring project state with command-driven undo, redo, and sandboxed autosave.
+//! Authoring project state with command-driven undo, redo, and crash-safe autosave.
 
 use guiyi_engine_command::{
     CommandContext, CommandError, CommandExecutor, CommandRequest, EngineState, TransactionReport,
     TransactionStatus,
 };
-use guiyi_engine_content::{ContentError, ProjectFilesystem, ProjectPath};
+use guiyi_engine_content::{ContentError, ProjectPath, ProjectStorage, ProjectTransaction};
+use guiyi_engine_core::AgentSessionId;
+use serde_json::json;
 use thiserror::Error;
 
 #[derive(Debug, Default)]
@@ -54,12 +56,23 @@ impl AuthoringProject {
 
     pub fn autosave(
         &self,
-        storage: &ProjectFilesystem,
+        storage: &ProjectStorage,
         directory: &ProjectPath,
     ) -> Result<(), AuthoringError> {
-        storage.create_dir_all(directory)?;
+        let mut transaction = ProjectTransaction::generated(
+            "autosave",
+            AgentSessionId::from_static("session.authoring-autosave"),
+            "authoring.autosave",
+            json!({
+                "kind": "autosave",
+                "documents": self.state.documents.len()
+            }),
+        )?;
         for (id, document) in self.state.documents.iter() {
-            storage.save_json(&directory.join(format!("{}.json", id.as_str()))?, document)?;
+            transaction.write_json(directory.join(format!("{}.json", id.as_str()))?, document)?;
+        }
+        if !transaction.is_empty() {
+            storage.commit(transaction)?;
         }
         Ok(())
     }
@@ -80,7 +93,6 @@ mod tests {
     use super::*;
     use guiyi_engine_command::{register_builtin_document_commands, CommandRegistry};
     use guiyi_engine_core::{PermissionSet, ToolId};
-    use serde_json::json;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -115,7 +127,7 @@ mod tests {
     }
 
     #[test]
-    fn autosave_uses_project_storage_boundary() {
+    fn autosave_uses_crash_safe_project_transaction() {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -124,7 +136,7 @@ mod tests {
             "guiyi-authoring-autosave-{}-{nonce}",
             std::process::id()
         ));
-        let storage = ProjectFilesystem::create(&root).unwrap();
+        let storage = ProjectStorage::create(&root).unwrap();
         let mut registry = CommandRegistry::default();
         register_builtin_document_commands(&mut registry).unwrap();
         let mut executor = CommandExecutor::new(registry);
@@ -152,6 +164,9 @@ mod tests {
         assert!(storage
             .exists(&ProjectPath::new(".agent-sessions/autosave/doc.autosave.json").unwrap())
             .unwrap());
+        let audit = storage.audit_records().unwrap();
+        assert_eq!(audit.len(), 1);
+        assert_eq!(audit[0].session_id.as_str(), "session.authoring-autosave");
         std::fs::remove_dir_all(root).unwrap();
     }
 }
