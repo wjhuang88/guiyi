@@ -21,154 +21,105 @@ jobs:
           from pathlib import Path
 
           host = Path("crates/engine_agent_host/src/lib.rs")
-          text = host.read_text()
-          old = '''        session.actions_used += 1;
-        let result = self.dispatch(session, &call);
-        if result.status == ToolResultStatus::Failed {
-            session.status = SessionStatus::Failed;
-            session.final_summary = Some(error_message(&result));
-        }
-        record_action(session, call, result.clone());
-        result
-'''
-          new = '''        session.actions_used += 1;
-        let result = self.dispatch(session, &call);
-        record_action(session, call, result.clone());
-        result
-'''
-          if text.count(old) != 1:
-              raise SystemExit("agent execute status block not found")
-          text = text.replace(old, new, 1)
+          lines = host.read_text().splitlines(keepends=True)
 
-          old = '''                return failed(
-                    call,
-                    AGENT_TOOL_NOT_FOUND,
-                    format!("tool not found: {}", call.tool),
-                    json!({"tool": call.tool}),
-                )
-'''
-          new = '''                return rejected(
-                    call,
-                    AGENT_TOOL_NOT_FOUND,
-                    format!("tool not found: {}", call.tool),
-                    json!({"tool": call.tool}),
-                )
-'''
-          if text.count(old) != 1:
-              raise SystemExit("unknown-tool block not found")
-          text = text.replace(old, new, 1)
+          start = next(i for i, line in enumerate(lines) if "session.actions_used += 1;" in line)
+          if "let result = self.dispatch" not in lines[start + 1]:
+              raise SystemExit("unexpected execute block")
+          if "if result.status == ToolResultStatus::Failed" not in lines[start + 2]:
+              raise SystemExit("execute failure transition not found")
+          del lines[start + 2 : start + 6]
 
-          start = text.index("fn error_message(result: &ToolResult) -> String {")
-          end = text.index("fn rejected(", start)
-          text = text[:start] + text[end:]
+          code_line = next(i for i, line in enumerate(lines) if "AGENT_TOOL_NOT_FOUND," in line)
+          return_line = code_line - 2
+          if "return failed(" not in lines[return_line]:
+              raise SystemExit("unknown-tool result constructor not found")
+          lines[return_line] = lines[return_line].replace("return failed(", "return rejected(")
 
-          old = '''    #[test]
-    fn failed_calls_are_recorded_and_fail_the_session() {
-        let mut host = host();
-        let mut session = session(PermissionSet::read_only());
-        let result = host.execute(
-            &mut session,
-            ToolCall {
-                id: "call-missing".into(),
-                tool: ToolId::from_static("missing.tool"),
-                input: json!({}),
-                dry_run: false,
-            },
-        );
-        assert_eq!(result.status, ToolResultStatus::Failed);
-        assert_eq!(error_code(&result), Some(AGENT_TOOL_NOT_FOUND));
-        assert_eq!(session.actions.len(), 1);
-        assert_eq!(session.status, SessionStatus::Failed);
-    }
-'''
-          new = '''    #[test]
-    fn unknown_tools_are_rejected_recorded_and_do_not_stop_the_session() {
-        let mut host = host();
-        let mut session = session(PermissionSet::read_only());
-        let result = host.execute(
-            &mut session,
-            ToolCall {
-                id: "call-missing".into(),
-                tool: ToolId::from_static("missing.tool"),
-                input: json!({}),
-                dry_run: false,
-            },
-        );
-        assert_eq!(result.status, ToolResultStatus::Rejected);
-        assert_eq!(error_code(&result), Some(AGENT_TOOL_NOT_FOUND));
-        assert_eq!(session.actions.len(), 1);
-        assert_eq!(session.status, SessionStatus::Running);
-        let following = host.execute(&mut session, list_call("call-after"));
-        assert_eq!(following.status, ToolResultStatus::Ok);
-        assert_eq!(session.actions.len(), 2);
-    }
-'''
-          if text.count(old) != 1:
-              raise SystemExit("unknown-tool test block not found")
-          text = text.replace(old, new, 1)
-          host.write_text(text)
+          error_start = next(i for i, line in enumerate(lines) if line.startswith("fn error_message("))
+          rejected_start = next(
+              i for i in range(error_start + 1, len(lines)) if lines[i].startswith("fn rejected(")
+          )
+          del lines[error_start:rejected_start]
+
+          test_start = next(
+              i for i, line in enumerate(lines) if "fn failed_calls_are_recorded_and_fail_the_session" in line
+          ) - 1
+          test_end = next(
+              i for i in range(test_start + 2, len(lines)) if lines[i].strip() == "#[test]"
+          )
+          replacement = [
+              "    #[test]\n",
+              "    fn unknown_tools_are_rejected_recorded_and_do_not_stop_the_session() {\n",
+              "        let mut host = host();\n",
+              "        let mut session = session(PermissionSet::read_only());\n",
+              "        let result = host.execute(\n",
+              "            &mut session,\n",
+              "            ToolCall {\n",
+              "                id: \"call-missing\".into(),\n",
+              "                tool: ToolId::from_static(\"missing.tool\"),\n",
+              "                input: json!({}),\n",
+              "                dry_run: false,\n",
+              "            },\n",
+              "        );\n",
+              "        assert_eq!(result.status, ToolResultStatus::Rejected);\n",
+              "        assert_eq!(error_code(&result), Some(AGENT_TOOL_NOT_FOUND));\n",
+              "        assert_eq!(session.actions.len(), 1);\n",
+              "        assert_eq!(session.status, SessionStatus::Running);\n",
+              "        let following = host.execute(&mut session, list_call(\"call-after\"));\n",
+              "        assert_eq!(following.status, ToolResultStatus::Ok);\n",
+              "        assert_eq!(session.actions.len(), 2);\n",
+              "    }\n",
+              "\n",
+          ]
+          lines[test_start:test_end] = replacement
+          host.write_text("".join(lines))
 
           editor = Path("crates/engine_editor/src/main.rs")
-          text = editor.read_text()
-          text = text.replace(
-              "use guiyi_engine_protocol::{decode_line, encode_line, ToolCall, ToolResult, ToolResultStatus};",
-              "use guiyi_engine_protocol::{encode_line, ToolCall, ToolResult, ToolResultStatus};",
-              1,
+          lines = editor.read_text().splitlines(keepends=True)
+          import_index = next(i for i, line in enumerate(lines) if "guiyi_engine_protocol" in line)
+          lines[import_index] = lines[import_index].replace("decode_line, ", "")
+          execute_start = next(i for i, line in enumerate(lines) if line.startswith("fn execute_line("))
+          execute_end = next(
+              i for i in range(execute_start + 1, len(lines)) if lines[i].startswith("type DocumentPaths")
           )
-          old = '''fn execute_line(host: &mut AgentHost, session: &mut AgentSession, line: &str) -> ToolResult {
-    match decode_line::<ToolCall>(line) {
-        Ok(call) => host.execute(session, call),
-        Err(error) => ToolResult {
-            call_id: "invalid".into(),
-            status: ToolResultStatus::Failed,
-            output: json!({
-                "error": {
-                    "code": "PROTOCOL_INVALID_JSONL",
-                    "message": error.to_string()
-                }
-            }),
-            diagnostics: Vec::new(),
-            transaction: None,
-        },
-    }
-}
-'''
-          new = '''fn execute_line(host: &mut AgentHost, session: &mut AgentSession, line: &str) -> ToolResult {
-    let value = match serde_json::from_str::<serde_json::Value>(line) {
-        Ok(value) => value,
-        Err(error) => {
-            return protocol_error("invalid", "PROTOCOL_INVALID_JSONL", error.to_string())
-        }
-    };
-    let call_id = value
-        .get("id")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or("invalid")
-        .to_string();
-    match serde_json::from_value::<ToolCall>(value) {
-        Ok(call) => host.execute(session, call),
-        Err(error) => protocol_error(&call_id, "PROTOCOL_INVALID_CALL", error.to_string()),
-    }
-}
-
-fn protocol_error(call_id: &str, code: &str, message: String) -> ToolResult {
-    ToolResult {
-        call_id: call_id.into(),
-        status: ToolResultStatus::Rejected,
-        output: json!({
-            "error": {
-                "code": code,
-                "message": message
-            }
-        }),
-        diagnostics: Vec::new(),
-        transaction: None,
-    }
-}
-'''
-          if text.count(old) != 1:
-              raise SystemExit("Workbench execute_line block not found")
-          editor.write_text(text.replace(old, new, 1))
+          replacement = [
+              "fn execute_line(host: &mut AgentHost, session: &mut AgentSession, line: &str) -> ToolResult {\n",
+              "    let value = match serde_json::from_str::<serde_json::Value>(line) {\n",
+              "        Ok(value) => value,\n",
+              "        Err(error) => {\n",
+              "            return protocol_error(\"invalid\", \"PROTOCOL_INVALID_JSONL\", error.to_string())\n",
+              "        }\n",
+              "    };\n",
+              "    let call_id = value\n",
+              "        .get(\"id\")\n",
+              "        .and_then(serde_json::Value::as_str)\n",
+              "        .unwrap_or(\"invalid\")\n",
+              "        .to_string();\n",
+              "    match serde_json::from_value::<ToolCall>(value) {\n",
+              "        Ok(call) => host.execute(session, call),\n",
+              "        Err(error) => protocol_error(&call_id, \"PROTOCOL_INVALID_CALL\", error.to_string()),\n",
+              "    }\n",
+              "}\n",
+              "\n",
+              "fn protocol_error(call_id: &str, code: &str, message: String) -> ToolResult {\n",
+              "    ToolResult {\n",
+              "        call_id: call_id.into(),\n",
+              "        status: ToolResultStatus::Rejected,\n",
+              "        output: json!({\n",
+              "            \"error\": {\n",
+              "                \"code\": code,\n",
+              "                \"message\": message\n",
+              "            }\n",
+              "        }),\n",
+              "        diagnostics: Vec::new(),\n",
+              "        transaction: None,\n",
+              "    }\n",
+              "}\n",
+              "\n",
+          ]
+          lines[execute_start:execute_end] = replacement
+          editor.write_text("".join(lines))
           PY
       - uses: dtolnay/rust-toolchain@stable
         with:
