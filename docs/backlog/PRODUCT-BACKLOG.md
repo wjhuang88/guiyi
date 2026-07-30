@@ -88,16 +88,17 @@ authorization.
 - Gate: failure-injection tests prove atomic multi-file commits, idempotent recovery, durable audit history, and preservation of the last known-good project state.
 - Evidence: `docs/validation/ENG-011.md`; CI run `30559656903` (run number 98) passed on 2026-07-30.
 
-## Ready — Immediate safety
-
 ### ENG-015 Reject command/query Tool ID collisions
 
 - Type: Protocol
 - Priority: P0
-- Status: Ready
-- GitHub: [#11](https://github.com/wjhuang88/guiyi/issues/11) — Open
+- Status: Done
+- GitHub: [#11](https://github.com/wjhuang88/guiyi/issues/11) — completed by PR #26
 - Goal: guarantee that every discoverable Tool ID maps to exactly one executable capability across command and query registries.
 - Gate: duplicate IDs within or across registries fail catalog construction with a stable structured error, while unique catalogs remain deterministic.
+- Evidence: `docs/validation/ENG-015.md`; CI run `30560400169` (run number 105) passed on 2026-07-30.
+
+## Ready — Immediate safety
 
 ### ENG-016 Make BuildPipeline strict about validation and compiler coverage
 

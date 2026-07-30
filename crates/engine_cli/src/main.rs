@@ -212,7 +212,8 @@ fn check(storage: &ProjectStorage, path: &ProjectPath, name: &str) -> Value {
 
 fn capabilities(as_json: bool) -> Result<(), String> {
     let (commands, queries) = create_registries()?;
-    let catalog = ToolCatalog::from_registries(&commands, &queries);
+    let catalog =
+        ToolCatalog::from_registries(&commands, &queries).map_err(|error| error.to_string())?;
     if as_json {
         println!(
             "{}",

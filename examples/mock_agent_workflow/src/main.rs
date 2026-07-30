@@ -15,7 +15,8 @@ fn main() {
     let mut queries = QueryRegistry::default();
     register_builtin_queries(&mut queries).unwrap();
     register_tactical_queries(&mut queries).unwrap();
-    let catalog = ToolCatalog::from_registries(&commands, &queries);
+    let catalog =
+        ToolCatalog::from_registries(&commands, &queries).expect("example tool IDs are unique");
     let mut host = AgentHost::new(
         EngineState::default(),
         CommandExecutor::new(commands),
