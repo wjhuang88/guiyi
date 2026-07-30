@@ -6,9 +6,9 @@ use guiyi_engine_build::BuildPipeline;
 use guiyi_engine_command::{register_builtin_document_commands, CommandRegistry};
 use guiyi_engine_content::{
     CompileContext, CompilerRegistry, ContentReference, DocumentEnvelope, DocumentStore,
-    ProjectFilesystem, ProjectManifest, ProjectPath,
+    ProjectManifest, ProjectPath, ProjectStorage, ProjectTransaction,
 };
-use guiyi_engine_core::{EngineVersion, ProjectId};
+use guiyi_engine_core::{AgentSessionId, EngineVersion, ProjectId};
 use guiyi_engine_query::{register_builtin_queries, QueryRegistry};
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
 use serde_json::{json, Value};
@@ -98,7 +98,7 @@ fn init_project(root: &Path, name: &str) -> Result<(), String> {
     {
         return Err(format!("target directory is not empty: {}", root.display()));
     }
-    let storage = ProjectFilesystem::create(root).map_err(|error| error.to_string())?;
+    let storage = ProjectStorage::create(root).map_err(|error| error.to_string())?;
     for directory in [
         "content/stages",
         "content/definitions",
@@ -127,37 +127,43 @@ fn init_project(root: &Path, name: &str) -> Result<(), String> {
         properties: json!({}),
     });
     let document_path = logical("content/stages/demo.stage.json")?;
-    storage
-        .save_json(
-            &document_path,
-            &stage.to_envelope().map_err(|error| error.to_string())?,
-        )
-        .map_err(|error| error.to_string())?;
     let manifest = ProjectManifest {
         project_id,
         name: name.into(),
         engine_api_version: EngineVersion::CURRENT.to_string(),
         content_schema_version: 1,
         enabled_extensions: vec!["tactical_rpg".into()],
-        documents: vec![document_path],
+        documents: vec![document_path.clone()],
     };
-    storage
-        .save_json(&logical("engine-project.json")?, &manifest)
+    let readme = format!(
+        "# {name}\n\nCreated by GUIYI Engine. Run `guiyi-engine-cli doctor --project .`.\n"
+    );
+    let mut transaction = ProjectTransaction::generated(
+        "project-init",
+        AgentSessionId::from_static("session.cli-init"),
+        "cli.init",
+        json!({"kind": "project_init", "name": name}),
+    )
+    .map_err(|error| error.to_string())?;
+    transaction
+        .write_json(
+            document_path,
+            &stage.to_envelope().map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
+    transaction.write(logical("README.md")?, readme.into_bytes());
+    transaction
+        .write_manifest_json(logical("engine-project.json")?, &manifest)
         .map_err(|error| error.to_string())?;
     storage
-        .write(
-            &logical("README.md")?,
-            format!(
-                "# {name}\n\nCreated by GUIYI Engine. Run `guiyi-engine-cli doctor --project .`.\n"
-            ),
-        )
+        .commit(transaction)
         .map_err(|error| error.to_string())?;
     println!("initialized {}", storage.root().display());
     Ok(())
 }
 
 fn doctor(root: &Path, as_json: bool) -> Result<(), String> {
-    let storage = ProjectFilesystem::open(root).map_err(|error| error.to_string())?;
+    let storage = ProjectStorage::open(root).map_err(|error| error.to_string())?;
     let mut checks = Vec::new();
     checks.push(check(
         &storage,
@@ -188,7 +194,7 @@ fn doctor(root: &Path, as_json: bool) -> Result<(), String> {
     }
 }
 
-fn check(storage: &ProjectFilesystem, path: &ProjectPath, name: &str) -> Value {
+fn check(storage: &ProjectStorage, path: &ProjectPath, name: &str) -> Value {
     match storage.exists(path) {
         Ok(exists) => json!({
             "name": name,
@@ -262,18 +268,27 @@ fn compile_project(root: &Path, out: &Path, as_json: bool) -> Result<(), String>
             profile: "development".into(),
         },
     );
-    storage
-        .create_dir_all(&output_directory)
+    if report.succeeded() && !report.artifacts.is_empty() {
+        let mut transaction = ProjectTransaction::generated(
+            "build",
+            AgentSessionId::from_static("session.cli-build"),
+            "cli.compile",
+            serde_json::to_value(&report).map_err(|error| error.to_string())?,
+        )
         .map_err(|error| error.to_string())?;
-    for artifact in &report.artifacts {
-        let file = output_directory
-            .join(format!(
-                "{}.artifact.json",
-                artifact.source_document.as_str()
-            ))
-            .map_err(|error| error.to_string())?;
+        for artifact in &report.artifacts {
+            let file = output_directory
+                .join(format!(
+                    "{}.artifact.json",
+                    artifact.source_document.as_str()
+                ))
+                .map_err(|error| error.to_string())?;
+            transaction
+                .write_json(file, artifact)
+                .map_err(|error| error.to_string())?;
+        }
         storage
-            .save_json(&file, artifact)
+            .commit(transaction)
             .map_err(|error| error.to_string())?;
     }
     let output = json!({
@@ -302,8 +317,8 @@ fn create_registries() -> Result<(CommandRegistry, QueryRegistry), String> {
 
 fn load_project(
     root: &Path,
-) -> Result<(ProjectFilesystem, ProjectManifest, DocumentStore), String> {
-    let storage = ProjectFilesystem::open(root).map_err(|error| error.to_string())?;
+) -> Result<(ProjectStorage, ProjectManifest, DocumentStore), String> {
+    let storage = ProjectStorage::open(root).map_err(|error| error.to_string())?;
     let manifest: ProjectManifest = storage
         .load_json(&logical("engine-project.json")?)
         .map_err(|error| error.to_string())?;
