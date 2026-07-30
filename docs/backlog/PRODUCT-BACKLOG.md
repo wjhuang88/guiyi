@@ -58,16 +58,17 @@ authorization.
 - Gate: absolute paths, parent traversal, platform prefixes, and symlink escapes are rejected with stable structured diagnostics, and adversarial tests prove external files remain unchanged.
 - Evidence: `docs/validation/ENG-007.md`; CI run `30554258905` (run number 40) passed on 2026-07-30.
 
-## Ready — Immediate safety
-
 ### ENG-008 Enforce AgentSession at every tool entry point
 
 - Type: Security
 - Priority: P0
-- Status: Ready
-- GitHub: [#7](https://github.com/wjhuang88/guiyi/issues/7) — Open
+- Status: Done
+- GitHub: [#7](https://github.com/wjhuang88/guiyi/issues/7) — completed by PR #22
 - Goal: enforce permissions, working sets, budgets, action history, and deterministic session status through one session-aware executor used by every client.
-- Gate: CLI, JSONL Workbench, Agent Host, and future clients cannot bypass permission, working-set, budget, or audit enforcement.
+- Gate: JSONL Workbench, embedded Agent Host loops, and future clients cannot bypass permission, working-set, budget, status, or audit enforcement.
+- Evidence: `docs/validation/ENG-008.md`; CI run `30556104345` (run number 50) passed on 2026-07-30.
+
+## Ready — Immediate safety
 
 ### ENG-009 Return structured JSONL tool errors without terminating the Workbench
 
