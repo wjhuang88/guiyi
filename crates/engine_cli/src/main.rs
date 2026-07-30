@@ -315,9 +315,7 @@ fn create_registries() -> Result<(CommandRegistry, QueryRegistry), String> {
     Ok((commands, queries))
 }
 
-fn load_project(
-    root: &Path,
-) -> Result<(ProjectStorage, ProjectManifest, DocumentStore), String> {
+fn load_project(root: &Path) -> Result<(ProjectStorage, ProjectManifest, DocumentStore), String> {
     let storage = ProjectStorage::open(root).map_err(|error| error.to_string())?;
     let manifest: ProjectManifest = storage
         .load_json(&logical("engine-project.json")?)

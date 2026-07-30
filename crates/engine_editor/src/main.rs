@@ -195,8 +195,7 @@ fn persist_project(
         .get("transaction_id")
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| "transaction report has no transaction_id".to_string())?;
-    let transaction_id =
-        TransactionId::new(transaction_id).map_err(|error| error.to_string())?;
+    let transaction_id = TransactionId::new(transaction_id).map_err(|error| error.to_string())?;
     let mut transaction = ProjectTransaction::new(
         transaction_id,
         session.id.clone(),
