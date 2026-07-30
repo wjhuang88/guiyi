@@ -98,16 +98,17 @@ authorization.
 - Gate: duplicate IDs within or across registries fail catalog construction with a stable structured error, while unique catalogs remain deterministic.
 - Evidence: `docs/validation/ENG-015.md`; CI run `30560400169` (run number 105) passed on 2026-07-30.
 
-## Ready — Immediate safety
-
 ### ENG-016 Make BuildPipeline strict about validation and compiler coverage
 
 - Type: Build
 - Priority: P0
-- Status: Ready
-- GitHub: [#12](https://github.com/wjhuang88/guiyi/issues/12) — Open
+- Status: Done
+- GitHub: [#12](https://github.com/wjhuang88/guiyi/issues/12) — completed by PR #27
 - Goal: reject unresolved references, blocking diagnostics, and buildable documents without registered compilers before writing artifacts.
 - Gate: library, CLI, and examples share strict build semantics; failed builds report every skipped document and produce no partial artifacts.
+- Evidence: `docs/validation/ENG-016.md`; CI run `30561168272` (run number 112) passed on 2026-07-30.
+
+## Ready — Immediate safety
 
 ### ENG-017 Validate artifact integrity before runtime load
 
