@@ -48,4 +48,8 @@ The complete first-run sequence is available as:
 ./scripts/first_run.sh
 ```
 
-A failed Cargo gate means Iteration 001 is not accepted until repaired. This package does not claim successful Rust compilation in the generation environment.
+## ENG-006 CI acceptance run
+
+A pull-request CI run was initiated on 2026-07-30 from branch `agent/ENG-006-cargo-ci-baseline`. This section must be replaced with exact workflow, command, and exit-code evidence before ENG-006 is marked Done.
+
+A failed Cargo gate means Iteration 001 is not accepted until repaired. This package does not claim successful Rust compilation until the evidence above is complete.
