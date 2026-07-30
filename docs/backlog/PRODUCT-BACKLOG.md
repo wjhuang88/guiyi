@@ -68,16 +68,17 @@ authorization.
 - Gate: JSONL Workbench, embedded Agent Host loops, and future clients cannot bypass permission, working-set, budget, status, or audit enforcement.
 - Evidence: `docs/validation/ENG-008.md`; CI run `30556104345` (run number 50) passed on 2026-07-30.
 
-## Ready — Immediate safety
-
 ### ENG-009 Return structured JSONL tool errors without terminating the Workbench
 
 - Type: Protocol
 - Priority: P0
-- Status: Ready
-- GitHub: [#8](https://github.com/wjhuang88/guiyi/issues/8) — Open
-- Goal: return one structured result for every input line and keep the Workbench alive after tool-level rejection or failure.
-- Gate: unknown tools, invalid input, permission denial, and validation failures preserve the call ID, emit stable error codes, and do not corrupt stdout or stop subsequent calls.
+- Status: Done
+- GitHub: [#8](https://github.com/wjhuang88/guiyi/issues/8) — completed by PR #23
+- Goal: return one structured result for every non-empty input line and keep the Workbench alive after recoverable protocol and tool errors.
+- Gate: unknown tools, invalid input, permission denial, and validation failures preserve the call ID where parseable, emit stable error codes, keep stdout JSONL-only, and do not stop subsequent calls; host infrastructure failures still exit non-zero.
+- Evidence: `docs/validation/ENG-009.md`; CI run `30557194781` (run number 61) passed on 2026-07-30.
+
+## Ready — Immediate safety
 
 ### ENG-011 Add crash-safe ProjectStorage and a persistent transaction journal
 
