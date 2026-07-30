@@ -375,14 +375,17 @@ impl ProjectStorage {
         self.write_journal(&journal)?;
         self.fail_if(&failure, StorageFailurePoint::AfterApplyingMarker)?;
 
-        let mut operation_number = 0usize;
-        for operation in journal.operations.iter().filter(|item| !item.manifest) {
+        for (operation_number, operation) in journal
+            .operations
+            .iter()
+            .filter(|item| !item.manifest)
+            .enumerate()
+        {
             self.apply(operation)?;
             self.fail_if(
                 &failure,
                 StorageFailurePoint::AfterOperation(operation_number),
             )?;
-            operation_number += 1;
         }
 
         let manifest = journal.operations.iter().find(|item| item.manifest);

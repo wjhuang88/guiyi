@@ -3,7 +3,7 @@
 //! Authoring documents, compiled artifacts, sandboxed project storage, and compiler registration.
 
 mod storage;
-pub use storage::*;
+pub use self::storage::*;
 
 use guiyi_engine_core::{
     deterministic_hash, ArtifactId, DocumentId, EngineTypeId, ObjectId, ProjectId,
