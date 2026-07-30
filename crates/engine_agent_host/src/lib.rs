@@ -1,18 +1,27 @@
 #![forbid(unsafe_code)]
 
-//! Agent sessions, budgets, loop adapters, permission checks, and tool routing.
+//! Agent sessions, budgets, working sets, loop adapters, and unified tool routing.
 
 use guiyi_engine_agent_tools::{ToolCatalog, ToolKind};
 use guiyi_engine_command::{
     CommandContext, CommandError, CommandExecutor, CommandRequest, EngineState, TransactionStatus,
 };
+use guiyi_engine_content::DocumentStore;
 use guiyi_engine_core::{AgentSessionId, DocumentId, PermissionSet};
 use guiyi_engine_protocol::{ToolCall, ToolResult, ToolResultStatus};
 use guiyi_engine_query::{QueryContext, QueryExecutor, QueryRequest};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use thiserror::Error;
+
+pub const AGENT_SESSION_NOT_ACTIVE: &str = "AGENT_SESSION_NOT_ACTIVE";
+pub const AGENT_BUDGET_EXCEEDED: &str = "AGENT_BUDGET_EXCEEDED";
+pub const AGENT_PERMISSION_DENIED: &str = "AGENT_PERMISSION_DENIED";
+pub const AGENT_WORKING_SET_DENIED: &str = "AGENT_WORKING_SET_DENIED";
+pub const AGENT_ACCESS_PLAN_INVALID: &str = "AGENT_ACCESS_PLAN_INVALID";
+pub const AGENT_TOOL_NOT_FOUND: &str = "AGENT_TOOL_NOT_FOUND";
+pub const AGENT_TOOL_FAILED: &str = "AGENT_TOOL_FAILED";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -48,9 +57,17 @@ pub struct AgentSession {
     pub id: AgentSessionId,
     pub objective: String,
     pub permissions: PermissionSet,
+    /// Empty means unrestricted. A non-empty set is a strict visibility and
+    /// mutation boundary for every command and query.
+    #[serde(default)]
     pub working_set: Vec<DocumentId>,
     pub budget: AgentBudget,
+    /// Number of tool attempts that entered permission/access/dispatch checks.
+    /// Budget-denied attempts are audited but do not increment this value.
+    #[serde(default)]
+    pub actions_used: u32,
     pub status: SessionStatus,
+    #[serde(default)]
     pub actions: Vec<AgentActionRecord>,
     pub final_summary: Option<String>,
 }
@@ -67,10 +84,29 @@ impl AgentSession {
             permissions,
             working_set: Vec::new(),
             budget: AgentBudget::default(),
+            actions_used: 0,
             status: SessionStatus::Ready,
             actions: Vec::new(),
             final_summary: None,
         }
+    }
+
+    pub fn allowed_documents(&self) -> Option<BTreeSet<DocumentId>> {
+        if self.working_set.is_empty() {
+            None
+        } else {
+            Some(self.working_set.iter().cloned().collect())
+        }
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self.status,
+            SessionStatus::Completed
+                | SessionStatus::Stopped
+                | SessionStatus::BudgetExceeded
+                | SessionStatus::Failed
+        )
     }
 }
 
@@ -116,105 +152,243 @@ impl AgentHost {
         &self.catalog
     }
 
-    pub fn execute_call(
-        &mut self,
-        session: &AgentSession,
-        call: ToolCall,
-    ) -> Result<ToolResult, AgentHostError> {
-        let descriptor = self
-            .catalog
-            .get(&call.tool)
-            .ok_or_else(|| AgentHostError::ToolNotFound(call.tool.to_string()))?;
+    /// The only public tool-execution entry point.
+    ///
+    /// It enforces session lifecycle, budget, permissions, working set,
+    /// structured results, action history, and deterministic status updates.
+    pub fn execute(&mut self, session: &mut AgentSession, call: ToolCall) -> ToolResult {
+        if session.is_terminal() {
+            let result = rejected(
+                &call,
+                AGENT_SESSION_NOT_ACTIVE,
+                format!("session is not active: {:?}", session.status),
+                json!({"session_status": session.status}),
+            );
+            record_action(session, call, result.clone());
+            return result;
+        }
+        if session.status == SessionStatus::Ready {
+            session.status = SessionStatus::Running;
+        }
+        if session.actions_used >= session.budget.max_actions {
+            session.status = SessionStatus::BudgetExceeded;
+            session.final_summary = Some(format!(
+                "action budget exhausted at {} tool actions",
+                session.budget.max_actions
+            ));
+            let result = rejected(
+                &call,
+                AGENT_BUDGET_EXCEEDED,
+                "agent action budget exceeded",
+                json!({
+                    "max_actions": session.budget.max_actions,
+                    "actions_used": session.actions_used
+                }),
+            );
+            record_action(session, call, result.clone());
+            return result;
+        }
+
+        session.actions_used += 1;
+        let result = self.dispatch(session, &call);
+        if result.status == ToolResultStatus::Failed {
+            session.status = SessionStatus::Failed;
+            session.final_summary = Some(error_message(&result));
+        }
+        record_action(session, call, result.clone());
+        result
+    }
+
+    fn dispatch(&mut self, session: &AgentSession, call: &ToolCall) -> ToolResult {
+        let descriptor = match self.catalog.get(&call.tool) {
+            Some(descriptor) => descriptor,
+            None => {
+                return failed(
+                    call,
+                    AGENT_TOOL_NOT_FOUND,
+                    format!("tool not found: {}", call.tool),
+                    json!({"tool": call.tool}),
+                )
+            }
+        };
         if !session
             .permissions
             .contains_all(&descriptor.required_permissions)
         {
-            return Ok(ToolResult {
-                call_id: call.id,
-                status: ToolResultStatus::Rejected,
-                output: json!({"error": "permission_denied"}),
-                diagnostics: Vec::new(),
-                transaction: None,
-            });
+            return rejected(
+                call,
+                AGENT_PERMISSION_DENIED,
+                format!("permission denied for tool: {}", call.tool),
+                json!({
+                    "tool": call.tool,
+                    "required_permissions": descriptor.required_permissions
+                }),
+            );
         }
 
-        let tool_kind = descriptor.kind;
-        match tool_kind {
-            ToolKind::Command => {
-                let result = self.command_executor.execute(
-                    CommandRequest {
-                        command: call.tool,
-                        input: call.input,
-                        dry_run: call.dry_run,
-                    },
-                    &CommandContext {
-                        actor: session.id.to_string(),
-                        permissions: session.permissions.clone(),
-                    },
-                    &mut self.state,
-                );
-                match result {
-                    Ok(report) => Ok(ToolResult {
-                        call_id: call.id,
-                        status: ToolResultStatus::Ok,
-                        output: report.output.clone(),
-                        diagnostics: report
-                            .diagnostics
-                            .diagnostics
-                            .iter()
-                            .map(|item| serde_json::to_value(item).unwrap_or(Value::Null))
-                            .collect(),
-                        transaction: Some(serde_json::to_value(&report)?),
-                    }),
-                    Err(CommandError::ValidationFailed(bag)) => Ok(ToolResult {
-                        call_id: call.id,
-                        status: ToolResultStatus::Rejected,
-                        output: json!({"error": "validation_failed"}),
-                        diagnostics: bag
-                            .diagnostics
-                            .iter()
-                            .map(|item| serde_json::to_value(item).unwrap_or(Value::Null))
-                            .collect(),
-                        transaction: None,
-                    }),
-                    Err(error) => Ok(ToolResult {
-                        call_id: call.id,
-                        status: ToolResultStatus::Failed,
-                        output: json!({"error": error.to_string()}),
-                        diagnostics: Vec::new(),
-                        transaction: None,
-                    }),
-                }
+        let allowed = session.allowed_documents();
+        let access = match descriptor.kind {
+            ToolKind::Command => self.command_executor.document_access(&CommandRequest {
+                command: call.tool.clone(),
+                input: call.input.clone(),
+                dry_run: call.dry_run,
+            }),
+            ToolKind::Query => self
+                .query_executor
+                .document_access(&QueryRequest {
+                    query: call.tool.clone(),
+                    input: call.input.clone(),
+                })
+                .map_err(|error| CommandError::InvalidInput(error.to_string())),
+        };
+        let access = match access {
+            Ok(access) => access,
+            Err(error) => {
+                return rejected(
+                    call,
+                    AGENT_ACCESS_PLAN_INVALID,
+                    error.to_string(),
+                    json!({"tool": call.tool}),
+                )
             }
-            ToolKind::Query => {
-                let output = self.query_executor.execute(
-                    QueryRequest {
-                        query: call.tool,
-                        input: call.input,
-                    },
-                    &QueryContext {
-                        actor: session.id.to_string(),
-                        permissions: session.permissions.clone(),
-                    },
-                    &self.state.documents,
+        };
+        if let Some(allowed) = &allowed {
+            let denied = access
+                .required
+                .iter()
+                .filter(|document| !allowed.contains(*document))
+                .cloned()
+                .collect::<Vec<_>>();
+            if !denied.is_empty() || (descriptor.kind == ToolKind::Command && access.scans_project) {
+                return rejected(
+                    call,
+                    AGENT_WORKING_SET_DENIED,
+                    "tool access exceeds the session working set",
+                    json!({
+                        "denied_documents": denied,
+                        "project_scan": access.scans_project,
+                        "working_set": allowed
+                    }),
                 );
-                match output {
-                    Ok(output) => Ok(ToolResult {
-                        call_id: call.id,
-                        status: ToolResultStatus::Ok,
-                        output,
-                        diagnostics: Vec::new(),
-                        transaction: None,
-                    }),
-                    Err(error) => Ok(ToolResult {
-                        call_id: call.id,
-                        status: ToolResultStatus::Failed,
-                        output: json!({"error": error.to_string()}),
-                        diagnostics: Vec::new(),
-                        transaction: None,
-                    }),
-                }
             }
+        }
+
+        match descriptor.kind {
+            ToolKind::Command => self.execute_command(session, call, allowed.as_ref()),
+            ToolKind::Query => self.execute_query(session, call, allowed.as_ref()),
+        }
+    }
+
+    fn execute_command(
+        &mut self,
+        session: &AgentSession,
+        call: &ToolCall,
+        allowed: Option<&BTreeSet<DocumentId>>,
+    ) -> ToolResult {
+        let result = self.command_executor.execute_scoped(
+            CommandRequest {
+                command: call.tool.clone(),
+                input: call.input.clone(),
+                dry_run: call.dry_run,
+            },
+            &CommandContext {
+                actor: session.id.to_string(),
+                permissions: session.permissions.clone(),
+            },
+            &mut self.state,
+            allowed,
+        );
+        match result {
+            Ok(report) => match serde_json::to_value(&report) {
+                Ok(transaction) => ToolResult {
+                    call_id: call.id.clone(),
+                    status: ToolResultStatus::Ok,
+                    output: report.output.clone(),
+                    diagnostics: report
+                        .diagnostics
+                        .diagnostics
+                        .iter()
+                        .map(|item| serde_json::to_value(item).unwrap_or(Value::Null))
+                        .collect(),
+                    transaction: Some(transaction),
+                },
+                Err(error) => failed(
+                    call,
+                    AGENT_TOOL_FAILED,
+                    error.to_string(),
+                    json!({"tool": call.tool}),
+                ),
+            },
+            Err(CommandError::ValidationFailed(bag)) => ToolResult {
+                call_id: call.id.clone(),
+                status: ToolResultStatus::Rejected,
+                output: json!({
+                    "error": {
+                        "code": "COMMAND_VALIDATION_FAILED",
+                        "message": "command validation failed"
+                    }
+                }),
+                diagnostics: bag
+                    .diagnostics
+                    .iter()
+                    .map(|item| serde_json::to_value(item).unwrap_or(Value::Null))
+                    .collect(),
+                transaction: None,
+            },
+            Err(CommandError::PermissionDenied(_)) => rejected(
+                call,
+                AGENT_PERMISSION_DENIED,
+                "command permission denied",
+                json!({"tool": call.tool}),
+            ),
+            Err(CommandError::WorkingSetDenied(documents)) => rejected(
+                call,
+                AGENT_WORKING_SET_DENIED,
+                "command modified documents outside the working set",
+                json!({"denied_documents": documents}),
+            ),
+            Err(error) => failed(
+                call,
+                AGENT_TOOL_FAILED,
+                error.to_string(),
+                json!({"tool": call.tool}),
+            ),
+        }
+    }
+
+    fn execute_query(
+        &self,
+        session: &AgentSession,
+        call: &ToolCall,
+        allowed: Option<&BTreeSet<DocumentId>>,
+    ) -> ToolResult {
+        let visible_store = allowed.map(|allowed| filter_store(&self.state.documents, allowed));
+        let store = visible_store.as_ref().unwrap_or(&self.state.documents);
+        let output = self.query_executor.execute(
+            QueryRequest {
+                query: call.tool.clone(),
+                input: call.input.clone(),
+            },
+            &QueryContext {
+                actor: session.id.to_string(),
+                permissions: session.permissions.clone(),
+            },
+            store,
+        );
+        match output {
+            Ok(output) => ToolResult {
+                call_id: call.id.clone(),
+                status: ToolResultStatus::Ok,
+                output,
+                diagnostics: Vec::new(),
+                transaction: None,
+            },
+            Err(error) => failed(
+                call,
+                AGENT_TOOL_FAILED,
+                error.to_string(),
+                json!({"tool": call.tool}),
+            ),
         }
     }
 
@@ -223,22 +397,38 @@ impl AgentHost {
         driver: &mut dyn AgentLoopDriver,
         session: &mut AgentSession,
     ) -> Result<(), AgentHostError> {
+        if session.is_terminal() {
+            return Err(AgentHostError::SessionNotActive(session.status));
+        }
         session.status = SessionStatus::Running;
         let mut last_result: Option<ToolResult> = None;
         loop {
-            if session.actions.len() as u32 >= session.budget.max_actions {
-                session.status = SessionStatus::BudgetExceeded;
-                return Err(AgentHostError::BudgetExceeded);
-            }
-            match driver.next_action(session, &self.catalog, last_result.as_ref())? {
+            let directive = match driver.next_action(session, &self.catalog, last_result.as_ref()) {
+                Ok(directive) => directive,
+                Err(error) => {
+                    session.status = SessionStatus::Failed;
+                    session.final_summary = Some(error.to_string());
+                    return Err(error);
+                }
+            };
+            match directive {
                 AgentDirective::Tool(call) => {
-                    let result = self.execute_call(session, call.clone())?;
-                    session.actions.push(AgentActionRecord {
-                        sequence: session.actions.len() as u32 + 1,
-                        call,
-                        result: result.clone(),
-                    });
+                    let result = self.execute(session, call);
                     last_result = Some(result);
+                    match session.status {
+                        SessionStatus::BudgetExceeded => {
+                            return Err(AgentHostError::BudgetExceeded)
+                        }
+                        SessionStatus::Failed => {
+                            return Err(AgentHostError::ToolFailed(
+                                session
+                                    .final_summary
+                                    .clone()
+                                    .unwrap_or_else(|| "tool execution failed".into()),
+                            ))
+                        }
+                        _ => {}
+                    }
                 }
                 AgentDirective::Complete { summary } => {
                     session.status = SessionStatus::Completed;
@@ -255,16 +445,84 @@ impl AgentHost {
     }
 }
 
+fn filter_store(store: &DocumentStore, allowed: &BTreeSet<DocumentId>) -> DocumentStore {
+    let mut visible = DocumentStore::default();
+    for document in allowed {
+        if let Ok(document) = store.get(document) {
+            visible.upsert(document.clone());
+        }
+    }
+    visible
+}
+
+fn record_action(session: &mut AgentSession, call: ToolCall, result: ToolResult) {
+    session.actions.push(AgentActionRecord {
+        sequence: session.actions.len() as u32 + 1,
+        call,
+        result,
+    });
+}
+
+fn error_message(result: &ToolResult) -> String {
+    result
+        .output
+        .get("error")
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+        .unwrap_or("tool execution failed")
+        .to_string()
+}
+
+fn rejected(
+    call: &ToolCall,
+    code: &str,
+    message: impl Into<String>,
+    details: Value,
+) -> ToolResult {
+    error_result(call, ToolResultStatus::Rejected, code, message, details)
+}
+
+fn failed(
+    call: &ToolCall,
+    code: &str,
+    message: impl Into<String>,
+    details: Value,
+) -> ToolResult {
+    error_result(call, ToolResultStatus::Failed, code, message, details)
+}
+
+fn error_result(
+    call: &ToolCall,
+    status: ToolResultStatus,
+    code: &str,
+    message: impl Into<String>,
+    details: Value,
+) -> ToolResult {
+    ToolResult {
+        call_id: call.id.clone(),
+        status,
+        output: json!({
+            "error": {
+                "code": code,
+                "message": message.into(),
+                "details": details
+            }
+        }),
+        diagnostics: Vec::new(),
+        transaction: None,
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum AgentHostError {
-    #[error("tool not found: {0}")]
-    ToolNotFound(String),
     #[error("agent action budget exceeded")]
     BudgetExceeded,
+    #[error("agent session is not active: {0:?}")]
+    SessionNotActive(SessionStatus),
+    #[error("agent tool failed: {0}")]
+    ToolFailed(String),
     #[error("agent driver failed: {0}")]
     Driver(String),
-    #[error(transparent)]
-    Serialization(#[from] serde_json::Error),
 }
 
 pub struct ScriptedAgentDriver {
@@ -304,28 +562,260 @@ pub fn transaction_was_applied(result: &ToolResult) -> bool {
 mod tests {
     use super::*;
     use guiyi_engine_agent_tools::ToolCatalog;
-    use guiyi_engine_command::{register_builtin_document_commands, CommandRegistry};
-    use guiyi_engine_core::{PermissionSet, ToolId};
+    use guiyi_engine_command::{
+        register_builtin_document_commands, CommandDescriptor, CommandHandler, CommandRegistry,
+    };
+    use guiyi_engine_content::{DocumentEnvelope, DocumentHeader};
+    use guiyi_engine_core::{DocumentAccessPlan, EngineTypeId, Permission, ToolId};
     use guiyi_engine_query::{register_builtin_queries, QueryRegistry};
 
-    #[test]
-    fn scripted_agent_creates_and_queries_a_document() {
+    fn document(id: &'static str) -> DocumentEnvelope {
+        DocumentEnvelope {
+            header: DocumentHeader {
+                id: DocumentId::from_static(id),
+                type_id: EngineTypeId::from_static("example.document"),
+                schema_version: 1,
+                display_name: id.into(),
+            },
+            references: Vec::new(),
+            payload: json!({}),
+        }
+    }
+
+    fn host() -> AgentHost {
         let mut command_registry = CommandRegistry::default();
         register_builtin_document_commands(&mut command_registry).unwrap();
         let mut query_registry = QueryRegistry::default();
         register_builtin_queries(&mut query_registry).unwrap();
         let catalog = ToolCatalog::from_registries(&command_registry, &query_registry);
-        let mut host = AgentHost::new(
+        AgentHost::new(
             EngineState::default(),
             CommandExecutor::new(command_registry),
             QueryExecutor::new(query_registry),
             catalog,
-        );
-        let mut session = AgentSession::new(
+        )
+    }
+
+    fn session(permissions: PermissionSet) -> AgentSession {
+        AgentSession::new(
             AgentSessionId::from_static("session.test"),
-            "Create a document",
-            PermissionSet::content_author(),
+            "Test session",
+            permissions,
+        )
+    }
+
+    fn list_call(id: &str) -> ToolCall {
+        ToolCall {
+            id: id.into(),
+            tool: ToolId::from_static("project.documents.list"),
+            input: json!({}),
+            dry_run: false,
+        }
+    }
+
+    fn error_code(result: &ToolResult) -> Option<&str> {
+        result
+            .output
+            .get("error")
+            .and_then(|error| error.get("code"))
+            .and_then(Value::as_str)
+    }
+
+    #[test]
+    fn permission_denial_is_structured_and_recorded() {
+        let mut host = host();
+        let mut session = session(PermissionSet::read_only());
+        let result = host.execute(
+            &mut session,
+            ToolCall {
+                id: "call-1".into(),
+                tool: ToolId::from_static("document.create"),
+                input: json!({
+                    "id": "doc.denied",
+                    "type_id": "example.document",
+                    "display_name": "Denied"
+                }),
+                dry_run: false,
+            },
         );
+        assert_eq!(result.status, ToolResultStatus::Rejected);
+        assert_eq!(error_code(&result), Some(AGENT_PERMISSION_DENIED));
+        assert_eq!(session.actions_used, 1);
+        assert_eq!(session.actions.len(), 1);
+        assert_eq!(session.status, SessionStatus::Running);
+    }
+
+    #[test]
+    fn working_set_blocks_reads_and_mutations_outside_the_set() {
+        let mut host = host();
+        host.state.documents.insert(document("stage.a")).unwrap();
+        host.state.documents.insert(document("stage.b")).unwrap();
+        let mut session = session(PermissionSet::content_author());
+        session.working_set = vec![DocumentId::from_static("stage.a")];
+        for (tool, input) in [
+            (
+                "project.document.get",
+                json!({"document_id": "stage.b"}),
+            ),
+            (
+                "document.set_field",
+                json!({"document_id": "stage.b", "path": ["x"], "value": 1}),
+            ),
+            ("document.delete", json!({"document_id": "stage.b"})),
+        ] {
+            let result = host.execute(
+                &mut session,
+                ToolCall {
+                    id: format!("call-{tool}"),
+                    tool: ToolId::new(tool).unwrap(),
+                    input,
+                    dry_run: false,
+                },
+            );
+            assert_eq!(result.status, ToolResultStatus::Rejected);
+            assert_eq!(error_code(&result), Some(AGENT_WORKING_SET_DENIED));
+        }
+        assert!(host
+            .state
+            .documents
+            .get(&DocumentId::from_static("stage.b"))
+            .is_ok());
+        assert_eq!(session.actions.len(), 3);
+    }
+
+    #[test]
+    fn project_queries_only_see_working_set_documents() {
+        let mut host = host();
+        host.state.documents.insert(document("stage.a")).unwrap();
+        host.state.documents.insert(document("stage.b")).unwrap();
+        let mut session = session(PermissionSet::read_only());
+        session.working_set = vec![DocumentId::from_static("stage.a")];
+        let result = host.execute(&mut session, list_call("call-list"));
+        assert_eq!(result.status, ToolResultStatus::Ok);
+        let values = result.output.as_array().unwrap();
+        assert_eq!(values.len(), 1);
+        assert_eq!(values[0]["id"], json!("stage.a"));
+    }
+
+    #[test]
+    fn budget_is_enforced_and_budget_rejection_is_audited() {
+        let mut host = host();
+        let mut session = session(PermissionSet::read_only());
+        session.budget.max_actions = 1;
+        assert_eq!(
+            host.execute(&mut session, list_call("call-1")).status,
+            ToolResultStatus::Ok
+        );
+        let rejected = host.execute(&mut session, list_call("call-2"));
+        assert_eq!(rejected.status, ToolResultStatus::Rejected);
+        assert_eq!(error_code(&rejected), Some(AGENT_BUDGET_EXCEEDED));
+        assert_eq!(session.actions_used, 1);
+        assert_eq!(session.actions.len(), 2);
+        assert_eq!(session.status, SessionStatus::BudgetExceeded);
+    }
+
+    #[test]
+    fn driver_can_complete_after_exactly_maximum_actions() {
+        let mut host = host();
+        let mut session = session(PermissionSet::read_only());
+        session.budget.max_actions = 1;
+        let mut driver = ScriptedAgentDriver::new([
+            AgentDirective::Tool(list_call("call-1")),
+            AgentDirective::Complete {
+                summary: "done".into(),
+            },
+        ]);
+        host.run(&mut driver, &mut session).unwrap();
+        assert_eq!(session.actions_used, 1);
+        assert_eq!(session.status, SessionStatus::Completed);
+        assert_eq!(session.final_summary.as_deref(), Some("done"));
+    }
+
+    #[test]
+    fn failed_calls_are_recorded_and_fail_the_session() {
+        let mut host = host();
+        let mut session = session(PermissionSet::read_only());
+        let result = host.execute(
+            &mut session,
+            ToolCall {
+                id: "call-missing".into(),
+                tool: ToolId::from_static("missing.tool"),
+                input: json!({}),
+                dry_run: false,
+            },
+        );
+        assert_eq!(result.status, ToolResultStatus::Failed);
+        assert_eq!(error_code(&result), Some(AGENT_TOOL_NOT_FOUND));
+        assert_eq!(session.actions.len(), 1);
+        assert_eq!(session.status, SessionStatus::Failed);
+    }
+
+    #[test]
+    fn multi_document_access_requires_every_document() {
+        struct MultiDocumentCommand;
+
+        impl CommandHandler for MultiDocumentCommand {
+            fn descriptor(&self) -> CommandDescriptor {
+                CommandDescriptor {
+                    id: ToolId::from_static("test.multi"),
+                    title: "Multi".into(),
+                    description: "Multi-document test command".into(),
+                    input_schema: json!({"type": "object"}),
+                    output_schema: json!({"type": "object"}),
+                    required_permissions: PermissionSet::new([Permission::EditContent]),
+                    side_effects: vec!["modifies_document".into()],
+                    related_tools: Vec::new(),
+                }
+            }
+
+            fn document_access(
+                &self,
+                _input: &Value,
+            ) -> Result<DocumentAccessPlan, CommandError> {
+                Ok(DocumentAccessPlan::documents([
+                    DocumentId::from_static("stage.a"),
+                    DocumentId::from_static("stage.b"),
+                ]))
+            }
+
+            fn apply(
+                &self,
+                _input: &Value,
+                _state: &mut EngineState,
+            ) -> Result<Value, CommandError> {
+                Ok(json!({}))
+            }
+        }
+
+        let mut commands = CommandRegistry::default();
+        commands.register(MultiDocumentCommand).unwrap();
+        let queries = QueryRegistry::default();
+        let catalog = ToolCatalog::from_registries(&commands, &queries);
+        let mut host = AgentHost::new(
+            EngineState::default(),
+            CommandExecutor::new(commands),
+            QueryExecutor::new(queries),
+            catalog,
+        );
+        let mut session = session(PermissionSet::new([Permission::EditContent]));
+        session.working_set = vec![DocumentId::from_static("stage.a")];
+        let result = host.execute(
+            &mut session,
+            ToolCall {
+                id: "call-multi".into(),
+                tool: ToolId::from_static("test.multi"),
+                input: json!({}),
+                dry_run: false,
+            },
+        );
+        assert_eq!(result.status, ToolResultStatus::Rejected);
+        assert_eq!(error_code(&result), Some(AGENT_WORKING_SET_DENIED));
+    }
+
+    #[test]
+    fn scripted_agent_creates_and_queries_a_document() {
+        let mut host = host();
+        let mut session = session(PermissionSet::content_author());
         let mut driver = ScriptedAgentDriver::new([
             AgentDirective::Tool(ToolCall {
                 id: "call-1".into(),
@@ -337,12 +827,7 @@ mod tests {
                 }),
                 dry_run: false,
             }),
-            AgentDirective::Tool(ToolCall {
-                id: "call-2".into(),
-                tool: ToolId::from_static("project.documents.list"),
-                input: json!({}),
-                dry_run: false,
-            }),
+            AgentDirective::Tool(list_call("call-2")),
             AgentDirective::Complete {
                 summary: "Created and checked the document".into(),
             },
@@ -350,5 +835,6 @@ mod tests {
         host.run(&mut driver, &mut session).unwrap();
         assert_eq!(session.status, SessionStatus::Completed);
         assert_eq!(host.state.documents.len(), 1);
+        assert_eq!(session.actions.len(), 2);
     }
 }
