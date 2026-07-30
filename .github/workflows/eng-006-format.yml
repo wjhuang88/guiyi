@@ -1,4 +1,4 @@
-name: ENG-006 cargo fmt
+name: ENG-006 cargo repair
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 jobs:
-  format:
+  repair:
     if: github.head_ref == 'agent/ENG-006-cargo-ci-baseline'
     runs-on: ubuntu-latest
     steps:
@@ -17,16 +17,17 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
+          components: rustfmt, clippy
+      - run: cargo fix --workspace --all-features --allow-dirty
       - run: cargo fmt --all
-      - name: Commit formatting
+      - name: Commit compiler fixes
         run: |
           if git diff --quiet; then
-            echo "cargo fmt made no changes"
+            echo "cargo fix and cargo fmt made no changes"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add --all
-          git commit -m "style: apply cargo fmt"
+          git commit -m "fix: apply compiler suggestions"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
