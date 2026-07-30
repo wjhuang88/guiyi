@@ -1,0 +1,83 @@
+name: ENG-011 wire storage
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'agent/ENG-011-crash-safe-storage'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - name: Export storage and structured errors
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          lib = Path("crates/engine_content/src/lib.rs")
+          text = lib.read_text()
+          marker = "//! Authoring documents, compiled artifacts, sandboxed project storage, and compiler registration.\n"
+          replacement = marker + "\nmod storage;\npub use storage::*;\n"
+          if text.count(marker) != 1:
+              raise SystemExit("engine_content module marker not found")
+          text = text.replace(marker, replacement, 1)
+          marker = '''    #[error(transparent)]
+    ProjectPath(#[from] ProjectPathError),
+'''
+          replacement = marker + '''    #[error(transparent)]
+    Storage(#[from] ProjectStorageError),
+'''
+          if text.count(marker) != 1:
+              raise SystemExit("ContentError path variant not found")
+          lib.write_text(text.replace(marker, replacement, 1))
+
+          storage = Path("crates/engine_content/src/storage.rs")
+          text = storage.read_text()
+          old = '''    Ok(TransactionId::new(format!(
+        "{}-{}-{}-{sequence}",
+        sanitized,
+        std::process::id(),
+        unix_ms()
+    ))?)
+'''
+          new = '''    TransactionId::new(format!(
+        "{}-{}-{}-{sequence}",
+        sanitized,
+        std::process::id(),
+        unix_ms()
+    ))
+    .map_err(|error| {
+        ProjectStorageError::operation(
+            PROJECT_STORAGE_PLAN_INVALID,
+            "generate_transaction_id",
+            None,
+            error.to_string(),
+        )
+        .into()
+    })
+'''
+          if text.count(old) != 1:
+              raise SystemExit("generated transaction block not found")
+          storage.write_text(text.replace(old, new, 1))
+          PY
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all
+      - name: Commit wiring
+        run: |
+          if git diff --quiet; then
+            echo "storage wiring made no changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "feat(content): export crash-safe project storage"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
