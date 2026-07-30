@@ -144,9 +144,9 @@ mod tests {
         let mut manager = StageRuntimeManager::default();
         for _ in 0..100 {
             let id = manager.load(&mut world, &artifact()).unwrap();
-            assert_eq!(world.entities().len(), 1);
+            assert_eq!(world.entities().count_spawned(), 1);
             assert_eq!(manager.unload(&mut world, &id).unwrap(), 1);
-            assert_eq!(world.entities().len(), 0);
+            assert_eq!(world.entities().count_spawned(), 0);
         }
         assert_eq!(manager.active_count(), 0);
     }
@@ -158,6 +158,6 @@ mod tests {
         let mut manager = StageRuntimeManager::default();
         let id = manager.load(&mut world, &artifact()).unwrap();
         manager.unload(&mut world, &id).unwrap();
-        assert_eq!(world.entities().len(), 1);
+        assert_eq!(world.entities().count_spawned(), 1);
     }
 }
