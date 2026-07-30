@@ -205,7 +205,7 @@ fn persist_project(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use guiyi_engine_agent_host::{AGENT_BUDGET_EXCEEDED, SessionStatus};
+    use guiyi_engine_agent_host::{SessionStatus, AGENT_BUDGET_EXCEEDED};
     use guiyi_engine_content::PROJECT_PATH_INVALID;
     use serde_json::Value;
     use std::time::{SystemTime, UNIX_EPOCH};

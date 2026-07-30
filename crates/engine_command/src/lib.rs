@@ -571,11 +571,10 @@ mod tests {
                 }
             }
 
-            fn document_access(
-                &self,
-                _input: &Value,
-            ) -> Result<DocumentAccessPlan, CommandError> {
-                Ok(DocumentAccessPlan::document(DocumentId::from_static("doc.a")))
+            fn document_access(&self, _input: &Value) -> Result<DocumentAccessPlan, CommandError> {
+                Ok(DocumentAccessPlan::document(DocumentId::from_static(
+                    "doc.a",
+                )))
             }
 
             fn apply(
@@ -583,8 +582,10 @@ mod tests {
                 _input: &Value,
                 state: &mut EngineState,
             ) -> Result<Value, CommandError> {
-                state.documents.get_mut(&DocumentId::from_static("doc.b"))?.payload =
-                    json!({"changed": true});
+                state
+                    .documents
+                    .get_mut(&DocumentId::from_static("doc.b"))?
+                    .payload = json!({"changed": true});
                 Ok(json!({}))
             }
         }

@@ -376,7 +376,10 @@ mod tests {
                 input: json!({"document_id": "doc.a"}),
             })
             .unwrap();
-        assert_eq!(get.required, BTreeSet::from([DocumentId::from_static("doc.a")]));
+        assert_eq!(
+            get.required,
+            BTreeSet::from([DocumentId::from_static("doc.a")])
+        );
         assert!(!get.scans_project);
         let impact = executor
             .document_access(&QueryRequest {

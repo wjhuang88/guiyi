@@ -6,7 +6,9 @@ use guiyi_engine_command::{
     CommandDescriptor, CommandError, CommandHandler, CommandRegistry, EngineState,
 };
 use guiyi_engine_content::DocumentStore;
-use guiyi_engine_core::{DocumentId, ObjectId, Permission, PermissionSet, ToolId};
+use guiyi_engine_core::{
+    DocumentAccessPlan, DocumentId, ObjectId, Permission, PermissionSet, ToolId,
+};
 use guiyi_engine_query::{QueryDescriptor, QueryError, QueryHandler, QueryRegistry};
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
 use serde::Deserialize;
@@ -47,6 +49,11 @@ impl CommandHandler for CreateStageCommand {
             side_effects: vec!["creates_document".into()],
             related_tools: vec![ToolId::from_static("stage.place_actor")],
         }
+    }
+
+    fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
+        let input: CreateStageInput = serde_json::from_value(input.clone())?;
+        Ok(DocumentAccessPlan::document(input.id))
     }
 
     fn validate(&self, input: &Value, state: &EngineState) -> DiagnosticBag {
@@ -120,6 +127,14 @@ impl CommandHandler for PlaceActorCommand {
         }
     }
 
+    fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
+        let input: PlaceActorInput = serde_json::from_value(input.clone())?;
+        Ok(DocumentAccessPlan::documents([
+            input.stage_id,
+            input.definition,
+        ]))
+    }
+
     fn apply(&self, input: &Value, state: &mut EngineState) -> Result<Value, CommandError> {
         let input: PlaceActorInput = serde_json::from_value(input.clone())?;
         let envelope = state.documents.get(&input.stage_id)?.clone();
@@ -175,6 +190,11 @@ impl CommandHandler for CreateSpawnCommand {
             side_effects: vec!["modifies_document".into()],
             related_tools: vec![ToolId::from_static("stage.validate")],
         }
+    }
+
+    fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
+        let input: CreateSpawnInput = serde_json::from_value(input.clone())?;
+        Ok(DocumentAccessPlan::document(input.stage_id))
     }
 
     fn apply(&self, input: &Value, state: &mut EngineState) -> Result<Value, CommandError> {
@@ -240,6 +260,11 @@ impl CommandHandler for CreateTriggerCommand {
         }
     }
 
+    fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
+        let input: CreateTriggerInput = serde_json::from_value(input.clone())?;
+        Ok(DocumentAccessPlan::document(input.stage_id))
+    }
+
     fn apply(&self, input: &Value, state: &mut EngineState) -> Result<Value, CommandError> {
         let input: CreateTriggerInput = serde_json::from_value(input.clone())?;
         let envelope = state.documents.get(&input.stage_id)?.clone();
@@ -295,6 +320,14 @@ impl CommandHandler for ConnectStageCommand {
             side_effects: vec!["modifies_document".into(), "creates_reference".into()],
             related_tools: vec![ToolId::from_static("project.impact.analyze")],
         }
+    }
+
+    fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
+        let input: ConnectStageInput = serde_json::from_value(input.clone())?;
+        Ok(DocumentAccessPlan::documents([
+            input.stage_id,
+            input.to_stage,
+        ]))
     }
 
     fn apply(&self, input: &Value, state: &mut EngineState) -> Result<Value, CommandError> {
@@ -358,6 +391,11 @@ impl QueryHandler for ValidateStageQuery {
         }
     }
 
+    fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, QueryError> {
+        let input: StageInput = serde_json::from_value(input.clone())?;
+        Ok(DocumentAccessPlan::document(input.stage_id))
+    }
+
     fn execute(&self, input: &Value, store: &DocumentStore) -> Result<Value, QueryError> {
         let input: StageInput = serde_json::from_value(input.clone())?;
         let document = store
@@ -386,6 +424,11 @@ impl QueryHandler for StageSummaryQuery {
             required_permissions: PermissionSet::new([Permission::Read]),
             related_tools: vec![ToolId::from_static("stage.validate")],
         }
+    }
+
+    fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, QueryError> {
+        let input: StageInput = serde_json::from_value(input.clone())?;
+        Ok(DocumentAccessPlan::document(input.stage_id))
     }
 
     fn execute(&self, input: &Value, store: &DocumentStore) -> Result<Value, QueryError> {

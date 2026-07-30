@@ -259,7 +259,8 @@ impl AgentHost {
                 .filter(|document| !allowed.contains(*document))
                 .cloned()
                 .collect::<Vec<_>>();
-            if !denied.is_empty() || (descriptor.kind == ToolKind::Command && access.scans_project) {
+            if !denied.is_empty() || (descriptor.kind == ToolKind::Command && access.scans_project)
+            {
                 return rejected(
                     call,
                     AGENT_WORKING_SET_DENIED,
@@ -473,21 +474,11 @@ fn error_message(result: &ToolResult) -> String {
         .to_string()
 }
 
-fn rejected(
-    call: &ToolCall,
-    code: &str,
-    message: impl Into<String>,
-    details: Value,
-) -> ToolResult {
+fn rejected(call: &ToolCall, code: &str, message: impl Into<String>, details: Value) -> ToolResult {
     error_result(call, ToolResultStatus::Rejected, code, message, details)
 }
 
-fn failed(
-    call: &ToolCall,
-    code: &str,
-    message: impl Into<String>,
-    details: Value,
-) -> ToolResult {
+fn failed(call: &ToolCall, code: &str, message: impl Into<String>, details: Value) -> ToolResult {
     error_result(call, ToolResultStatus::Failed, code, message, details)
 }
 
@@ -653,10 +644,7 @@ mod tests {
         let mut session = session(PermissionSet::content_author());
         session.working_set = vec![DocumentId::from_static("stage.a")];
         for (tool, input) in [
-            (
-                "project.document.get",
-                json!({"document_id": "stage.b"}),
-            ),
+            ("project.document.get", json!({"document_id": "stage.b"})),
             (
                 "document.set_field",
                 json!({"document_id": "stage.b", "path": ["x"], "value": 1}),
@@ -768,10 +756,7 @@ mod tests {
                 }
             }
 
-            fn document_access(
-                &self,
-                _input: &Value,
-            ) -> Result<DocumentAccessPlan, CommandError> {
+            fn document_access(&self, _input: &Value) -> Result<DocumentAccessPlan, CommandError> {
                 Ok(DocumentAccessPlan::documents([
                     DocumentId::from_static("stage.a"),
                     DocumentId::from_static("stage.b"),
