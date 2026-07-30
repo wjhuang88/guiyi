@@ -115,7 +115,7 @@ fn invalid_input_permission_and_validation_errors_do_not_stop_processing() {
     assert_eq!(error_code(&lines[0]), Some("AGENT_ACCESS_PLAN_INVALID"));
     assert_eq!(lines[1]["call_id"], "validation");
     assert_eq!(lines[1]["status"], "rejected");
-    assert!(lines[1]["diagnostics"].as_array().unwrap().len() >= 1);
+    assert!(!lines[1]["diagnostics"].as_array().unwrap().is_empty());
     assert_eq!(lines[2]["call_id"], "after");
     assert_eq!(lines[2]["status"], "ok");
     fs::remove_dir_all(project).unwrap();
