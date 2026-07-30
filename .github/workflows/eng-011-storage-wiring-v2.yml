@@ -1,0 +1,74 @@
+name: ENG-011 storage wiring v2
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'agent/ENG-011-crash-safe-storage'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - name: Export storage and structured errors
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          lib = Path("crates/engine_content/src/lib.rs")
+          lines = lib.read_text().splitlines(keepends=True)
+          docs = next(index for index, line in enumerate(lines) if line.startswith("//! Authoring documents"))
+          if not any(line.strip() == "mod storage;" for line in lines):
+              lines[docs + 1:docs + 1] = ["\n", "mod storage;\n", "pub use storage::*;\n"]
+          path_variant = next(index for index, line in enumerate(lines) if "ProjectPath(#[from] ProjectPathError)" in line)
+          if not any("Storage(#[from] ProjectStorageError)" in line for line in lines):
+              lines[path_variant + 1:path_variant + 1] = [
+                  "    #[error(transparent)]\n",
+                  "    Storage(#[from] ProjectStorageError),\n",
+              ]
+          lib.write_text("".join(lines))
+
+          storage = Path("crates/engine_content/src/storage.rs")
+          lines = storage.read_text().splitlines(keepends=True)
+          start = next(index for index, line in enumerate(lines) if line.strip() == "Ok(TransactionId::new(format!(")
+          end = next(index for index in range(start, len(lines)) if lines[index].strip() == "))?)")
+          replacement = [
+              "    TransactionId::new(format!(\n",
+              "        \"{}-{}-{}-{sequence}\",\n",
+              "        sanitized,\n",
+              "        std::process::id(),\n",
+              "        unix_ms()\n",
+              "    ))\n",
+              "    .map_err(|error| {\n",
+              "        ProjectStorageError::operation(\n",
+              "            PROJECT_STORAGE_PLAN_INVALID,\n",
+              "            \"generate_transaction_id\",\n",
+              "            None,\n",
+              "            error.to_string(),\n",
+              "        )\n",
+              "        .into()\n",
+              "    })\n",
+          ]
+          lines[start:end + 1] = replacement
+          storage.write_text("".join(lines))
+          PY
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all
+      - name: Commit wiring
+        run: |
+          if git diff --quiet; then
+            echo "storage wiring made no changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "feat(content): export crash-safe project storage"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
