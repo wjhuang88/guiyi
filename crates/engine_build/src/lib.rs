@@ -142,9 +142,8 @@ impl BuildPipeline {
             match self.compilers.compile(document, context) {
                 Ok(artifact) => compiled.push((document, artifact)),
                 Err(ContentError::CompilerNotFound(type_id)) => {
-                    let message = format!(
-                        "no compiler is registered for buildable document type {type_id}"
-                    );
+                    let message =
+                        format!("no compiler is registered for buildable document type {type_id}");
                     if self.profile.strict {
                         report.diagnostics.push(
                             Diagnostic::error(BUILD_COMPILER_MISSING, message.clone())
@@ -180,10 +179,7 @@ impl BuildPipeline {
             return report;
         }
 
-        report.artifacts = compiled
-            .into_iter()
-            .map(|(_, artifact)| artifact)
-            .collect();
+        report.artifacts = compiled.into_iter().map(|(_, artifact)| artifact).collect();
         report
     }
 
@@ -261,11 +257,12 @@ mod tests {
             _context: &CompileContext,
         ) -> Result<ArtifactEnvelope, ContentError> {
             if document.payload["fail"] == json!(true) {
-                return Err(ContentError::InvalidDocument("injected compiler failure".into()));
+                return Err(ContentError::InvalidDocument(
+                    "injected compiler failure".into(),
+                ));
             }
             Ok(ArtifactEnvelope {
-                id: ArtifactId::new(format!("artifact.{}", document.header.id.as_str()))
-                    .unwrap(),
+                id: ArtifactId::new(format!("artifact.{}", document.header.id.as_str())).unwrap(),
                 artifact_type: self.artifact_type(),
                 source_document: document.header.id.clone(),
                 compiler_version: 1,
@@ -312,12 +309,20 @@ mod tests {
     #[test]
     fn strict_build_rejects_missing_compiler() {
         let mut store = DocumentStore::default();
-        store.insert(document("doc.missing", "test.uncompiled")).unwrap();
+        store
+            .insert(document("doc.missing", "test.uncompiled"))
+            .unwrap();
         let report = BuildPipeline::new(CompilerRegistry::default()).build(&store, &context());
         assert!(!report.succeeded());
         assert!(report.artifacts.is_empty());
-        assert_eq!(report.skipped_documents[0].reason, BuildSkipReason::MissingCompiler);
-        assert_eq!(report.diagnostics.diagnostics[0].code, BUILD_COMPILER_MISSING);
+        assert_eq!(
+            report.skipped_documents[0].reason,
+            BuildSkipReason::MissingCompiler
+        );
+        assert_eq!(
+            report.diagnostics.diagnostics[0].code,
+            BUILD_COMPILER_MISSING
+        );
     }
 
     #[test]
@@ -350,7 +355,10 @@ mod tests {
             .build(&store, &context());
         assert!(report.succeeded());
         assert!(report.artifacts.is_empty());
-        assert_eq!(report.skipped_documents[0].reason, BuildSkipReason::AuthoringOnly);
+        assert_eq!(
+            report.skipped_documents[0].reason,
+            BuildSkipReason::AuthoringOnly
+        );
         assert_eq!(
             report.diagnostics.diagnostics[0].code,
             BUILD_DOCUMENT_AUTHORING_ONLY
@@ -381,7 +389,9 @@ mod tests {
     #[test]
     fn compatibility_mode_reports_missing_compiler_as_warning() {
         let mut store = DocumentStore::default();
-        store.insert(document("doc.optional", "test.optional")).unwrap();
+        store
+            .insert(document("doc.optional", "test.optional"))
+            .unwrap();
         let profile = BuildProfile {
             name: "compatibility".into(),
             strict: false,
@@ -391,6 +401,9 @@ mod tests {
             .build(&store, &context());
         assert!(report.succeeded());
         assert!(report.artifacts.is_empty());
-        assert_eq!(report.skipped_documents[0].reason, BuildSkipReason::MissingCompiler);
+        assert_eq!(
+            report.skipped_documents[0].reason,
+            BuildSkipReason::MissingCompiler
+        );
     }
 }

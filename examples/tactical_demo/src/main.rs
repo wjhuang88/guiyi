@@ -5,9 +5,7 @@ use guiyi_engine_build::{BuildPipeline, BuildProfile};
 use guiyi_engine_command::{
     CommandContext, CommandExecutor, CommandRegistry, CommandRequest, EngineState,
 };
-use guiyi_engine_content::{
-    CompileContext, CompilerRegistry, DocumentEnvelope, DocumentHeader,
-};
+use guiyi_engine_content::{CompileContext, CompilerRegistry, DocumentEnvelope, DocumentHeader};
 use guiyi_engine_core::{DocumentId, EngineTypeId, PermissionSet, ToolId};
 use guiyi_engine_runtime::StageRuntimeManager;
 use serde_json::json;
