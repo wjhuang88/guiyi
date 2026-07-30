@@ -191,10 +191,6 @@ impl AgentHost {
 
         session.actions_used += 1;
         let result = self.dispatch(session, &call);
-        if result.status == ToolResultStatus::Failed {
-            session.status = SessionStatus::Failed;
-            session.final_summary = Some(error_message(&result));
-        }
         record_action(session, call, result.clone());
         result
     }
@@ -203,7 +199,7 @@ impl AgentHost {
         let descriptor = match self.catalog.get(&call.tool) {
             Some(descriptor) => descriptor,
             None => {
-                return failed(
+                return rejected(
                     call,
                     AGENT_TOOL_NOT_FOUND,
                     format!("tool not found: {}", call.tool),
@@ -464,16 +460,6 @@ fn record_action(session: &mut AgentSession, call: ToolCall, result: ToolResult)
     });
 }
 
-fn error_message(result: &ToolResult) -> String {
-    result
-        .output
-        .get("error")
-        .and_then(|error| error.get("message"))
-        .and_then(Value::as_str)
-        .unwrap_or("tool execution failed")
-        .to_string()
-}
-
 fn rejected(call: &ToolCall, code: &str, message: impl Into<String>, details: Value) -> ToolResult {
     error_result(call, ToolResultStatus::Rejected, code, message, details)
 }
@@ -720,7 +706,7 @@ mod tests {
     }
 
     #[test]
-    fn failed_calls_are_recorded_and_fail_the_session() {
+    fn unknown_tools_are_rejected_recorded_and_do_not_stop_the_session() {
         let mut host = host();
         let mut session = session(PermissionSet::read_only());
         let result = host.execute(
@@ -732,10 +718,13 @@ mod tests {
                 dry_run: false,
             },
         );
-        assert_eq!(result.status, ToolResultStatus::Failed);
+        assert_eq!(result.status, ToolResultStatus::Rejected);
         assert_eq!(error_code(&result), Some(AGENT_TOOL_NOT_FOUND));
         assert_eq!(session.actions.len(), 1);
-        assert_eq!(session.status, SessionStatus::Failed);
+        assert_eq!(session.status, SessionStatus::Running);
+        let following = host.execute(&mut session, list_call("call-after"));
+        assert_eq!(following.status, ToolResultStatus::Ok);
+        assert_eq!(session.actions.len(), 2);
     }
 
     #[test]

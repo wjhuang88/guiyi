@@ -10,7 +10,7 @@ use guiyi_engine_content::{
     DocumentEnvelope, DocumentStore, ProjectFilesystem, ProjectManifest, ProjectPath,
 };
 use guiyi_engine_core::{AgentSessionId, DocumentId, PermissionSet};
-use guiyi_engine_protocol::{decode_line, encode_line, ToolCall, ToolResult, ToolResultStatus};
+use guiyi_engine_protocol::{encode_line, ToolCall, ToolResult, ToolResultStatus};
 use guiyi_engine_query::{register_builtin_queries, QueryExecutor, QueryRegistry};
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -110,20 +110,35 @@ fn run(args: Args) -> Result<(), String> {
 }
 
 fn execute_line(host: &mut AgentHost, session: &mut AgentSession, line: &str) -> ToolResult {
-    match decode_line::<ToolCall>(line) {
+    let value = match serde_json::from_str::<serde_json::Value>(line) {
+        Ok(value) => value,
+        Err(error) => {
+            return protocol_error("invalid", "PROTOCOL_INVALID_JSONL", error.to_string())
+        }
+    };
+    let call_id = value
+        .get("id")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("invalid")
+        .to_string();
+    match serde_json::from_value::<ToolCall>(value) {
         Ok(call) => host.execute(session, call),
-        Err(error) => ToolResult {
-            call_id: "invalid".into(),
-            status: ToolResultStatus::Failed,
-            output: json!({
-                "error": {
-                    "code": "PROTOCOL_INVALID_JSONL",
-                    "message": error.to_string()
-                }
-            }),
-            diagnostics: Vec::new(),
-            transaction: None,
-        },
+        Err(error) => protocol_error(&call_id, "PROTOCOL_INVALID_CALL", error.to_string()),
+    }
+}
+
+fn protocol_error(call_id: &str, code: &str, message: String) -> ToolResult {
+    ToolResult {
+        call_id: call_id.into(),
+        status: ToolResultStatus::Rejected,
+        output: json!({
+            "error": {
+                "code": code,
+                "message": message
+            }
+        }),
+        diagnostics: Vec::new(),
+        transaction: None,
     }
 }
 

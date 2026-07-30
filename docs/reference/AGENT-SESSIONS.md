@@ -15,11 +15,13 @@ Terminal states are:
 - `Completed`: an agent loop returned an explicit completion summary;
 - `Stopped`: an agent loop returned an explicit stop reason;
 - `BudgetExceeded`: a tool call was attempted after the action budget was exhausted;
-- `Failed`: tool lookup, query execution, command execution, serialization, or another tool-level failure returned a failed result.
+- `Failed`: an agent-loop driver or unrecoverable session-host operation failed and the loop cannot continue safely.
+
+Ordinary tool-level outcomes do not make the session terminal. Successful, rejected, and failed `ToolResult` values are recorded and the next call may be processed. This includes unknown tools, invalid input, permission denial, validation rejection, command/query failure, and other recoverable tool outcomes.
 
 Calls made after a terminal state receive `AGENT_SESSION_NOT_ACTIVE`. They are retained in action history and do not reactivate the session.
 
-Rejected permission, working-set, access-plan, and validation calls remain non-terminal unless the rejection is caused by an exhausted budget.
+A budget rejection is the exception among structured rejections: it moves the session to `BudgetExceeded` because no further tool call is permitted.
 
 ## Action budget and history
 
@@ -34,6 +36,8 @@ Every valid `ToolCall` produces one `AgentActionRecord` containing:
 - a monotonic session-local sequence;
 - the original call;
 - the complete structured result.
+
+Protocol lines that cannot deserialize as a valid `ToolCall` produce a structured Workbench result but are not session actions because no valid call entered the session executor.
 
 ## Working-set semantics
 
@@ -78,9 +82,13 @@ The unified executor returns structured `ToolResult` errors with stable codes, i
 
 The result preserves the original call ID and includes relevant details such as required permissions, denied document IDs, action usage, and working-set contents.
 
+Unknown tools are recoverable rejected results. A caller may correct the tool ID and continue using the same running session. Other tool-level failed results are likewise returned to the caller without automatically changing session status.
+
+JSONL parsing and framing codes are specified in [Command and query protocol](COMMAND-QUERY-PROTOCOL.md).
+
 ## JSONL Workbench
 
-The Workbench creates one mutable session for its process and routes every decoded tool call through `AgentHost::execute`.
+The Workbench creates one mutable session for its process and routes every valid decoded tool call through `AgentHost::execute`.
 
 Supported session controls include:
 
@@ -90,3 +98,5 @@ Supported session controls include:
 ```
 
 `--working-set` may be repeated. Omitting it selects unrestricted working-set semantics. `--read-only` changes permissions but does not bypass budget, status, history, or working-set enforcement.
+
+Tool-level results do not terminate the Workbench. Host infrastructure failures, such as project storage or stdin/stdout failure, remain process-level failures and terminate with a non-zero exit code.

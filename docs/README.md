@@ -20,6 +20,7 @@
 - [Iteration 001 retrospective](iterations/iteration-001/RETROSPECTIVE.md)
 - [ENG-007 validation](validation/ENG-007.md)
 - [ENG-008 validation](validation/ENG-008.md)
+- [ENG-009 validation](validation/ENG-009.md)
 
 ## Standard operating procedures
 
