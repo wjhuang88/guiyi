@@ -7,7 +7,7 @@ use guiyi_engine_command::{
     register_builtin_document_commands, CommandExecutor, CommandRegistry, EngineState,
 };
 use guiyi_engine_content::{
-    load_json, save_json, DocumentEnvelope, DocumentStore, ProjectManifest,
+    DocumentEnvelope, DocumentStore, ProjectFilesystem, ProjectManifest, ProjectPath,
 };
 use guiyi_engine_core::{AgentSessionId, PermissionSet};
 use guiyi_engine_protocol::{decode_line, encode_line, ToolCall, ToolResult, ToolResultStatus};
@@ -39,8 +39,12 @@ fn main() -> ExitCode {
     }
 }
 
+fn logical(value: &str) -> Result<ProjectPath, String> {
+    ProjectPath::new(value).map_err(|error| error.to_string())
+}
+
 fn run(args: Args) -> Result<(), String> {
-    let (mut manifest, store, mut paths) = load_project(&args.project)?;
+    let (storage, mut manifest, store, mut paths) = load_project(&args.project)?;
     let mut commands = CommandRegistry::default();
     register_builtin_document_commands(&mut commands).map_err(|error| error.to_string())?;
     register_tactical_commands(&mut commands).map_err(|error| error.to_string())?;
@@ -86,7 +90,7 @@ fn run(args: Args) -> Result<(), String> {
         if !args.read_only && result.status == ToolResultStatus::Ok && result.transaction.is_some()
         {
             persist_project(
-                &args.project,
+                &storage,
                 &mut manifest,
                 &mut paths,
                 &host.state.documents,
@@ -103,33 +107,39 @@ fn run(args: Args) -> Result<(), String> {
     Ok(())
 }
 
+type DocumentPaths = BTreeMap<guiyi_engine_core::DocumentId, ProjectPath>;
+
 fn load_project(
     root: &Path,
 ) -> Result<
     (
+        ProjectFilesystem,
         ProjectManifest,
         DocumentStore,
-        BTreeMap<guiyi_engine_core::DocumentId, PathBuf>,
+        DocumentPaths,
     ),
     String,
 > {
-    let manifest: ProjectManifest =
-        load_json(&root.join("engine-project.json")).map_err(|error| error.to_string())?;
+    let storage = ProjectFilesystem::open(root).map_err(|error| error.to_string())?;
+    let manifest: ProjectManifest = storage
+        .load_json(&logical("engine-project.json")?)
+        .map_err(|error| error.to_string())?;
     let mut store = DocumentStore::default();
     let mut paths = BTreeMap::new();
     for relative in &manifest.documents {
-        let document: DocumentEnvelope =
-            load_json(&root.join(relative)).map_err(|error| error.to_string())?;
+        let document: DocumentEnvelope = storage
+            .load_json(relative)
+            .map_err(|error| error.to_string())?;
         paths.insert(document.header.id.clone(), relative.clone());
         store.insert(document).map_err(|error| error.to_string())?;
     }
-    Ok((manifest, store, paths))
+    Ok((storage, manifest, store, paths))
 }
 
 fn persist_project(
-    root: &Path,
+    storage: &ProjectFilesystem,
     manifest: &mut ProjectManifest,
-    paths: &mut BTreeMap<guiyi_engine_core::DocumentId, PathBuf>,
+    paths: &mut DocumentPaths,
     store: &DocumentStore,
 ) -> Result<(), String> {
     let stale = paths
@@ -139,23 +149,70 @@ fn persist_project(
         .collect::<Vec<_>>();
     for id in stale {
         if let Some(relative) = paths.remove(&id) {
-            let file = root.join(relative);
-            if file.exists() {
-                std::fs::remove_file(file).map_err(|error| error.to_string())?;
+            if storage
+                .exists(&relative)
+                .map_err(|error| error.to_string())?
+            {
+                storage
+                    .remove_file(&relative)
+                    .map_err(|error| error.to_string())?;
             }
         }
     }
     for (id, document) in store.iter() {
-        let relative = paths.entry(id.clone()).or_insert_with(|| {
-            let path = PathBuf::from(format!("content/generated/{}.json", id.as_str()));
+        let relative = if let Some(existing) = paths.get(id) {
+            existing.clone()
+        } else {
+            let path = ProjectPath::new(format!("content/generated/{}.json", id.as_str()))
+                .map_err(|error| error.to_string())?;
             manifest.documents.push(path.clone());
+            paths.insert(id.clone(), path.clone());
             path
-        });
-        save_json(&root.join(relative.as_path()), document).map_err(|error| error.to_string())?;
+        };
+        storage
+            .save_json(&relative, document)
+            .map_err(|error| error.to_string())?;
     }
     manifest
         .documents
         .retain(|path| paths.values().any(|known| known == path));
-    save_json(&root.join("engine-project.json"), manifest).map_err(|error| error.to_string())?;
+    storage
+        .save_json(&logical("engine-project.json")?, manifest)
+        .map_err(|error| error.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use guiyi_engine_content::PROJECT_PATH_INVALID;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn workbench_rejects_manifest_path_escape_without_reading_external_file() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "guiyi-workbench-sandbox-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            root.join("engine-project.json"),
+            r#"{
+                "project_id": "project.test",
+                "name": "Test",
+                "engine_api_version": "0.1.0",
+                "content_schema_version": 1,
+                "documents": ["../../outside.json"]
+            }"#,
+        )
+        .unwrap();
+        let error = load_project(&root).unwrap_err();
+        assert!(error.contains(PROJECT_PATH_INVALID));
+        assert!(error.contains("../../outside.json"));
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }
