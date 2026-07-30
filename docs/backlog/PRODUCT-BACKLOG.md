@@ -46,16 +46,19 @@ authorization.
 - Gate: configured `rust` and `repository-gates` CI jobs pass; validation records exact results and `Cargo.lock` is committed.
 - Evidence: CI run `30552961077` (run number 32) passed on 2026-07-30.
 
-## Ready — Immediate safety
+## Done — Immediate safety
 
 ### ENG-007 Sandbox all project paths and prevent filesystem escape
 
 - Type: Security
 - Priority: P0
-- Status: Ready
-- GitHub: [#6](https://github.com/wjhuang88/guiyi/issues/6) — Open
+- Status: Done
+- GitHub: [#6](https://github.com/wjhuang88/guiyi/issues/6) — completed by PR #21
 - Goal: route project reads and mutations through one validated project-relative filesystem boundary.
 - Gate: absolute paths, parent traversal, platform prefixes, and symlink escapes are rejected with stable structured diagnostics, and adversarial tests prove external files remain unchanged.
+- Evidence: `docs/validation/ENG-007.md`; CI run `30554258905` (run number 40) passed on 2026-07-30.
+
+## Ready — Immediate safety
 
 ### ENG-008 Enforce AgentSession at every tool entry point
 
@@ -81,7 +84,7 @@ authorization.
 - Priority: P0
 - Status: Ready
 - GitHub: [#10](https://github.com/wjhuang88/guiyi/issues/10) — Open
-- Goal: provide one crash-safe storage and journal boundary for documents, manifests, autosaves, transaction records, and recovery.
+- Goal: provide a single crash-safe project persistence layer for documents, manifests, autosaves, transaction snapshots, and audit history.
 - Gate: failure-injection tests prove atomic multi-file commits, idempotent recovery, durable audit history, and preservation of the last known-good project state.
 
 ### ENG-015 Reject command/query Tool ID collisions
@@ -90,7 +93,7 @@ authorization.
 - Priority: P0
 - Status: Ready
 - GitHub: [#11](https://github.com/wjhuang88/guiyi/issues/11) — Open
-- Goal: guarantee that every discoverable Tool ID resolves to exactly one command or query.
+- Goal: guarantee that every discoverable Tool ID maps to exactly one executable capability across command and query registries.
 - Gate: duplicate IDs within or across registries fail catalog construction with a stable structured error, while unique catalogs remain deterministic.
 
 ### ENG-016 Make BuildPipeline strict about validation and compiler coverage
