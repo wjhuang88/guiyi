@@ -3,7 +3,9 @@
 //! Structured project queries and a semantic reference graph.
 
 use guiyi_engine_content::DocumentStore;
-use guiyi_engine_core::{DocumentId, ObjectId, Permission, PermissionSet, ToolId};
+use guiyi_engine_core::{
+    DocumentAccessPlan, DocumentId, ObjectId, Permission, PermissionSet, ToolId,
+};
 use guiyi_engine_validation::DiagnosticBag;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -35,6 +37,14 @@ pub struct QueryContext {
 
 pub trait QueryHandler: Send + Sync {
     fn descriptor(&self) -> QueryDescriptor;
+
+    /// Declares directly required documents and whether the query scans the
+    /// caller-visible project view. Restricted sessions receive a filtered
+    /// document store for project-scanning queries.
+    fn document_access(&self, _input: &Value) -> Result<DocumentAccessPlan, QueryError> {
+        Ok(DocumentAccessPlan::project())
+    }
+
     fn execute(&self, input: &Value, store: &DocumentStore) -> Result<Value, QueryError>;
 }
 
@@ -79,6 +89,15 @@ impl QueryExecutor {
 
     pub fn registry(&self) -> &QueryRegistry {
         &self.registry
+    }
+
+    pub fn document_access(
+        &self,
+        request: &QueryRequest,
+    ) -> Result<DocumentAccessPlan, QueryError> {
+        self.registry
+            .handler(&request.query)?
+            .document_access(&request.input)
     }
 
     pub fn execute(
@@ -215,6 +234,11 @@ impl QueryHandler for GetDocumentQuery {
         }
     }
 
+    fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, QueryError> {
+        let input: DocumentInput = serde_json::from_value(input.clone())?;
+        Ok(DocumentAccessPlan::document(input.document_id))
+    }
+
     fn execute(&self, input: &Value, store: &DocumentStore) -> Result<Value, QueryError> {
         let input: DocumentInput = serde_json::from_value(input.clone())?;
         let document = store
@@ -251,6 +275,13 @@ impl QueryHandler for FindReferencesQuery {
             required_permissions: PermissionSet::new([Permission::Read]),
             related_tools: vec![ToolId::from_static("project.impact.analyze")],
         }
+    }
+
+    fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, QueryError> {
+        let input: ReferenceInput = serde_json::from_value(input.clone())?;
+        let mut plan = DocumentAccessPlan::document(input.target_document);
+        plan.scans_project = true;
+        Ok(plan)
     }
 
     fn execute(&self, input: &Value, store: &DocumentStore) -> Result<Value, QueryError> {
@@ -302,6 +333,13 @@ impl QueryHandler for ImpactQuery {
         }
     }
 
+    fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, QueryError> {
+        let input: DocumentInput = serde_json::from_value(input.clone())?;
+        let mut plan = DocumentAccessPlan::document(input.document_id);
+        plan.scans_project = true;
+        Ok(plan)
+    }
+
     fn execute(&self, input: &Value, store: &DocumentStore) -> Result<Value, QueryError> {
         let input: DocumentInput = serde_json::from_value(input.clone())?;
         let graph = ProjectGraph::build(store);
@@ -326,6 +364,31 @@ mod tests {
     use super::*;
     use guiyi_engine_content::{ContentReference, DocumentEnvelope, DocumentHeader};
     use guiyi_engine_core::EngineTypeId;
+
+    #[test]
+    fn targeted_queries_declare_document_access() {
+        let mut registry = QueryRegistry::default();
+        register_builtin_queries(&mut registry).unwrap();
+        let executor = QueryExecutor::new(registry);
+        let get = executor
+            .document_access(&QueryRequest {
+                query: ToolId::from_static("project.document.get"),
+                input: json!({"document_id": "doc.a"}),
+            })
+            .unwrap();
+        assert_eq!(
+            get.required,
+            BTreeSet::from([DocumentId::from_static("doc.a")])
+        );
+        assert!(!get.scans_project);
+        let impact = executor
+            .document_access(&QueryRequest {
+                query: ToolId::from_static("project.impact.analyze"),
+                input: json!({"document_id": "doc.a"}),
+            })
+            .unwrap();
+        assert!(impact.scans_project);
+    }
 
     #[test]
     fn impact_follows_reverse_references() {
