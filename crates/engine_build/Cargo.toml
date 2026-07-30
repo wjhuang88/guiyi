@@ -6,8 +6,12 @@ license.workspace = true
 
 [dependencies]
 guiyi-engine-content = { path = "../engine_content" }
+guiyi-engine-core = { path = "../engine_core" }
 guiyi-engine-validation = { path = "../engine_validation" }
 serde.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
