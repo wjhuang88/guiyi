@@ -1,4 +1,4 @@
-name: ENG-006 cargo repair
+name: ENG-006 compiler repair
 
 on:
   pull_request:
@@ -18,16 +18,29 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - run: cargo fix --workspace --all-features --allow-dirty
+      - name: Apply verified compiler repair
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("crates/engine_query/src/lib.rs")
+          source = path.read_text()
+          old = "document.references.iter().filter_map(|reference| {"
+          new = "document.references.iter().filter_map(move |reference| {"
+          count = source.count(old)
+          if count != 1:
+              raise SystemExit(f"expected exactly one repair target, found {count}")
+          path.write_text(source.replace(old, new, 1))
+          PY
       - run: cargo fmt --all
-      - name: Commit compiler fixes
+      - name: Commit compiler repair
         run: |
           if git diff --quiet; then
-            echo "cargo fix and cargo fmt made no changes"
+            echo "repair made no changes"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add --all
-          git commit -m "fix: apply compiler suggestions"
+          git commit -m "fix(query): own source in reference iterator"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
