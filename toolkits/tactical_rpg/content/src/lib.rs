@@ -228,14 +228,14 @@ impl DocumentCompiler for StageCompiler {
             })
             .collect::<Vec<_>>();
         let source_hash = document.content_hash()?;
-        Ok(ArtifactEnvelope {
-            id: ArtifactId::new(format!("artifact.{}", document.header.id.as_str()))
+        ArtifactEnvelope::new(
+            ArtifactId::new(format!("artifact.{}", document.header.id.as_str()))
                 .map_err(|error| ContentError::InvalidDocument(error.to_string()))?,
-            artifact_type: self.artifact_type(),
-            source_document: document.header.id.clone(),
-            compiler_version: 1,
+            self.artifact_type(),
+            document.header.id.clone(),
+            1,
             source_hash,
-            payload: serde_json::to_value(StageArtifactPayload {
+            serde_json::to_value(StageArtifactPayload {
                 objects,
                 metadata: json!({
                     "name": stage.name,
@@ -243,7 +243,7 @@ impl DocumentCompiler for StageCompiler {
                     "connections": stage.connections,
                 }),
             })?,
-        })
+        )
     }
 }
 
