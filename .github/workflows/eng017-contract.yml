@@ -1,0 +1,29 @@
+name: ENG-017 artifact contract
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.head_ref == 'agent/ENG-017-artifact-integrity'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: python3 scripts/eng017_add_artifact_hash.py
+      - run: cargo fmt --all
+      - name: Commit artifact contract
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "feat(content): add versioned artifact integrity hash"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
