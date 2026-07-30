@@ -1,16 +1,20 @@
 #![forbid(unsafe_code)]
 
 use bevy_ecs::world::World;
-use guiyi_engine_build::BuildPipeline;
+use guiyi_engine_build::{BuildPipeline, BuildProfile};
 use guiyi_engine_command::{
     CommandContext, CommandExecutor, CommandRegistry, CommandRequest, EngineState,
 };
-use guiyi_engine_content::{CompileContext, CompilerRegistry};
-use guiyi_engine_core::{PermissionSet, ToolId};
+use guiyi_engine_content::{
+    CompileContext, CompilerRegistry, DocumentEnvelope, DocumentHeader,
+};
+use guiyi_engine_core::{DocumentId, EngineTypeId, PermissionSet, ToolId};
 use guiyi_engine_runtime::StageRuntimeManager;
 use serde_json::json;
 use tactical_rpg_content::StageCompiler;
 use tactical_rpg_tools::register_tactical_commands;
+
+const ACTOR_DEFINITION_TYPE: &str = "tactical.actor.definition";
 
 fn main() {
     let mut commands = CommandRegistry::default();
@@ -48,16 +52,35 @@ fn main() {
             .unwrap();
     }
 
+    state
+        .documents
+        .insert(DocumentEnvelope {
+            header: DocumentHeader {
+                id: DocumentId::from_static("actor.guard.basic"),
+                type_id: EngineTypeId::from_static(ACTOR_DEFINITION_TYPE),
+                schema_version: 1,
+                display_name: "Basic Guard".into(),
+            },
+            references: Vec::new(),
+            payload: json!({"health": 10, "movement": 4}),
+        })
+        .unwrap();
+
     let mut compilers = CompilerRegistry::default();
     compilers.register(StageCompiler).unwrap();
-    let report = BuildPipeline::new(compilers).build(
+    let profile = BuildProfile::default()
+        .with_authoring_only_type(EngineTypeId::from_static(ACTOR_DEFINITION_TYPE));
+    let report = BuildPipeline::with_profile(compilers, profile).build(
         &state.documents,
         &CompileContext {
             project_root: ".".into(),
             profile: "demo".into(),
         },
     );
-    assert!(report.succeeded());
+    assert!(report.succeeded(), "diagnostics: {:?}", report.diagnostics);
+    assert_eq!(report.artifacts.len(), 1);
+    assert_eq!(report.skipped_documents.len(), 1);
+
     let mut world = World::new();
     let mut runtime = StageRuntimeManager::default();
     let instance = runtime.load(&mut world, &report.artifacts[0]).unwrap();
