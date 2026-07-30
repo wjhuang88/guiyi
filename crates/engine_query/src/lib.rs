@@ -258,7 +258,7 @@ impl QueryHandler for FindReferencesQuery {
         let matches = store
             .iter()
             .flat_map(|(source, document)| {
-                document.references.iter().filter_map(|reference| {
+                document.references.iter().filter_map(move |reference| {
                     let object_match = input.target_object.is_none()
                         || input.target_object == reference.target_object;
                     if reference.target_document == input.target_document && object_match {
