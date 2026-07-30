@@ -7,11 +7,9 @@ license.workspace = true
 [dependencies]
 guiyi-engine-command = { path = "../engine_command" }
 guiyi-engine-content = { path = "../engine_content" }
+guiyi-engine-core = { path = "../engine_core" }
 serde_json.workspace = true
 thiserror.workspace = true
 
 [lints]
 workspace = true
-
-[dev-dependencies]
-guiyi-engine-core = { path = "../engine_core" }
