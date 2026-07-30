@@ -61,7 +61,10 @@ impl QueryRegistry {
     }
 
     pub fn descriptors(&self) -> Vec<QueryDescriptor> {
-        self.handlers.values().map(|item| item.descriptor()).collect()
+        self.handlers
+            .values()
+            .map(|item| item.descriptor())
+            .collect()
     }
 }
 
@@ -251,14 +254,19 @@ impl QueryHandler for FindReferencesQuery {
     }
 
     fn execute(&self, input: &Value, store: &DocumentStore) -> Result<Value, QueryError> {
-        let input: ReferenceInput = serde_json::from_value(input.clone())?;
+        let ReferenceInput {
+            target_document,
+            target_object,
+        } = serde_json::from_value(input.clone())?;
         let matches = store
             .iter()
             .flat_map(|(source, document)| {
-                document.references.iter().filter_map(|reference| {
-                    let object_match = input.target_object.is_none()
-                        || input.target_object == reference.target_object;
-                    if reference.target_document == input.target_document && object_match {
+                let target_document = target_document.clone();
+                let target_object = target_object.clone();
+                document.references.iter().filter_map(move |reference| {
+                    let object_match =
+                        target_object.is_none() || target_object == reference.target_object;
+                    if reference.target_document == target_document && object_match {
                         Some(json!({
                             "source_document": source,
                             "source_object": reference.source_object,

@@ -3,8 +3,12 @@
 use clap::Parser;
 use guiyi_engine_agent_host::{AgentHost, AgentSession};
 use guiyi_engine_agent_tools::ToolCatalog;
-use guiyi_engine_command::{register_builtin_document_commands, CommandExecutor, CommandRegistry, EngineState};
-use guiyi_engine_content::{load_json, save_json, DocumentEnvelope, DocumentStore, ProjectManifest};
+use guiyi_engine_command::{
+    register_builtin_document_commands, CommandExecutor, CommandRegistry, EngineState,
+};
+use guiyi_engine_content::{
+    load_json, save_json, DocumentEnvelope, DocumentStore, ProjectManifest,
+};
 use guiyi_engine_core::{AgentSessionId, PermissionSet};
 use guiyi_engine_protocol::{decode_line, encode_line, ToolCall, ToolResult, ToolResultStatus};
 use guiyi_engine_query::{register_builtin_queries, QueryExecutor, QueryRegistry};
@@ -68,7 +72,9 @@ fn run(args: Args) -> Result<(), String> {
             continue;
         }
         let result = match decode_line::<ToolCall>(&line) {
-            Ok(call) => host.execute_call(&session, call).map_err(|error| error.to_string())?,
+            Ok(call) => host
+                .execute_call(&session, call)
+                .map_err(|error| error.to_string())?,
             Err(error) => ToolResult {
                 call_id: "invalid".into(),
                 status: ToolResultStatus::Failed,
@@ -77,7 +83,8 @@ fn run(args: Args) -> Result<(), String> {
                 transaction: None,
             },
         };
-        if !args.read_only && result.status == ToolResultStatus::Ok && result.transaction.is_some() {
+        if !args.read_only && result.status == ToolResultStatus::Ok && result.transaction.is_some()
+        {
             persist_project(
                 &args.project,
                 &mut manifest,
@@ -85,8 +92,12 @@ fn run(args: Args) -> Result<(), String> {
                 &host.state.documents,
             )?;
         }
-        writeln!(stdout, "{}", encode_line(&result).map_err(|error| error.to_string())?)
-            .map_err(|error| error.to_string())?;
+        writeln!(
+            stdout,
+            "{}",
+            encode_line(&result).map_err(|error| error.to_string())?
+        )
+        .map_err(|error| error.to_string())?;
         stdout.flush().map_err(|error| error.to_string())?;
     }
     Ok(())
@@ -94,7 +105,14 @@ fn run(args: Args) -> Result<(), String> {
 
 fn load_project(
     root: &Path,
-) -> Result<(ProjectManifest, DocumentStore, BTreeMap<guiyi_engine_core::DocumentId, PathBuf>), String> {
+) -> Result<
+    (
+        ProjectManifest,
+        DocumentStore,
+        BTreeMap<guiyi_engine_core::DocumentId, PathBuf>,
+    ),
+    String,
+> {
     let manifest: ProjectManifest =
         load_json(&root.join("engine-project.json")).map_err(|error| error.to_string())?;
     let mut store = DocumentStore::default();

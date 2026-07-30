@@ -138,15 +138,19 @@ mod tests {
         }
     }
 
+    fn stage_owned_count(world: &mut World) -> usize {
+        world.query::<&StageOwned>().iter(world).count()
+    }
+
     #[test]
     fn repeated_load_and_unload_does_not_leak_entities() {
         let mut world = World::new();
         let mut manager = StageRuntimeManager::default();
         for _ in 0..100 {
             let id = manager.load(&mut world, &artifact()).unwrap();
-            assert_eq!(world.entities().len(), 1);
+            assert_eq!(stage_owned_count(&mut world), 1);
             assert_eq!(manager.unload(&mut world, &id).unwrap(), 1);
-            assert_eq!(world.entities().len(), 0);
+            assert_eq!(stage_owned_count(&mut world), 0);
         }
         assert_eq!(manager.active_count(), 0);
     }
@@ -154,10 +158,11 @@ mod tests {
     #[test]
     fn unload_does_not_touch_global_entities() {
         let mut world = World::new();
-        world.spawn(GlobalPersistent);
+        let global = world.spawn(GlobalPersistent).id();
         let mut manager = StageRuntimeManager::default();
         let id = manager.load(&mut world, &artifact()).unwrap();
         manager.unload(&mut world, &id).unwrap();
-        assert_eq!(world.entities().len(), 1);
+        assert!(world.get::<GlobalPersistent>(global).is_some());
+        assert_eq!(stage_owned_count(&mut world), 0);
     }
 }

@@ -87,7 +87,12 @@ fn run(cli: Cli) -> Result<(), String> {
 }
 
 fn init_project(root: &Path, name: &str) -> Result<(), String> {
-    if root.exists() && fs::read_dir(root).map_err(|error| error.to_string())?.next().is_some() {
+    if root.exists()
+        && fs::read_dir(root)
+            .map_err(|error| error.to_string())?
+            .next()
+            .is_some()
+    {
         return Err(format!("target directory is not empty: {}", root.display()));
     }
     fs::create_dir_all(root.join("content/stages")).map_err(|error| error.to_string())?;
@@ -95,8 +100,8 @@ fn init_project(root: &Path, name: &str) -> Result<(), String> {
     fs::create_dir_all(root.join("artifacts")).map_err(|error| error.to_string())?;
     fs::create_dir_all(root.join(".agent-sessions")).map_err(|error| error.to_string())?;
 
-    let project_id = ProjectId::new(format!("project.{}", slug(name)))
-        .map_err(|error| error.to_string())?;
+    let project_id =
+        ProjectId::new(format!("project.{}", slug(name))).map_err(|error| error.to_string())?;
     let mut stage = StageDocument::new_hex(
         guiyi_engine_core::DocumentId::from_static("stage.demo"),
         "Demo Stage",
@@ -112,8 +117,11 @@ fn init_project(root: &Path, name: &str) -> Result<(), String> {
         properties: json!({}),
     });
     let document_path = PathBuf::from("content/stages/demo.stage.json");
-    save_json(&root.join(&document_path), &stage.to_envelope().map_err(|e| e.to_string())?)
-        .map_err(|error| error.to_string())?;
+    save_json(
+        &root.join(&document_path),
+        &stage.to_envelope().map_err(|e| e.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
     let manifest = ProjectManifest {
         project_id,
         name: name.into(),
@@ -169,7 +177,10 @@ fn capabilities(as_json: bool) -> Result<(), String> {
     let (commands, queries) = create_registries()?;
     let catalog = ToolCatalog::from_registries(&commands, &queries);
     if as_json {
-        println!("{}", serde_json::to_string_pretty(&catalog.as_json()).unwrap());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&catalog.as_json()).unwrap()
+        );
     } else {
         for tool in catalog.list() {
             println!("{} [{:?}] - {}", tool.id, tool.kind, tool.description);
@@ -201,7 +212,9 @@ fn compile_project(root: &Path, out: &Path, as_json: bool) -> Result<(), String>
         return Err("content has validation errors; compile refused".into());
     }
     let mut compilers = CompilerRegistry::default();
-    compilers.register(StageCompiler).map_err(|error| error.to_string())?;
+    compilers
+        .register(StageCompiler)
+        .map_err(|error| error.to_string())?;
     let report = BuildPipeline::new(compilers).build(
         &store,
         &CompileContext {
@@ -211,7 +224,10 @@ fn compile_project(root: &Path, out: &Path, as_json: bool) -> Result<(), String>
     );
     fs::create_dir_all(out).map_err(|error| error.to_string())?;
     for artifact in &report.artifacts {
-        let file = out.join(format!("{}.artifact.json", artifact.source_document.as_str()));
+        let file = out.join(format!(
+            "{}.artifact.json",
+            artifact.source_document.as_str()
+        ));
         save_json(&file, artifact).map_err(|error| error.to_string())?;
     }
     let output = json!({

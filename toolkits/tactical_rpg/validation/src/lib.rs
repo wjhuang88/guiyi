@@ -88,8 +88,7 @@ pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
 
 fn position_in_bounds(stage: &StageDocument, x: i32, y: i32) -> bool {
     match &stage.coordinate_space {
-        CoordinateSpace::HexAxial { width, height }
-        | CoordinateSpace::Square { width, height } => {
+        CoordinateSpace::HexAxial { width, height } | CoordinateSpace::Square { width, height } => {
             x >= 0 && y >= 0 && x < *width as i32 && y < *height as i32
         }
         CoordinateSpace::Free2d | CoordinateSpace::Free3d => true,
@@ -105,23 +104,14 @@ mod tests {
 
     #[test]
     fn validator_reports_missing_spawn() {
-        let stage = StageDocument::new_hex(
-            DocumentId::from_static("stage.empty"),
-            "Empty",
-            4,
-            4,
-        );
+        let stage = StageDocument::new_hex(DocumentId::from_static("stage.empty"), "Empty", 4, 4);
         assert_eq!(validate_stage(&stage).summary().warnings, 1);
     }
 
     #[test]
     fn validator_rejects_out_of_bounds_objects() {
-        let mut stage = StageDocument::new_hex(
-            DocumentId::from_static("stage.bounds"),
-            "Bounds",
-            4,
-            4,
-        );
+        let mut stage =
+            StageDocument::new_hex(DocumentId::from_static("stage.bounds"), "Bounds", 4, 4);
         stage.objects.push(StageObject {
             id: ObjectId::from_static("spawn.bad"),
             position: HexCoord::new(8, 8),

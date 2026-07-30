@@ -1,8 +1,6 @@
 #![forbid(unsafe_code)]
 
-use guiyi_engine_agent_host::{
-    AgentDirective, AgentHost, AgentSession, ScriptedAgentDriver,
-};
+use guiyi_engine_agent_host::{AgentDirective, AgentHost, AgentSession, ScriptedAgentDriver};
 use guiyi_engine_agent_tools::ToolCatalog;
 use guiyi_engine_command::{CommandExecutor, CommandRegistry, EngineState};
 use guiyi_engine_core::{AgentSessionId, PermissionSet, ToolId};

@@ -19,7 +19,8 @@ struct Args {
 }
 
 fn run(args: Args) -> Result<(), String> {
-    let artifact: ArtifactEnvelope = load_json(&args.artifact).map_err(|error| error.to_string())?;
+    let artifact: ArtifactEnvelope =
+        load_json(&args.artifact).map_err(|error| error.to_string())?;
     let mut world = World::new();
     let mut manager = StageRuntimeManager::default();
     let instance = manager

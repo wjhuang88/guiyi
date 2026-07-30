@@ -2,7 +2,7 @@
 
 This is the only executable requirement list.
 
-GitHub Issue state was last synchronized on 2026-07-29. GitHub `OPEN` means only
+GitHub Issue state was last synchronized on 2026-07-30. GitHub `OPEN` means only
 that an Issue is unresolved; the `Status` field below remains the implementation
 authorization.
 
@@ -18,36 +18,35 @@ authorization.
 - Status: Done
 - Gate: reference, backlog, iteration, ADR, roadmap, SOP, template, proposal, and archive directories exist.
 
-## Validation — Iteration 001
-
 ### ENG-003 Establish AI-native architecture
 
-- Status: Validation
+- Status: Done
 - Gate: command, query, protocol, agent tools, and agent host crates provide executable foundations.
-- Blocked by: ENG-006 compiler and CI acceptance evidence.
+- Evidence: compiler-backed acceptance is recorded in `docs/iterations/iteration-001/VALIDATION.md`.
 
 ### ENG-004 Establish Stage vertical skeleton
 
-- Status: Validation
+- Status: Done
 - Gate: Stage document compiles and loads/unloads through Bevy ECS with lifecycle tests.
-- Blocked by: ENG-006 compiler and CI acceptance evidence.
+- Evidence: compiler-backed acceptance is recorded in `docs/iterations/iteration-001/VALIDATION.md`.
 
 ### ENG-005 Establish CLI, preview, and JSONL workbench
 
-- Status: Validation
-- Gate: source implementations and examples are included; Cargo execution remains pending in the package-generation environment.
-- Blocked by: ENG-006 compiler and CI acceptance evidence.
-
-## Ready — Immediate safety and acceptance
+- Status: Done
+- Gate: source implementations, CLI, preview, Workbench, and examples pass the configured CI gates.
+- Evidence: compiler-backed acceptance is recorded in `docs/iterations/iteration-001/VALIDATION.md`.
 
 ### ENG-006 Establish real Cargo/CI acceptance baseline and correct Iteration 001 status
 
 - Type: Quality
 - Priority: P0
-- Status: Ready
-- GitHub: [#5](https://github.com/wjhuang88/guiyi/issues/5) — Open
+- Status: Done
+- GitHub: [#5](https://github.com/wjhuang88/guiyi/issues/5) — completed by PR #20
 - Goal: run the complete Rust gate suite, repair all failures, commit reproducibility evidence, and make Iteration 001 status match executed validation.
-- Gate: `./scripts/first_run.sh` and the configured `rust` and `repository-gates` CI jobs pass; validation records exact results and `Cargo.lock` is committed.
+- Gate: configured `rust` and `repository-gates` CI jobs pass; validation records exact results and `Cargo.lock` is committed.
+- Evidence: CI run `30552961077` (run number 32) passed on 2026-07-30.
+
+## Ready — Immediate safety
 
 ### ENG-007 Sandbox all project paths and prevent filesystem escape
 
