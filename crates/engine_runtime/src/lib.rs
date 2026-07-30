@@ -124,12 +124,12 @@ fn validate_stage_artifact(
         });
     }
 
-    let computed_hash = artifact
-        .compute_artifact_hash()
-        .map_err(|error| RuntimeError::ArtifactIntegrityFailed {
+    let computed_hash = artifact.compute_artifact_hash().map_err(|error| {
+        RuntimeError::ArtifactIntegrityFailed {
             declared: artifact.artifact_hash.clone(),
             computed: format!("unavailable: {error}"),
-        })?;
+        }
+    })?;
     if artifact.artifact_hash.is_empty() || artifact.artifact_hash != computed_hash {
         return Err(RuntimeError::ArtifactIntegrityFailed {
             declared: artifact.artifact_hash.clone(),
@@ -346,7 +346,8 @@ mod tests {
 
     #[test]
     fn duplicate_object_ids_are_rejected_atomically() {
-        let artifact = artifact_with_objects(vec![descriptor("object.one"), descriptor("object.one")]);
+        let artifact =
+            artifact_with_objects(vec![descriptor("object.one"), descriptor("object.one")]);
         assert_atomic_failure(
             &mut StageRuntimeManager::default(),
             &mut World::new(),

@@ -342,7 +342,59 @@ pub struct ArtifactEnvelope {
     pub source_document: DocumentId,
     pub compiler_version: u32,
     pub source_hash: String,
+    #[serde(default)]
+    pub artifact_hash: String,
     pub payload: Value,
+}
+
+impl ArtifactEnvelope {
+    pub fn new(
+        id: ArtifactId,
+        artifact_type: EngineTypeId,
+        source_document: DocumentId,
+        compiler_version: u32,
+        source_hash: String,
+        payload: Value,
+    ) -> Result<Self, ContentError> {
+        let mut artifact = Self {
+            id,
+            artifact_type,
+            source_document,
+            compiler_version,
+            source_hash,
+            artifact_hash: String::new(),
+            payload,
+        };
+        artifact.refresh_artifact_hash()?;
+        Ok(artifact)
+    }
+
+    pub fn compute_artifact_hash(&self) -> Result<String, ContentError> {
+        #[derive(Serialize)]
+        struct IntegrityPayload<'a> {
+            id: &'a ArtifactId,
+            artifact_type: &'a EngineTypeId,
+            source_document: &'a DocumentId,
+            compiler_version: u32,
+            source_hash: &'a str,
+            payload: &'a Value,
+        }
+
+        let bytes = serde_json::to_vec(&IntegrityPayload {
+            id: &self.id,
+            artifact_type: &self.artifact_type,
+            source_document: &self.source_document,
+            compiler_version: self.compiler_version,
+            source_hash: &self.source_hash,
+            payload: &self.payload,
+        })?;
+        Ok(deterministic_hash(&bytes))
+    }
+
+    pub fn refresh_artifact_hash(&mut self) -> Result<(), ContentError> {
+        self.artifact_hash = self.compute_artifact_hash()?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

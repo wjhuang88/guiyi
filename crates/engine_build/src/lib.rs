@@ -261,14 +261,14 @@ mod tests {
                     "injected compiler failure".into(),
                 ));
             }
-            Ok(ArtifactEnvelope {
-                id: ArtifactId::new(format!("artifact.{}", document.header.id.as_str())).unwrap(),
-                artifact_type: self.artifact_type(),
-                source_document: document.header.id.clone(),
-                compiler_version: 1,
-                source_hash: document.content_hash()?,
-                payload: document.payload.clone(),
-            })
+            ArtifactEnvelope::new(
+                ArtifactId::new(format!("artifact.{}", document.header.id.as_str())).unwrap(),
+                self.artifact_type(),
+                document.header.id.clone(),
+                1,
+                document.content_hash()?,
+                document.payload.clone(),
+            )
         }
     }
 

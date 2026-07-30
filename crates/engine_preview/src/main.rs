@@ -46,8 +46,8 @@ impl PreviewError {
 }
 
 fn run(args: &Args) -> Result<Value, PreviewError> {
-    let artifact: ArtifactEnvelope = load_json(&args.artifact)
-        .map_err(|error| PreviewError::ArtifactRead(error.to_string()))?;
+    let artifact: ArtifactEnvelope =
+        load_json(&args.artifact).map_err(|error| PreviewError::ArtifactRead(error.to_string()))?;
     let mut world = World::new();
     let mut manager = StageRuntimeManager::default();
     let instance = manager.load(&mut world, &artifact)?;
