@@ -78,16 +78,17 @@ authorization.
 - Gate: unknown tools, invalid input, permission denial, and validation failures preserve the call ID where parseable, emit stable error codes, keep stdout JSONL-only, and do not stop subsequent calls; host infrastructure failures still exit non-zero.
 - Evidence: `docs/validation/ENG-009.md`; CI run `30557194781` (run number 61) passed on 2026-07-30.
 
-## Ready — Immediate safety
-
 ### ENG-011 Add crash-safe ProjectStorage and a persistent transaction journal
 
 - Type: Persistence
 - Priority: P0
-- Status: Ready
-- GitHub: [#10](https://github.com/wjhuang88/guiyi/issues/10) — Open
+- Status: Done
+- GitHub: [#10](https://github.com/wjhuang88/guiyi/issues/10) — completed by PR #25
 - Goal: provide a single crash-safe project persistence layer for documents, manifests, autosaves, transaction snapshots, and audit history.
 - Gate: failure-injection tests prove atomic multi-file commits, idempotent recovery, durable audit history, and preservation of the last known-good project state.
+- Evidence: `docs/validation/ENG-011.md`; CI run `30559656903` (run number 98) passed on 2026-07-30.
+
+## Ready — Immediate safety
 
 ### ENG-015 Reject command/query Tool ID collisions
 
