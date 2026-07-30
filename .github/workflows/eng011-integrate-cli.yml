@@ -1,0 +1,29 @@
+name: ENG-011 CLI integration
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.head_ref == 'agent/ENG-011-crash-safe-storage'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: python3 scripts/eng011_integrate_cli.py
+      - run: cargo fmt --all
+      - name: Commit CLI integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "feat(storage): route CLI writes through project transactions"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
