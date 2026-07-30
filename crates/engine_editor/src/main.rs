@@ -9,7 +9,7 @@ use guiyi_engine_command::{
 use guiyi_engine_content::{
     DocumentEnvelope, DocumentStore, ProjectFilesystem, ProjectManifest, ProjectPath,
 };
-use guiyi_engine_core::{AgentSessionId, PermissionSet};
+use guiyi_engine_core::{AgentSessionId, DocumentId, PermissionSet};
 use guiyi_engine_protocol::{decode_line, encode_line, ToolCall, ToolResult, ToolResultStatus};
 use guiyi_engine_query::{register_builtin_queries, QueryExecutor, QueryRegistry};
 use serde_json::json;
@@ -27,6 +27,13 @@ struct Args {
     project: PathBuf,
     #[arg(long)]
     read_only: bool,
+    /// Maximum number of valid tool calls that may enter execution.
+    #[arg(long, default_value_t = 32)]
+    max_actions: u32,
+    /// Restrict the session to these document IDs. Repeating the option adds
+    /// documents. Omitting it means unrestricted project access.
+    #[arg(long = "working-set")]
+    working_set: Vec<String>,
 }
 
 fn main() -> ExitCode {
@@ -41,6 +48,25 @@ fn main() -> ExitCode {
 
 fn logical(value: &str) -> Result<ProjectPath, String> {
     ProjectPath::new(value).map_err(|error| error.to_string())
+}
+
+fn create_session(args: &Args) -> Result<AgentSession, String> {
+    let mut session = AgentSession::new(
+        AgentSessionId::from_static("session.workbench"),
+        "External workbench session",
+        if args.read_only {
+            PermissionSet::read_only()
+        } else {
+            PermissionSet::content_author()
+        },
+    );
+    session.budget.max_actions = args.max_actions;
+    session.working_set = args
+        .working_set
+        .iter()
+        .map(|value| DocumentId::new(value.clone()).map_err(|error| error.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(session)
 }
 
 fn run(args: Args) -> Result<(), String> {
@@ -58,15 +84,7 @@ fn run(args: Args) -> Result<(), String> {
         QueryExecutor::new(queries),
         catalog,
     );
-    let session = AgentSession::new(
-        AgentSessionId::from_static("session.workbench"),
-        "External workbench session",
-        if args.read_only {
-            PermissionSet::read_only()
-        } else {
-            PermissionSet::content_author()
-        },
-    );
+    let mut session = create_session(&args)?;
 
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -75,18 +93,7 @@ fn run(args: Args) -> Result<(), String> {
         if line.trim().is_empty() {
             continue;
         }
-        let result = match decode_line::<ToolCall>(&line) {
-            Ok(call) => host
-                .execute_call(&session, call)
-                .map_err(|error| error.to_string())?,
-            Err(error) => ToolResult {
-                call_id: "invalid".into(),
-                status: ToolResultStatus::Failed,
-                output: json!({"error": error.to_string()}),
-                diagnostics: Vec::new(),
-                transaction: None,
-            },
-        };
+        let result = execute_line(&mut host, &mut session, &line);
         if !args.read_only && result.status == ToolResultStatus::Ok && result.transaction.is_some()
         {
             persist_project(&storage, &mut manifest, &mut paths, &host.state.documents)?;
@@ -100,6 +107,24 @@ fn run(args: Args) -> Result<(), String> {
         stdout.flush().map_err(|error| error.to_string())?;
     }
     Ok(())
+}
+
+fn execute_line(host: &mut AgentHost, session: &mut AgentSession, line: &str) -> ToolResult {
+    match decode_line::<ToolCall>(line) {
+        Ok(call) => host.execute(session, call),
+        Err(error) => ToolResult {
+            call_id: "invalid".into(),
+            status: ToolResultStatus::Failed,
+            output: json!({
+                "error": {
+                    "code": "PROTOCOL_INVALID_JSONL",
+                    "message": error.to_string()
+                }
+            }),
+            diagnostics: Vec::new(),
+            transaction: None,
+        },
+    }
 }
 
 type DocumentPaths = BTreeMap<guiyi_engine_core::DocumentId, ProjectPath>;
@@ -180,8 +205,66 @@ fn persist_project(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use guiyi_engine_agent_host::{AGENT_BUDGET_EXCEEDED, SessionStatus};
     use guiyi_engine_content::PROJECT_PATH_INVALID;
+    use serde_json::Value;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn test_host() -> AgentHost {
+        let mut commands = CommandRegistry::default();
+        register_builtin_document_commands(&mut commands).unwrap();
+        let mut queries = QueryRegistry::default();
+        register_builtin_queries(&mut queries).unwrap();
+        let catalog = ToolCatalog::from_registries(&commands, &queries);
+        AgentHost::new(
+            EngineState::default(),
+            CommandExecutor::new(commands),
+            QueryExecutor::new(queries),
+            catalog,
+        )
+    }
+
+    fn error_code(result: &ToolResult) -> Option<&str> {
+        result
+            .output
+            .get("error")
+            .and_then(|error| error.get("code"))
+            .and_then(Value::as_str)
+    }
+
+    #[test]
+    fn workbench_path_enforces_budget_and_records_every_result() {
+        let mut host = test_host();
+        let args = Args {
+            project: PathBuf::from("."),
+            read_only: true,
+            max_actions: 1,
+            working_set: Vec::new(),
+        };
+        let mut session = create_session(&args).unwrap();
+        let call = r#"{"id":"call-1","tool":"project.documents.list","input":{}}"#;
+        let first = execute_line(&mut host, &mut session, call);
+        assert_eq!(first.status, ToolResultStatus::Ok);
+        let second = execute_line(&mut host, &mut session, call);
+        assert_eq!(second.status, ToolResultStatus::Rejected);
+        assert_eq!(error_code(&second), Some(AGENT_BUDGET_EXCEEDED));
+        assert_eq!(session.actions_used, 1);
+        assert_eq!(session.actions.len(), 2);
+        assert_eq!(session.status, SessionStatus::BudgetExceeded);
+    }
+
+    #[test]
+    fn workbench_session_parses_working_set() {
+        let args = Args {
+            project: PathBuf::from("."),
+            read_only: true,
+            max_actions: 4,
+            working_set: vec!["stage.a".into(), "stage.b".into()],
+        };
+        let session = create_session(&args).unwrap();
+        assert_eq!(session.working_set.len(), 2);
+        assert_eq!(session.budget.max_actions, 4);
+    }
 
     #[test]
     fn workbench_rejects_manifest_path_escape_without_reading_external_file() {
