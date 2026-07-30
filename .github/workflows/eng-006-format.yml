@@ -24,58 +24,46 @@ jobs:
           from pathlib import Path
 
           path = Path("crates/engine_query/src/lib.rs")
-          source = path.read_text()
-          old = '''        let input: ReferenceInput = serde_json::from_value(input.clone())?;
-        let matches = store
-            .iter()
-            .flat_map(|(source, document)| {
-                document.references.iter().filter_map(move |reference| {
-                    let object_match = input.target_object.is_none()
-                        || input.target_object == reference.target_object;
-                    if reference.target_document == input.target_document && object_match {
-                        Some(json!({
-                            "source_document": source,
-                            "source_object": reference.source_object,
-                            "kind": reference.kind,
-                            "target_object": reference.target_object
-                        }))
-                    } else {
-                        None
-                    }
-                })
-            })
-            .collect::<Vec<_>>();
-'''
-          new = '''        let ReferenceInput {
-            target_document,
-            target_object,
-        } = serde_json::from_value(input.clone())?;
-        let matches = store
-            .iter()
-            .flat_map(|(source, document)| {
-                let target_document = target_document.clone();
-                let target_object = target_object.clone();
-                document.references.iter().filter_map(move |reference| {
-                    let object_match =
-                        target_object.is_none() || target_object == reference.target_object;
-                    if reference.target_document == target_document && object_match {
-                        Some(json!({
-                            "source_document": source,
-                            "source_object": reference.source_object,
-                            "kind": reference.kind,
-                            "target_object": reference.target_object
-                        }))
-                    } else {
-                        None
-                    }
-                })
-            })
-            .collect::<Vec<_>>();
-'''
-          count = source.count(old)
-          if count != 1:
-              raise SystemExit(f"expected exactly one query block, found {count}")
-          path.write_text(source.replace(old, new, 1))
+          lines = path.read_text().splitlines(keepends=True)
+          start = next(
+              index
+              for index, line in enumerate(lines)
+              if "let input: ReferenceInput = serde_json::from_value" in line
+          )
+          end = next(
+              index
+              for index in range(start, len(lines))
+              if ".collect::<Vec<_>>();" in lines[index]
+          )
+          replacement = [
+              "        let ReferenceInput {\n",
+              "            target_document,\n",
+              "            target_object,\n",
+              "        } = serde_json::from_value(input.clone())?;\n",
+              "        let matches = store\n",
+              "            .iter()\n",
+              "            .flat_map(|(source, document)| {\n",
+              "                let target_document = target_document.clone();\n",
+              "                let target_object = target_object.clone();\n",
+              "                document.references.iter().filter_map(move |reference| {\n",
+              "                    let object_match =\n",
+              "                        target_object.is_none() || target_object == reference.target_object;\n",
+              "                    if reference.target_document == target_document && object_match {\n",
+              "                        Some(json!({\n",
+              "                            \"source_document\": source,\n",
+              "                            \"source_object\": reference.source_object,\n",
+              "                            \"kind\": reference.kind,\n",
+              "                            \"target_object\": reference.target_object\n",
+              "                        }))\n",
+              "                    } else {\n",
+              "                        None\n",
+              "                    }\n",
+              "                })\n",
+              "            })\n",
+              "            .collect::<Vec<_>>();\n",
+          ]
+          lines[start : end + 1] = replacement
+          path.write_text("".join(lines))
           PY
       - run: cargo fmt --all
       - name: Commit compiler repair
