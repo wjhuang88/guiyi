@@ -12,10 +12,8 @@ fn temporary_project(name: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let root = std::env::temp_dir().join(format!(
-        "guiyi-jsonl-{name}-{}-{nonce}",
-        std::process::id()
-    ));
+    let root =
+        std::env::temp_dir().join(format!("guiyi-jsonl-{name}-{}-{nonce}", std::process::id()));
     fs::create_dir_all(&root).unwrap();
     fs::write(
         root.join("engine-project.json"),
@@ -77,7 +75,11 @@ fn unknown_tool_returns_one_line_and_following_call_succeeds() {
             "{\"id\":\"2\",\"tool\":\"project.documents.list\",\"input\":{},\"dry_run\":false}\n"
         ),
     );
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let lines = json_lines(&output);
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0]["call_id"], "1");
@@ -101,7 +103,11 @@ fn invalid_input_permission_and_validation_errors_do_not_stop_processing() {
             "{\"id\":\"after\",\"tool\":\"project.documents.list\",\"input\":{},\"dry_run\":false}\n"
         ),
     );
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let lines = json_lines(&output);
     assert_eq!(lines.len(), 3);
     assert_eq!(lines[0]["call_id"], "invalid-input");
@@ -123,7 +129,11 @@ fn invalid_input_permission_and_validation_errors_do_not_stop_processing() {
             "{\"id\":\"after\",\"tool\":\"project.documents.list\",\"input\":{},\"dry_run\":false}\n"
         ),
     );
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let lines = json_lines(&output);
     assert_eq!(lines.len(), 2);
     assert_eq!(error_code(&lines[0]), Some("AGENT_PERMISSION_DENIED"));
@@ -142,7 +152,11 @@ fn syntactically_valid_invalid_call_preserves_parseable_call_id() {
             "{\"id\":\"after\",\"tool\":\"project.documents.list\",\"input\":{}}\n"
         ),
     );
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let lines = json_lines(&output);
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0]["call_id"], "kept-id");
