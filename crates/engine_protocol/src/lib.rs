@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
+pub const PROTOCOL_INVALID_JSONL: &str = "PROTOCOL_INVALID_JSONL";
+pub const PROTOCOL_INVALID_CALL: &str = "PROTOCOL_INVALID_CALL";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProtocolVersion {
     pub major: u32,
@@ -81,5 +84,28 @@ mod tests {
         let encoded = encode_line(&call).unwrap();
         assert!(!encoded.contains('\n'));
         assert_eq!(decode_line::<ToolCall>(&encoded).unwrap(), call);
+    }
+
+    #[test]
+    fn structured_error_result_round_trips_with_machine_code() {
+        let result = ToolResult {
+            call_id: "call-invalid".into(),
+            status: ToolResultStatus::Rejected,
+            output: json!({
+                "error": {
+                    "code": PROTOCOL_INVALID_CALL,
+                    "message": "missing field `tool`"
+                }
+            }),
+            diagnostics: Vec::new(),
+            transaction: None,
+        };
+        let encoded = encode_line(&result).unwrap();
+        let decoded = decode_line::<ToolResult>(&encoded).unwrap();
+        assert_eq!(decoded, result);
+        assert_eq!(
+            decoded.output["error"]["code"],
+            json!(PROTOCOL_INVALID_CALL)
+        );
     }
 }
