@@ -7,6 +7,7 @@
 - [AI-native platform](reference/AI-NATIVE-PLATFORM.md)
 - [Command and query protocol](reference/COMMAND-QUERY-PROTOCOL.md)
 - [Project storage boundary](reference/PROJECT-STORAGE.md)
+- [Agent session execution boundary](reference/AGENT-SESSIONS.md)
 - [Stage model](reference/STAGE-MODEL.md)
 - [Lessons extracted from wuxia](reference/WUXIA-EXTRACTION-LESSONS.md)
 
@@ -18,6 +19,7 @@
 - [Iteration 001 validation](iterations/iteration-001/VALIDATION.md)
 - [Iteration 001 retrospective](iterations/iteration-001/RETROSPECTIVE.md)
 - [ENG-007 validation](validation/ENG-007.md)
+- [ENG-008 validation](validation/ENG-008.md)
 
 ## Standard operating procedures
 
