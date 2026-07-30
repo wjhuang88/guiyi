@@ -343,7 +343,12 @@ impl ProjectStorage {
         let mut paths = fs::read_dir(audit_root)
             .map_err(|error| self.storage_error("scan_audit", None, error))?
             .filter_map(Result::ok)
-            .filter(|entry| entry.file_type().map(|kind| kind.is_file()).unwrap_or(false))
+            .filter(|entry| {
+                entry
+                    .file_type()
+                    .map(|kind| kind.is_file())
+                    .unwrap_or(false)
+            })
             .map(|entry| entry.path())
             .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("json"))
             .collect::<Vec<_>>();
@@ -373,7 +378,10 @@ impl ProjectStorage {
         let mut operation_number = 0usize;
         for operation in journal.operations.iter().filter(|item| !item.manifest) {
             self.apply(operation)?;
-            self.fail_if(&failure, StorageFailurePoint::AfterOperation(operation_number))?;
+            self.fail_if(
+                &failure,
+                StorageFailurePoint::AfterOperation(operation_number),
+            )?;
             operation_number += 1;
         }
 
@@ -545,7 +553,8 @@ impl ProjectStorage {
         let path = audit_path(journal.audit_sequence)?;
         if self.exists(&path)? {
             let existing: StorageAuditRecord = self.load_json(&path)?;
-            if existing.transaction_id != journal.transaction_id || existing.state != journal.state {
+            if existing.transaction_id != journal.transaction_id || existing.state != journal.state
+            {
                 return Err(ProjectStorageError::operation(
                     PROJECT_STORAGE_RECOVERY_FAILED,
                     "verify_audit",
@@ -616,16 +625,17 @@ impl ProjectStorage {
                 .map_err(|error| {
                     self.storage_error("create_temporary", Some(logical.clone()), error)
                 })?;
-            file.write_all(bytes)
-                .map_err(|error| self.storage_error("write_temporary", Some(logical.clone()), error))?;
-            file.sync_all()
-                .map_err(|error| self.storage_error("sync_temporary", Some(logical.clone()), error))?;
+            file.write_all(bytes).map_err(|error| {
+                self.storage_error("write_temporary", Some(logical.clone()), error)
+            })?;
+            file.sync_all().map_err(|error| {
+                self.storage_error("sync_temporary", Some(logical.clone()), error)
+            })?;
             replace_file(&temporary, &target).map_err(|error| {
                 self.storage_error("replace_target", Some(logical.clone()), error)
             })?;
-            sync_directory(parent).map_err(|error| {
-                self.storage_error("sync_parent", Some(logical.clone()), error)
-            })?;
+            sync_directory(parent)
+                .map_err(|error| self.storage_error("sync_parent", Some(logical.clone()), error))?;
             Ok(())
         })();
         if write_result.is_err() {
@@ -692,13 +702,8 @@ impl ProjectStorage {
         path: Option<ProjectPath>,
         error: impl std::fmt::Display,
     ) -> ContentError {
-        ProjectStorageError::operation(
-            PROJECT_STORAGE_FAILURE,
-            operation,
-            path,
-            error.to_string(),
-        )
-        .into()
+        ProjectStorageError::operation(PROJECT_STORAGE_FAILURE, operation, path, error.to_string())
+            .into()
     }
 }
 
@@ -714,12 +719,21 @@ fn generated_transaction_id(prefix: &str) -> Result<TransactionId, ContentError>
         })
         .collect::<String>();
     let sequence = UNIQUE_COUNTER.fetch_add(1, Ordering::Relaxed);
-    Ok(TransactionId::new(format!(
+    TransactionId::new(format!(
         "{}-{}-{}-{sequence}",
         sanitized,
         std::process::id(),
         unix_ms()
-    ))?)
+    ))
+    .map_err(|error| {
+        ProjectStorageError::operation(
+            PROJECT_STORAGE_PLAN_INVALID,
+            "generate_transaction_id",
+            None,
+            error.to_string(),
+        )
+        .into()
+    })
 }
 
 fn project_path(value: &str) -> Result<ProjectPath, ContentError> {
@@ -731,7 +745,9 @@ fn transaction_directory(transaction_id: &TransactionId) -> Result<ProjectPath, 
 }
 
 fn journal_path(transaction_id: &TransactionId) -> Result<ProjectPath, ContentError> {
-    transaction_directory(transaction_id)?.join(JOURNAL_FILE).map_err(Into::into)
+    transaction_directory(transaction_id)?
+        .join(JOURNAL_FILE)
+        .map_err(Into::into)
 }
 
 fn audit_path(sequence: u64) -> Result<ProjectPath, ContentError> {

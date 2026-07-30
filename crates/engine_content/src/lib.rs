@@ -2,6 +2,9 @@
 
 //! Authoring documents, compiled artifacts, sandboxed project storage, and compiler registration.
 
+mod storage;
+pub use storage::*;
+
 use guiyi_engine_core::{
     deterministic_hash, ArtifactId, DocumentId, EngineTypeId, ObjectId, ProjectId,
 };
@@ -468,6 +471,8 @@ pub enum ContentError {
     InvalidProjectRoot(PathBuf),
     #[error(transparent)]
     ProjectPath(#[from] ProjectPathError),
+    #[error(transparent)]
+    Storage(#[from] ProjectStorageError),
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
     #[error("serialization error: {0}")]
