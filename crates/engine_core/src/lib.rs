@@ -87,6 +87,44 @@ string_id!(AssetId);
 string_id!(AssetSlotId);
 string_id!(StageInstanceId);
 
+/// Declares which authoring documents a command or query needs to inspect.
+///
+/// `scans_project` means the tool may inspect the complete visible document set.
+/// A restricted session may execute project-scanning queries against a filtered
+/// store, while a project-scanning mutation is rejected because its effects
+/// cannot be proven to remain inside the working set before execution.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DocumentAccessPlan {
+    #[serde(default)]
+    pub required: BTreeSet<DocumentId>,
+    #[serde(default)]
+    pub scans_project: bool,
+}
+
+impl DocumentAccessPlan {
+    pub fn none() -> Self {
+        Self::default()
+    }
+
+    pub fn project() -> Self {
+        Self {
+            required: BTreeSet::new(),
+            scans_project: true,
+        }
+    }
+
+    pub fn document(document: DocumentId) -> Self {
+        Self::documents([document])
+    }
+
+    pub fn documents(documents: impl IntoIterator<Item = DocumentId>) -> Self {
+        Self {
+            required: documents.into_iter().collect(),
+            scans_project: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EngineVersion {
     pub major: u32,
@@ -196,6 +234,17 @@ mod tests {
             DocumentId::new("stage.demo").unwrap().as_str(),
             "stage.demo"
         );
+    }
+
+    #[test]
+    fn access_plans_deduplicate_documents() {
+        let plan = DocumentAccessPlan::documents([
+            DocumentId::from_static("stage.a"),
+            DocumentId::from_static("stage.a"),
+            DocumentId::from_static("stage.b"),
+        ]);
+        assert_eq!(plan.required.len(), 2);
+        assert!(!plan.scans_project);
     }
 
     #[test]
