@@ -5,14 +5,13 @@ use guiyi_engine_agent_tools::ToolCatalog;
 use guiyi_engine_build::BuildPipeline;
 use guiyi_engine_command::{register_builtin_document_commands, CommandRegistry};
 use guiyi_engine_content::{
-    load_json, save_json, CompileContext, CompilerRegistry, ContentReference, DocumentEnvelope,
-    DocumentStore, ProjectManifest,
+    CompileContext, CompilerRegistry, ContentReference, DocumentEnvelope, DocumentStore,
+    ProjectFilesystem, ProjectManifest, ProjectPath,
 };
 use guiyi_engine_core::{EngineVersion, ProjectId};
 use guiyi_engine_query::{register_builtin_queries, QueryRegistry};
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
 use serde_json::{json, Value};
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use tactical_rpg_content::{StageCompiler, StageDocument, STAGE_DOCUMENT_TYPE};
@@ -86,19 +85,30 @@ fn run(cli: Cli) -> Result<(), String> {
     }
 }
 
+fn logical(value: &str) -> Result<ProjectPath, String> {
+    ProjectPath::new(value).map_err(|error| error.to_string())
+}
+
 fn init_project(root: &Path, name: &str) -> Result<(), String> {
     if root.exists()
-        && fs::read_dir(root)
+        && std::fs::read_dir(root)
             .map_err(|error| error.to_string())?
             .next()
             .is_some()
     {
         return Err(format!("target directory is not empty: {}", root.display()));
     }
-    fs::create_dir_all(root.join("content/stages")).map_err(|error| error.to_string())?;
-    fs::create_dir_all(root.join("content/definitions")).map_err(|error| error.to_string())?;
-    fs::create_dir_all(root.join("artifacts")).map_err(|error| error.to_string())?;
-    fs::create_dir_all(root.join(".agent-sessions")).map_err(|error| error.to_string())?;
+    let storage = ProjectFilesystem::create(root).map_err(|error| error.to_string())?;
+    for directory in [
+        "content/stages",
+        "content/definitions",
+        "artifacts",
+        ".agent-sessions",
+    ] {
+        storage
+            .create_dir_all(&logical(directory)?)
+            .map_err(|error| error.to_string())?;
+    }
 
     let project_id =
         ProjectId::new(format!("project.{}", slug(name))).map_err(|error| error.to_string())?;
@@ -116,12 +126,13 @@ fn init_project(root: &Path, name: &str) -> Result<(), String> {
         },
         properties: json!({}),
     });
-    let document_path = PathBuf::from("content/stages/demo.stage.json");
-    save_json(
-        &root.join(&document_path),
-        &stage.to_envelope().map_err(|e| e.to_string())?,
-    )
-    .map_err(|error| error.to_string())?;
+    let document_path = logical("content/stages/demo.stage.json")?;
+    storage
+        .save_json(
+            &document_path,
+            &stage.to_envelope().map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
     let manifest = ProjectManifest {
         project_id,
         name: name.into(),
@@ -130,24 +141,40 @@ fn init_project(root: &Path, name: &str) -> Result<(), String> {
         enabled_extensions: vec!["tactical_rpg".into()],
         documents: vec![document_path],
     };
-    save_json(&root.join("engine-project.json"), &manifest).map_err(|error| error.to_string())?;
-    fs::write(
-        root.join("README.md"),
-        format!(
-            "# {name}\n\nCreated by GUIYI Engine. Run `guiyi-engine-cli doctor --project .`.\n"
-        ),
-    )
-    .map_err(|error| error.to_string())?;
-    println!("initialized {}", root.display());
+    storage
+        .save_json(&logical("engine-project.json")?, &manifest)
+        .map_err(|error| error.to_string())?;
+    storage
+        .write(
+            &logical("README.md")?,
+            format!(
+                "# {name}\n\nCreated by GUIYI Engine. Run `guiyi-engine-cli doctor --project .`.\n"
+            ),
+        )
+        .map_err(|error| error.to_string())?;
+    println!("initialized {}", storage.root().display());
     Ok(())
 }
 
 fn doctor(root: &Path, as_json: bool) -> Result<(), String> {
+    let storage = ProjectFilesystem::open(root).map_err(|error| error.to_string())?;
     let mut checks = Vec::new();
-    checks.push(check(root.join("engine-project.json"), "project_manifest"));
-    checks.push(check(root.join("content"), "content_directory"));
-    checks.push(check(root.join("artifacts"), "artifact_directory"));
-    let manifest_result = load_json::<ProjectManifest>(&root.join("engine-project.json"));
+    checks.push(check(
+        &storage,
+        &logical("engine-project.json")?,
+        "project_manifest",
+    ));
+    checks.push(check(
+        &storage,
+        &logical("content")?,
+        "content_directory",
+    ));
+    checks.push(check(
+        &storage,
+        &logical("artifacts")?,
+        "artifact_directory",
+    ));
+    let manifest_result = storage.load_json::<ProjectManifest>(&logical("engine-project.json")?);
     checks.push(json!({
         "name": "manifest_parse",
         "ok": manifest_result.is_ok(),
@@ -165,12 +192,20 @@ fn doctor(root: &Path, as_json: bool) -> Result<(), String> {
     }
 }
 
-fn check(path: PathBuf, name: &str) -> Value {
-    json!({
-        "name": name,
-        "ok": path.exists(),
-        "path": path
-    })
+fn check(storage: &ProjectFilesystem, path: &ProjectPath, name: &str) -> Value {
+    match storage.exists(path) {
+        Ok(exists) => json!({
+            "name": name,
+            "ok": exists,
+            "path": path.as_str()
+        }),
+        Err(error) => json!({
+            "name": name,
+            "ok": false,
+            "path": path.as_str(),
+            "detail": error.to_string()
+        }),
+    }
 }
 
 fn capabilities(as_json: bool) -> Result<(), String> {
@@ -190,7 +225,7 @@ fn capabilities(as_json: bool) -> Result<(), String> {
 }
 
 fn validate_project(root: &Path, as_json: bool) -> Result<(), String> {
-    let (_, store) = load_project(root)?;
+    let (_, _, store) = load_project(root)?;
     let diagnostics = validate_store(&store);
     let output = json!({
         "ok": !diagnostics.has_errors(),
@@ -205,8 +240,17 @@ fn validate_project(root: &Path, as_json: bool) -> Result<(), String> {
     }
 }
 
+fn output_path(root: &Path, out: &Path) -> Result<ProjectPath, String> {
+    if out.is_absolute() {
+        return ProjectPath::try_from(out).map_err(|error| error.to_string());
+    }
+    let relative = out.strip_prefix(root).unwrap_or(out);
+    ProjectPath::try_from(relative).map_err(|error| error.to_string())
+}
+
 fn compile_project(root: &Path, out: &Path, as_json: bool) -> Result<(), String> {
-    let (_, store) = load_project(root)?;
+    let (storage, _, store) = load_project(root)?;
+    let output_directory = output_path(root, out)?;
     let diagnostics = validate_store(&store);
     if diagnostics.has_errors() {
         return Err("content has validation errors; compile refused".into());
@@ -218,23 +262,29 @@ fn compile_project(root: &Path, out: &Path, as_json: bool) -> Result<(), String>
     let report = BuildPipeline::new(compilers).build(
         &store,
         &CompileContext {
-            project_root: root.to_path_buf(),
+            project_root: storage.root().to_path_buf(),
             profile: "development".into(),
         },
     );
-    fs::create_dir_all(out).map_err(|error| error.to_string())?;
+    storage
+        .create_dir_all(&output_directory)
+        .map_err(|error| error.to_string())?;
     for artifact in &report.artifacts {
-        let file = out.join(format!(
-            "{}.artifact.json",
-            artifact.source_document.as_str()
-        ));
-        save_json(&file, artifact).map_err(|error| error.to_string())?;
+        let file = output_directory
+            .join(format!(
+                "{}.artifact.json",
+                artifact.source_document.as_str()
+            ))
+            .map_err(|error| error.to_string())?;
+        storage
+            .save_json(&file, artifact)
+            .map_err(|error| error.to_string())?;
     }
     let output = json!({
         "ok": report.succeeded(),
         "artifacts": report.artifacts.len(),
         "diagnostics": report.diagnostics.diagnostics,
-        "output_directory": out,
+        "output_directory": output_directory.as_str(),
     });
     print_value(&output, as_json);
     if report.succeeded() {
@@ -254,16 +304,21 @@ fn create_registries() -> Result<(CommandRegistry, QueryRegistry), String> {
     Ok((commands, queries))
 }
 
-fn load_project(root: &Path) -> Result<(ProjectManifest, DocumentStore), String> {
-    let manifest: ProjectManifest =
-        load_json(&root.join("engine-project.json")).map_err(|error| error.to_string())?;
+fn load_project(
+    root: &Path,
+) -> Result<(ProjectFilesystem, ProjectManifest, DocumentStore), String> {
+    let storage = ProjectFilesystem::open(root).map_err(|error| error.to_string())?;
+    let manifest: ProjectManifest = storage
+        .load_json(&logical("engine-project.json")?)
+        .map_err(|error| error.to_string())?;
     let mut store = DocumentStore::default();
     for relative in &manifest.documents {
-        let document: DocumentEnvelope =
-            load_json(&root.join(relative)).map_err(|error| error.to_string())?;
+        let document: DocumentEnvelope = storage
+            .load_json(relative)
+            .map_err(|error| error.to_string())?;
         store.insert(document).map_err(|error| error.to_string())?;
     }
-    Ok((manifest, store))
+    Ok((storage, manifest, store))
 }
 
 fn validate_store(store: &DocumentStore) -> DiagnosticBag {
@@ -330,5 +385,23 @@ fn slug(name: &str) -> String {
         "game".into()
     } else {
         slug.into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn output_path_rejects_absolute_and_parent_traversal() {
+        let root = Path::new("project");
+        assert!(output_path(root, Path::new("/outside")).is_err());
+        assert!(output_path(root, Path::new("../outside")).is_err());
+        assert_eq!(
+            output_path(root, Path::new("project/artifacts"))
+                .unwrap()
+                .as_str(),
+            "artifacts"
+        );
     }
 }
