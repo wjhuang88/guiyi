@@ -245,6 +245,9 @@ mod tests {
         let first = document();
         let mut second = document();
         second.payload["value"] = json!(2);
-        assert_ne!(first.content_hash().unwrap(), second.content_hash().unwrap());
+        assert_ne!(
+            first.content_hash().unwrap(),
+            second.content_hash().unwrap()
+        );
     }
 }

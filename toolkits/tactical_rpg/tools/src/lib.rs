@@ -66,7 +66,10 @@ impl CommandHandler for CreateStageCommand {
                     );
                 }
             }
-            Err(error) => bag.push(Diagnostic::error("COMMAND_INPUT_INVALID", error.to_string())),
+            Err(error) => bag.push(Diagnostic::error(
+                "COMMAND_INPUT_INVALID",
+                error.to_string(),
+            )),
         }
         bag
     }

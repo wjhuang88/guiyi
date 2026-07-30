@@ -61,7 +61,10 @@ impl QueryRegistry {
     }
 
     pub fn descriptors(&self) -> Vec<QueryDescriptor> {
-        self.handlers.values().map(|item| item.descriptor()).collect()
+        self.handlers
+            .values()
+            .map(|item| item.descriptor())
+            .collect()
     }
 }
 

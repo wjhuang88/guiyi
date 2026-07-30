@@ -17,9 +17,7 @@ pub enum IdError {
 
 macro_rules! string_id {
     ($name:ident) => {
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-        )]
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
         #[serde(try_from = "String", into = "String")]
         pub struct $name(String);
 
@@ -104,7 +102,11 @@ impl EngineVersion {
     };
 
     pub const fn new(major: u32, minor: u32, patch: u32) -> Self {
-        Self { major, minor, patch }
+        Self {
+            major,
+            minor,
+            patch,
+        }
     }
 }
 
@@ -190,7 +192,10 @@ mod tests {
     #[test]
     fn identifiers_reject_spaces() {
         assert!(DocumentId::new("bad id").is_err());
-        assert_eq!(DocumentId::new("stage.demo").unwrap().as_str(), "stage.demo");
+        assert_eq!(
+            DocumentId::new("stage.demo").unwrap().as_str(),
+            "stage.demo"
+        );
     }
 
     #[test]

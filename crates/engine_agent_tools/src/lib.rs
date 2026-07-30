@@ -107,7 +107,9 @@ mod tests {
         let mut queries = QueryRegistry::default();
         register_builtin_queries(&mut queries).unwrap();
         let catalog = ToolCatalog::from_registries(&commands, &queries);
-        assert!(catalog.get(&ToolId::from_static("document.create")).is_some());
+        assert!(catalog
+            .get(&ToolId::from_static("document.create"))
+            .is_some());
         assert!(catalog
             .get(&ToolId::from_static("project.documents.list"))
             .is_some());

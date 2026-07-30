@@ -6,9 +6,7 @@ use guiyi_engine_content::{
     ArtifactEnvelope, CompileContext, ContentError, ContentReference, DocumentCompiler,
     DocumentEnvelope, DocumentHeader, RuntimeObjectDescriptor, StageArtifactPayload,
 };
-use guiyi_engine_core::{
-    ArtifactId, DocumentId, EngineTypeId, ObjectId,
-};
+use guiyi_engine_core::{ArtifactId, DocumentId, EngineTypeId, ObjectId};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
@@ -51,7 +49,9 @@ pub enum CoordinateSpace {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StageObjectKind {
-    Actor { definition: DocumentId },
+    Actor {
+        definition: DocumentId,
+    },
     Trigger {
         activation: String,
         #[serde(default)]
@@ -59,8 +59,12 @@ pub enum StageObjectKind {
         #[serde(default)]
         effects: Vec<Value>,
     },
-    SpawnPoint { profile: String },
-    Marker { marker_type: String },
+    SpawnPoint {
+        profile: String,
+    },
+    Marker {
+        marker_type: String,
+    },
 }
 
 impl StageObjectKind {
@@ -180,7 +184,9 @@ impl DocumentCompiler for StageCompiler {
     ) -> Result<ArtifactEnvelope, ContentError> {
         let stage = StageDocument::from_envelope(document)?;
         if stage.name.trim().is_empty() {
-            return Err(ContentError::InvalidDocument("stage name cannot be empty".into()));
+            return Err(ContentError::InvalidDocument(
+                "stage name cannot be empty".into(),
+            ));
         }
         if matches!(
             &stage.coordinate_space,
@@ -243,8 +249,7 @@ impl DocumentCompiler for StageCompiler {
 
 fn stage_position_in_bounds(space: &CoordinateSpace, position: HexCoord) -> bool {
     match space {
-        CoordinateSpace::HexAxial { width, height }
-        | CoordinateSpace::Square { width, height } => {
+        CoordinateSpace::HexAxial { width, height } | CoordinateSpace::Square { width, height } => {
             position.q >= 0
                 && position.r >= 0
                 && position.q < *width as i32
@@ -268,12 +273,7 @@ mod tests {
 
     #[test]
     fn stage_compiler_produces_runtime_objects() {
-        let mut stage = StageDocument::new_hex(
-            DocumentId::from_static("stage.demo"),
-            "Demo",
-            8,
-            8,
-        );
+        let mut stage = StageDocument::new_hex(DocumentId::from_static("stage.demo"), "Demo", 8, 8);
         stage.objects.push(StageObject {
             id: ObjectId::from_static("spawn.player"),
             position: HexCoord::new(1, 1),

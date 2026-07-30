@@ -75,7 +75,10 @@ impl CommandRegistry {
     }
 
     pub fn descriptors(&self) -> Vec<CommandDescriptor> {
-        self.handlers.values().map(|item| item.descriptor()).collect()
+        self.handlers
+            .values()
+            .map(|item| item.descriptor())
+            .collect()
     }
 }
 
@@ -284,10 +287,16 @@ impl CommandHandler for CreateDocumentCommand {
         let mut bag = DiagnosticBag::default();
         match serde_json::from_value::<CreateDocumentInput>(input.clone()) {
             Ok(parsed) if state.documents.get(&parsed.id).is_ok() => bag.push(
-                Diagnostic::error("DOCUMENT_ALREADY_EXISTS", "document identifier already exists")
-                    .at_document(parsed.id),
+                Diagnostic::error(
+                    "DOCUMENT_ALREADY_EXISTS",
+                    "document identifier already exists",
+                )
+                .at_document(parsed.id),
             ),
-            Err(error) => bag.push(Diagnostic::error("COMMAND_INPUT_INVALID", error.to_string())),
+            Err(error) => bag.push(Diagnostic::error(
+                "COMMAND_INPUT_INVALID",
+                error.to_string(),
+            )),
             _ => {}
         }
         bag
