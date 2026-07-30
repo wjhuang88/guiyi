@@ -1,14 +1,12 @@
 #![forbid(unsafe_code)]
 
-//! Authoring project state with command-driven undo, redo, and autosave.
+//! Authoring project state with command-driven undo, redo, and sandboxed autosave.
 
 use guiyi_engine_command::{
     CommandContext, CommandError, CommandExecutor, CommandRequest, EngineState, TransactionReport,
     TransactionStatus,
 };
-use guiyi_engine_content::{save_json, ContentError};
-use std::fs;
-use std::path::Path;
+use guiyi_engine_content::{ContentError, ProjectFilesystem, ProjectPath};
 use thiserror::Error;
 
 #[derive(Debug, Default)]
@@ -54,10 +52,14 @@ impl AuthoringProject {
         }
     }
 
-    pub fn autosave(&self, directory: &Path) -> Result<(), AuthoringError> {
-        fs::create_dir_all(directory)?;
+    pub fn autosave(
+        &self,
+        storage: &ProjectFilesystem,
+        directory: &ProjectPath,
+    ) -> Result<(), AuthoringError> {
+        storage.create_dir_all(directory)?;
         for (id, document) in self.state.documents.iter() {
-            save_json(&directory.join(format!("{}.json", id.as_str())), document)?;
+            storage.save_json(&directory.join(format!("{}.json", id.as_str()))?, document)?;
         }
         Ok(())
     }
@@ -70,7 +72,7 @@ pub enum AuthoringError {
     #[error(transparent)]
     Content(#[from] ContentError),
     #[error(transparent)]
-    Io(#[from] std::io::Error),
+    ProjectPath(#[from] guiyi_engine_content::ProjectPathError),
 }
 
 #[cfg(test)]
@@ -79,6 +81,7 @@ mod tests {
     use guiyi_engine_command::{register_builtin_document_commands, CommandRegistry};
     use guiyi_engine_core::{PermissionSet, ToolId};
     use serde_json::json;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn undo_and_redo_restore_command_states() {
@@ -109,5 +112,46 @@ mod tests {
         assert!(project.state.documents.is_empty());
         assert!(project.redo());
         assert_eq!(project.state.documents.len(), 1);
+    }
+
+    #[test]
+    fn autosave_uses_project_storage_boundary() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "guiyi-authoring-autosave-{}-{nonce}",
+            std::process::id()
+        ));
+        let storage = ProjectFilesystem::create(&root).unwrap();
+        let mut registry = CommandRegistry::default();
+        register_builtin_document_commands(&mut registry).unwrap();
+        let mut executor = CommandExecutor::new(registry);
+        let mut project = AuthoringProject::default();
+        project
+            .apply(
+                &mut executor,
+                CommandRequest {
+                    command: ToolId::from_static("document.create"),
+                    input: json!({
+                        "id": "doc.autosave",
+                        "type_id": "example",
+                        "display_name": "Autosave"
+                    }),
+                    dry_run: false,
+                },
+                &CommandContext {
+                    actor: "test".into(),
+                    permissions: PermissionSet::content_author(),
+                },
+            )
+            .unwrap();
+        let directory = ProjectPath::new(".agent-sessions/autosave").unwrap();
+        project.autosave(&storage, &directory).unwrap();
+        assert!(storage
+            .exists(&ProjectPath::new(".agent-sessions/autosave/doc.autosave.json").unwrap())
+            .unwrap());
+        std::fs::remove_dir_all(root).unwrap();
     }
 }
