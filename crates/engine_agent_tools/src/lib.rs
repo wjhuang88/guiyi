@@ -198,11 +198,8 @@ mod tests {
 
     #[test]
     fn cross_kind_collision_is_rejected_without_overwrite() {
-        let error = ToolCatalog::from_descriptors(
-            [command("shared.tool")],
-            [query("shared.tool")],
-        )
-        .unwrap_err();
+        let error = ToolCatalog::from_descriptors([command("shared.tool")], [query("shared.tool")])
+            .unwrap_err();
         assert_eq!(error.code, TOOL_CATALOG_ID_COLLISION);
         assert_eq!(error.tool_id.as_str(), "shared.tool");
         assert_eq!(error.existing_kind, ToolKind::Command);

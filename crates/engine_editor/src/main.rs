@@ -78,7 +78,8 @@ fn run(args: Args) -> Result<(), String> {
     let mut queries = QueryRegistry::default();
     register_builtin_queries(&mut queries).map_err(|error| error.to_string())?;
     register_tactical_queries(&mut queries).map_err(|error| error.to_string())?;
-    let catalog = ToolCatalog::from_registries(&commands, &queries);
+    let catalog =
+        ToolCatalog::from_registries(&commands, &queries).map_err(|error| error.to_string())?;
     let mut host = AgentHost::new(
         EngineState { documents: store },
         CommandExecutor::new(commands),
@@ -256,7 +257,8 @@ mod tests {
         register_builtin_document_commands(&mut commands).unwrap();
         let mut queries = QueryRegistry::default();
         register_builtin_queries(&mut queries).unwrap();
-        let catalog = ToolCatalog::from_registries(&commands, &queries);
+        let catalog = ToolCatalog::from_registries(&commands, &queries)
+            .expect("built-in tool IDs are unique");
         AgentHost::new(
             EngineState::default(),
             CommandExecutor::new(commands),

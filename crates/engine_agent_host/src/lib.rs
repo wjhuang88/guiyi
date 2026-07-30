@@ -564,7 +564,8 @@ mod tests {
         register_builtin_document_commands(&mut command_registry).unwrap();
         let mut query_registry = QueryRegistry::default();
         register_builtin_queries(&mut query_registry).unwrap();
-        let catalog = ToolCatalog::from_registries(&command_registry, &query_registry);
+        let catalog = ToolCatalog::from_registries(&command_registry, &query_registry)
+            .expect("built-in tool IDs are unique");
         AgentHost::new(
             EngineState::default(),
             CommandExecutor::new(command_registry),
@@ -764,7 +765,8 @@ mod tests {
         let mut commands = CommandRegistry::default();
         commands.register(MultiDocumentCommand).unwrap();
         let queries = QueryRegistry::default();
-        let catalog = ToolCatalog::from_registries(&commands, &queries);
+        let catalog =
+            ToolCatalog::from_registries(&commands, &queries).expect("test tool IDs are unique");
         let mut host = AgentHost::new(
             EngineState::default(),
             CommandExecutor::new(commands),
