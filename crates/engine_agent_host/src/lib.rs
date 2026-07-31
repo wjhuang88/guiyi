@@ -878,4 +878,49 @@ mod tests {
         let following = host.execute(&mut session, list_call("call-after"));
         assert_eq!(following.status, ToolResultStatus::Ok);
     }
+
+    #[test]
+    fn explicit_null_rejected_before_access_planning() {
+        let mut host = host();
+        let mut session = session(PermissionSet::content_author());
+        let result = host.execute(
+            &mut session,
+            ToolCall {
+                id: "call-null".into(),
+                tool: ToolId::from_static("document.create"),
+                input: json!({
+                    "id": "doc.null",
+                    "type_id": "example.document",
+                    "display_name": "Null",
+                    "schema_version": null
+                }),
+                dry_run: false,
+            },
+        );
+        assert_eq!(result.status, ToolResultStatus::Rejected);
+        assert_eq!(result.output["error"]["code"], "COMMAND_VALIDATION_FAILED");
+        assert!(result.diagnostics.iter().any(|d| {
+            d.get("code").and_then(|v| v.as_str()) == Some("COMMAND_INPUT_NULL_NOT_ALLOWED")
+        }));
+        let following = host.execute(&mut session, list_call("call-after-null"));
+        assert_eq!(following.status, ToolResultStatus::Ok);
+    }
+
+    #[test]
+    fn permission_denial_precedes_schema_validation() {
+        let mut host = host();
+        let mut session = session(PermissionSet::read_only());
+        let result = host.execute(
+            &mut session,
+            ToolCall {
+                id: "call-denied".into(),
+                tool: ToolId::from_static("document.create"),
+                input: json!({"completely_invalid": true}),
+                dry_run: false,
+            },
+        );
+        assert_eq!(result.status, ToolResultStatus::Rejected);
+        assert_eq!(error_code(&result), Some(AGENT_PERMISSION_DENIED));
+        assert!(result.diagnostics.is_empty());
+    }
 }
