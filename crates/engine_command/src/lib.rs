@@ -6,7 +6,7 @@ use guiyi_engine_content::{ContentError, DocumentEnvelope, DocumentHeader, Docum
 use guiyi_engine_core::{
     DocumentAccessPlan, DocumentId, EngineTypeId, Permission, PermissionSet, ToolId, TransactionId,
 };
-use guiyi_engine_schema::{SchemaDefinitionError, SchemaNode};
+use guiyi_engine_schema::{SchemaDefinition, SchemaDefinitionError, SchemaNode};
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -63,7 +63,7 @@ pub trait CommandHandler: Send + Sync {
 #[derive(Default)]
 pub struct CommandRegistry {
     handlers: BTreeMap<ToolId, Box<dyn CommandHandler>>,
-    schemas: BTreeMap<ToolId, SchemaNode>,
+    definitions: BTreeMap<ToolId, SchemaDefinition>,
 }
 
 impl CommandRegistry {
@@ -73,10 +73,11 @@ impl CommandRegistry {
             return Err(CommandError::DuplicateCommand(id));
         }
         let schema = handler.input_schema();
-        schema
-            .validate_definition()
+        let definition = SchemaDefinition::new(schema);
+        definition
+            .validate()
             .map_err(CommandError::SchemaDefinitionInvalid)?;
-        self.schemas.insert(id.clone(), schema);
+        self.definitions.insert(id.clone(), definition);
         self.handlers.insert(id, Box::new(handler));
         Ok(())
     }
@@ -89,7 +90,25 @@ impl CommandRegistry {
     }
 
     pub fn schema(&self, id: &ToolId) -> Option<&SchemaNode> {
-        self.schemas.get(id)
+        self.definitions.get(id).map(|d| &d.root)
+    }
+
+    pub fn definition(&self, id: &ToolId) -> Option<&SchemaDefinition> {
+        self.definitions.get(id)
+    }
+
+    pub fn register_json_input_schema(
+        &mut self,
+        id: ToolId,
+        schema_json: &Value,
+    ) -> Result<(), CommandError> {
+        let definition = SchemaDefinition::from_json(schema_json)
+            .map_err(CommandError::SchemaDefinitionInvalid)?;
+        if self.definitions.contains_key(&id) {
+            return Err(CommandError::DuplicateCommand(id));
+        }
+        self.definitions.insert(id, definition);
+        Ok(())
     }
 
     pub fn descriptors(&self) -> Vec<CommandDescriptor> {
@@ -97,8 +116,8 @@ impl CommandRegistry {
             .values()
             .map(|handler| {
                 let mut descriptor = handler.descriptor();
-                if let Some(schema) = self.schemas.get(&descriptor.id) {
-                    descriptor.input_schema = schema.to_json_schema();
+                if let Some(def) = self.definitions.get(&descriptor.id) {
+                    descriptor.input_schema = def.root.to_json_schema();
                 }
                 descriptor
             })
@@ -948,5 +967,38 @@ mod tests {
             "validate mismatch"
         );
         assert_eq!(obs.apply.as_ref().unwrap(), &expected, "apply mismatch");
+    }
+
+    #[test]
+    fn command_registry_stores_schema_definition_version() {
+        let mut registry = CommandRegistry::default();
+        register_builtin_document_commands(&mut registry).unwrap();
+        let def = registry
+            .definition(&ToolId::from_static("document.create"))
+            .unwrap();
+        assert_eq!(def.schema_version, 1);
+    }
+
+    #[test]
+    fn command_registry_rejects_unsupported_definition_version() {
+        let mut registry = CommandRegistry::default();
+        let bad_json = json!({"x-schema-version": 2, "type": "string"});
+        let result =
+            registry.register_json_input_schema(ToolId::from_static("test.bad"), &bad_json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn command_descriptor_uses_registered_definition_root() {
+        let mut registry = CommandRegistry::default();
+        register_builtin_document_commands(&mut registry).unwrap();
+        let descriptors = registry.descriptors();
+        let create = descriptors
+            .iter()
+            .find(|d| d.id == ToolId::from_static("document.create"))
+            .unwrap();
+        assert_eq!(create.input_schema["x-schema-version"], 1);
+        let def = registry.definition(&create.id).unwrap();
+        assert_eq!(def.root.to_json_schema(), create.input_schema);
     }
 }
