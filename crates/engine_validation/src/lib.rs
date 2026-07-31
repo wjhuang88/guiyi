@@ -61,6 +61,33 @@ impl Diagnostic {
         });
         self
     }
+
+    /// Attaches a JSON Pointer (RFC 6901) field path to this diagnostic.
+    ///
+    /// The root value is the empty string `""`. Nested paths use `/segment`
+    /// notation such as `/stage_id` or `/conditions/2/type`.
+    pub fn at_field_path(mut self, field_path: impl Into<String>) -> Self {
+        self.location = Some(DiagnosticLocation {
+            document: None,
+            object: None,
+            field_path: Some(field_path.into()),
+        });
+        self
+    }
+
+    /// Attaches both a document reference and a JSON Pointer field path.
+    pub fn at_document_field(
+        mut self,
+        document: DocumentId,
+        field_path: impl Into<String>,
+    ) -> Self {
+        self.location = Some(DiagnosticLocation {
+            document: Some(document),
+            object: None,
+            field_path: Some(field_path.into()),
+        });
+        self
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -114,5 +141,31 @@ mod tests {
         bag.push(Diagnostic::error("E", "error"));
         assert_eq!(bag.summary().warnings, 1);
         assert!(bag.has_errors());
+    }
+
+    #[test]
+    fn at_field_path_sets_json_pointer_location() {
+        let diagnostic = Diagnostic::error("CODE", "message").at_field_path("/conditions/2/type");
+        let location = diagnostic.location.unwrap();
+        assert_eq!(location.field_path.as_deref(), Some("/conditions/2/type"));
+        assert!(location.document.is_none());
+    }
+
+    #[test]
+    fn at_document_field_sets_both_references() {
+        let diagnostic = Diagnostic::error("CODE", "message")
+            .at_document_field(DocumentId::from_static("doc.1"), "/path/0");
+        let location = diagnostic.location.unwrap();
+        assert_eq!(location.document, Some(DocumentId::from_static("doc.1")));
+        assert_eq!(location.field_path.as_deref(), Some("/path/0"));
+    }
+
+    #[test]
+    fn diagnostic_with_field_path_round_trips() {
+        let diagnostic = Diagnostic::error("COMMAND_INPUT_TYPE_MISMATCH", "expected integer")
+            .at_field_path("/width");
+        let json = serde_json::to_value(&diagnostic).unwrap();
+        assert_eq!(json["location"]["field_path"], "/width");
+        assert_eq!(json["code"], "COMMAND_INPUT_TYPE_MISMATCH");
     }
 }

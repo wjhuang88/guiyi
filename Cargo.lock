@@ -422,9 +422,11 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "guiyi-engine-agent-tools",
  "guiyi-engine-command",
+ "guiyi-engine-content",
  "guiyi-engine-core",
  "guiyi-engine-protocol",
  "guiyi-engine-query",
+ "guiyi-engine-schema",
  "guiyi-engine-validation",
  "serde",
  "serde_json",
@@ -467,8 +469,10 @@ name = "guiyi-engine-build"
 version = "0.1.0-alpha.1"
 dependencies = [
  "guiyi-engine-content",
+ "guiyi-engine-core",
  "guiyi-engine-validation",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -495,6 +499,7 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "guiyi-engine-content",
  "guiyi-engine-core",
+ "guiyi-engine-schema",
  "guiyi-engine-validation",
  "serde",
  "serde_json",
@@ -542,8 +547,10 @@ dependencies = [
  "bevy_ecs",
  "clap",
  "guiyi-engine-content",
+ "guiyi-engine-core",
  "guiyi-engine-runtime",
  "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -585,6 +592,7 @@ name = "guiyi-engine-schema"
 version = "0.1.0-alpha.1"
 dependencies = [
  "guiyi-engine-core",
+ "guiyi-engine-validation",
  "serde",
  "serde_json",
  "thiserror",
@@ -607,6 +615,7 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "guiyi-engine-core",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -948,6 +957,7 @@ dependencies = [
  "guiyi-engine-content",
  "guiyi-engine-core",
  "guiyi-engine-query",
+ "guiyi-engine-schema",
  "guiyi-engine-validation",
  "serde",
  "serde_json",
