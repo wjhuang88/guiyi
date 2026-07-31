@@ -320,14 +320,8 @@ struct CreateDocumentInput {
     id: DocumentId,
     type_id: EngineTypeId,
     display_name: String,
-    #[serde(default = "default_schema_version")]
     schema_version: u32,
-    #[serde(default)]
     payload: Value,
-}
-
-const fn default_schema_version() -> u32 {
-    1
 }
 
 fn document_create_schema() -> SchemaNode {
@@ -343,7 +337,10 @@ fn document_create_schema() -> SchemaNode {
                 .with_minimum(1.0)
                 .with_default(json!(1)),
         ),
-        guiyi_engine_schema::FieldSchema::optional("payload", SchemaNode::any()),
+        guiyi_engine_schema::FieldSchema::optional(
+            "payload",
+            SchemaNode::any().with_default(Value::Null),
+        ),
     ])
 }
 
@@ -800,5 +797,156 @@ mod tests {
         assert_eq!(create.input_schema["x-schema-version"], 1);
         assert_eq!(create.input_schema["type"], "object");
         assert!(create.input_schema["properties"]["id"]["type"] == "string");
+    }
+
+    #[test]
+    fn document_create_null_schema_version_rejected_structurally() {
+        let mut executor = executor();
+        let mut state = EngineState::default();
+        let tx_before = executor.next_transaction;
+        let result = executor.execute(
+            CommandRequest {
+                command: ToolId::from_static("document.create"),
+                input: json!({
+                    "id": "doc.null",
+                    "type_id": "example.document",
+                    "display_name": "Null Test",
+                    "schema_version": null
+                }),
+                dry_run: false,
+            },
+            &context(),
+            &mut state,
+        );
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CommandError::ValidationFailed(bag) => {
+                let diag = &bag.diagnostics[0];
+                assert_eq!(diag.code, "COMMAND_INPUT_NULL_NOT_ALLOWED");
+                assert_eq!(
+                    diag.location.as_ref().unwrap().field_path.as_deref(),
+                    Some("/schema_version")
+                );
+            }
+            other => panic!("expected ValidationFailed, got {other:?}"),
+        }
+        assert_eq!(executor.next_transaction, tx_before);
+        assert!(executor.audit_log().is_empty());
+        assert!(state.documents.is_empty());
+    }
+
+    #[test]
+    fn document_create_defaults_from_schema_not_serde() {
+        let mut executor = executor();
+        let mut state = EngineState::default();
+        executor
+            .execute(
+                CommandRequest {
+                    command: ToolId::from_static("document.create"),
+                    input: json!({
+                        "id": "doc.defaults",
+                        "type_id": "example.document",
+                        "display_name": "Defaults Test"
+                    }),
+                    dry_run: false,
+                },
+                &context(),
+                &mut state,
+            )
+            .unwrap();
+        let doc = state
+            .documents
+            .get(&DocumentId::from_static("doc.defaults"))
+            .unwrap();
+        assert_eq!(doc.header.schema_version, 1);
+        assert!(doc.payload.is_null());
+    }
+
+    #[test]
+    fn normalized_input_seen_identically_by_all_stages() {
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Default)]
+        struct ObservedInputs {
+            access: Option<Value>,
+            validate: Option<Value>,
+            apply: Option<Value>,
+        }
+
+        struct ObservingCommand {
+            observed: Arc<Mutex<ObservedInputs>>,
+        }
+
+        impl CommandHandler for ObservingCommand {
+            fn descriptor(&self) -> CommandDescriptor {
+                CommandDescriptor {
+                    id: ToolId::from_static("test.observe"),
+                    title: "Observe".into(),
+                    description: "Test".into(),
+                    input_schema: Value::Null,
+                    output_schema: json!({"type": "object"}),
+                    required_permissions: PermissionSet::new([Permission::EditContent]),
+                    side_effects: vec!["modifies_document".into()],
+                    related_tools: Vec::new(),
+                }
+            }
+
+            fn input_schema(&self) -> SchemaNode {
+                SchemaNode::object(vec![
+                    guiyi_engine_schema::FieldSchema::required("name", SchemaNode::string()),
+                    guiyi_engine_schema::FieldSchema::optional(
+                        "count",
+                        SchemaNode::integer().with_default(json!(5)),
+                    ),
+                ])
+            }
+
+            fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
+                self.observed.lock().unwrap().access = Some(input.clone());
+                Ok(DocumentAccessPlan::project())
+            }
+
+            fn validate(&self, input: &Value, _state: &EngineState) -> DiagnosticBag {
+                self.observed.lock().unwrap().validate = Some(input.clone());
+                DiagnosticBag::default()
+            }
+
+            fn apply(
+                &self,
+                input: &Value,
+                _state: &mut EngineState,
+            ) -> Result<Value, CommandError> {
+                self.observed.lock().unwrap().apply = Some(input.clone());
+                Ok(json!({}))
+            }
+        }
+
+        let observed = Arc::new(Mutex::new(ObservedInputs::default()));
+        let handler = ObservingCommand {
+            observed: observed.clone(),
+        };
+        let mut registry = CommandRegistry::default();
+        registry.register(handler).unwrap();
+        let mut executor = CommandExecutor::new(registry);
+        let mut state = EngineState::default();
+
+        let request = CommandRequest {
+            command: ToolId::from_static("test.observe"),
+            input: json!({"name": "test"}),
+            dry_run: false,
+        };
+
+        executor.document_access(&request).unwrap();
+        executor.execute(request, &context(), &mut state).unwrap();
+
+        let obs = observed.lock().unwrap();
+        let expected = json!({"name": "test", "count": 5});
+        assert_eq!(obs.access.as_ref().unwrap(), &expected, "access mismatch");
+        assert_eq!(
+            obs.validate.as_ref().unwrap(),
+            &expected,
+            "validate mismatch"
+        );
+        assert_eq!(obs.apply.as_ref().unwrap(), &expected, "apply mismatch");
     }
 }

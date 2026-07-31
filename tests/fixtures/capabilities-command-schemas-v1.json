@@ -1,0 +1,261 @@
+{
+  "document.create": {
+    "additionalProperties": true,
+    "properties": {
+      "display_name": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "payload": {
+        "default": null,
+        "x-schema-version": 1
+      },
+      "schema_version": {
+        "default": 1,
+        "minimum": 1.0,
+        "type": "integer",
+        "x-schema-version": 1
+      },
+      "type_id": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "id",
+      "type_id",
+      "display_name"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
+  "document.delete": {
+    "additionalProperties": true,
+    "properties": {
+      "document_id": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "document_id"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
+  "document.set_field": {
+    "additionalProperties": true,
+    "properties": {
+      "document_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "path": {
+        "items": {
+          "type": "string",
+          "x-schema-version": 1
+        },
+        "minItems": 1,
+        "type": "array",
+        "x-schema-version": 1
+      },
+      "value": {
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "document_id",
+      "path",
+      "value"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
+  "stage.connect": {
+    "additionalProperties": true,
+    "properties": {
+      "connection_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "entry_point": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "stage_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "to_stage": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "stage_id",
+      "connection_id",
+      "to_stage",
+      "entry_point"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
+  "stage.create": {
+    "additionalProperties": true,
+    "properties": {
+      "height": {
+        "minimum": 1.0,
+        "type": "integer",
+        "x-schema-version": 1
+      },
+      "id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "name": {
+        "minLength": 1,
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "width": {
+        "minimum": 1.0,
+        "type": "integer",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "width",
+      "height"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
+  "stage.create_spawn": {
+    "additionalProperties": true,
+    "properties": {
+      "object_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "profile": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "q": {
+        "type": "integer",
+        "x-schema-version": 1
+      },
+      "r": {
+        "type": "integer",
+        "x-schema-version": 1
+      },
+      "stage_id": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "stage_id",
+      "object_id",
+      "profile",
+      "q",
+      "r"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
+  "stage.create_trigger": {
+    "additionalProperties": true,
+    "properties": {
+      "activation": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "conditions": {
+        "default": [],
+        "items": {
+          "x-schema-version": 1
+        },
+        "type": "array",
+        "x-schema-version": 1
+      },
+      "effects": {
+        "default": [],
+        "items": {
+          "x-schema-version": 1
+        },
+        "type": "array",
+        "x-schema-version": 1
+      },
+      "object_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "q": {
+        "type": "integer",
+        "x-schema-version": 1
+      },
+      "r": {
+        "type": "integer",
+        "x-schema-version": 1
+      },
+      "stage_id": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "stage_id",
+      "object_id",
+      "activation",
+      "q",
+      "r"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
+  "stage.place_actor": {
+    "additionalProperties": true,
+    "properties": {
+      "definition": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "object_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "properties": {
+        "default": {},
+        "x-schema-version": 1
+      },
+      "q": {
+        "type": "integer",
+        "x-schema-version": 1
+      },
+      "r": {
+        "type": "integer",
+        "x-schema-version": 1
+      },
+      "stage_id": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "stage_id",
+      "object_id",
+      "definition",
+      "q",
+      "r"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  }
+}

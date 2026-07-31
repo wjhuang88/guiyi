@@ -401,6 +401,7 @@ fn slug(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     #[test]
     fn output_path_rejects_absolute_and_parent_traversal() {
@@ -413,5 +414,48 @@ mod tests {
                 .as_str(),
             "artifacts"
         );
+    }
+
+    #[test]
+    fn capability_command_schemas_match_golden_fixture() {
+        let (commands, queries) = create_registries().unwrap();
+        let catalog = ToolCatalog::from_registries(&commands, &queries).unwrap();
+
+        let mut actual: BTreeMap<String, Value> = BTreeMap::new();
+        for tool in catalog.list() {
+            if tool.kind == guiyi_engine_agent_tools::ToolKind::Command {
+                actual.insert(tool.id.to_string(), tool.input_schema.clone());
+            }
+        }
+
+        let fixture_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/capabilities-command-schemas-v1.json");
+        let fixture_text = std::fs::read_to_string(&fixture_path)
+            .unwrap_or_else(|e| panic!("failed to read golden fixture: {e}"));
+        let expected: BTreeMap<String, Value> =
+            serde_json::from_str(&fixture_text).expect("golden fixture is valid JSON");
+
+        assert_eq!(
+            actual.len(),
+            8,
+            "expected exactly 8 command schemas in the catalog"
+        );
+
+        for (id, expected_schema) in &expected {
+            let actual_schema = actual
+                .get(id)
+                .unwrap_or_else(|| panic!("command `{id}` missing from catalog"));
+            assert_eq!(
+                actual_schema, expected_schema,
+                "command `{id}` input schema drifted from golden fixture"
+            );
+        }
+
+        for id in actual.keys() {
+            assert!(
+                expected.contains_key(id),
+                "command `{id}` in catalog but not in golden fixture"
+            );
+        }
     }
 }

@@ -85,7 +85,6 @@ struct PlaceActorInput {
     definition: DocumentId,
     q: i32,
     r: i32,
-    #[serde(default)]
     properties: Value,
 }
 
@@ -215,9 +214,7 @@ struct CreateTriggerInput {
     activation: String,
     q: i32,
     r: i32,
-    #[serde(default)]
     conditions: Vec<Value>,
-    #[serde(default)]
     effects: Vec<Value>,
 }
 

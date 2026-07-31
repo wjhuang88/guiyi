@@ -761,19 +761,21 @@ impl SchemaNode {
         for field in &self.fields {
             let field_path = append_pointer(path, &field.name);
             match map.get(&field.name) {
-                Some(field_value) if !field_value.is_null() || field.schema.nullable => {
+                Some(field_value)
+                    if !field_value.is_null()
+                        || field.schema.nullable
+                        || field.schema.kind == ValueKind::Any =>
+                {
                     field.schema.validate_inner(field_value, &field_path, bag);
                 }
                 Some(_) => {
-                    if field.required {
-                        bag.push(
-                            Diagnostic::error(
-                                codes::COMMAND_INPUT_NULL_NOT_ALLOWED,
-                                format!("field `{}` does not allow null", field.name),
-                            )
-                            .at_field_path(&field_path),
-                        );
-                    }
+                    bag.push(
+                        Diagnostic::error(
+                            codes::COMMAND_INPUT_NULL_NOT_ALLOWED,
+                            format!("field `{}` does not allow null", field.name),
+                        )
+                        .at_field_path(&field_path),
+                    );
                 }
                 None => {
                     if field.required && field.schema.default.is_none() {
@@ -1086,6 +1088,118 @@ impl SchemaRegistry {
 impl SchemaRegistryError {
     fn from_definition_error(error: SchemaDefinitionError, type_id: &EngineTypeId) -> Self {
         SchemaRegistryError::DefinitionInvalid(Box::new(error), type_id.clone())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// SchemaDefinition envelope (version + extensions boundary)
+// ---------------------------------------------------------------------------
+
+/// Envelope for a schema definition that carries an explicit dialect version
+/// and optional `x-guiyi-*` extensions.
+///
+/// `from_json` is the executable boundary that rejects unknown unnamespaced
+/// keywords and unsupported schema versions.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SchemaDefinition {
+    pub schema_version: u32,
+    pub root: SchemaNode,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extensions: BTreeMap<String, Value>,
+}
+
+const KNOWN_KEYWORDS: &[&str] = &[
+    "type",
+    "description",
+    "nullable",
+    "default",
+    "enum",
+    "minimum",
+    "maximum",
+    "minLength",
+    "maxLength",
+    "minItems",
+    "maxItems",
+    "uniqueItems",
+    "items",
+    "fields",
+    "additionalProperties",
+    "name",
+    "required",
+];
+
+impl SchemaDefinition {
+    pub fn new(root: SchemaNode) -> Self {
+        Self {
+            schema_version: SCHEMA_DIALECT_VERSION,
+            root,
+            extensions: BTreeMap::new(),
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), SchemaDefinitionError> {
+        if self.schema_version != SCHEMA_DIALECT_VERSION {
+            return Err(SchemaDefinitionError::new(
+                "x-schema-version",
+                format!(
+                    "unsupported schema version: {} (supported: {})",
+                    self.schema_version, SCHEMA_DIALECT_VERSION
+                ),
+                "",
+            ));
+        }
+        self.root.validate_definition()
+    }
+
+    pub fn from_json(value: &Value) -> Result<Self, SchemaDefinitionError> {
+        let map = value.as_object().ok_or_else(|| {
+            SchemaDefinitionError::new("type", "schema definition must be a JSON object", "")
+        })?;
+
+        let schema_version = map
+            .get("x-schema-version")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| {
+                SchemaDefinitionError::new(
+                    "x-schema-version",
+                    "missing or invalid x-schema-version (must be a positive integer)",
+                    "",
+                )
+            })? as u32;
+
+        if schema_version != SCHEMA_DIALECT_VERSION {
+            return Err(SchemaDefinitionError::new(
+                "x-schema-version",
+                format!(
+                    "unsupported schema version: {} (supported: {})",
+                    schema_version, SCHEMA_DIALECT_VERSION
+                ),
+                "",
+            ));
+        }
+
+        let mut extensions = BTreeMap::new();
+        for key in map.keys() {
+            if key.starts_with("x-guiyi-") {
+                extensions.insert(key.clone(), map[key].clone());
+            } else if key != "x-schema-version" && !KNOWN_KEYWORDS.contains(&key.as_str()) {
+                return Err(SchemaDefinitionError::new(
+                    key,
+                    format!("unknown unnamespaced keyword: `{key}`"),
+                    "",
+                ));
+            }
+        }
+
+        let root: SchemaNode = serde_json::from_value(value.clone()).map_err(|e| {
+            SchemaDefinitionError::new("parse", format!("failed to parse schema node: {e}"), "")
+        })?;
+
+        Ok(SchemaDefinition {
+            schema_version,
+            root,
+            extensions,
+        })
     }
 }
 
@@ -1582,5 +1696,133 @@ mod tests {
         assert!(registry
             .register(EngineTypeId::from_static("bad.type"), bad_schema)
             .is_err());
+    }
+
+    // -- explicit null semantics --
+
+    #[test]
+    fn optional_non_nullable_field_rejects_explicit_null() {
+        let schema = SchemaNode::object(vec![
+            FieldSchema::required("id", SchemaNode::string()),
+            FieldSchema::optional("version", SchemaNode::integer()),
+        ]);
+        let bag = schema.validate_value(&json!({"id": "x", "version": null}));
+        assert_eq!(
+            bag.diagnostics[0].code,
+            codes::COMMAND_INPUT_NULL_NOT_ALLOWED
+        );
+        assert_eq!(
+            bag.diagnostics[0]
+                .location
+                .as_ref()
+                .unwrap()
+                .field_path
+                .as_deref(),
+            Some("/version")
+        );
+    }
+
+    #[test]
+    fn optional_nullable_field_accepts_explicit_null() {
+        let schema = SchemaNode::object(vec![
+            FieldSchema::required("id", SchemaNode::string()),
+            FieldSchema::optional("note", SchemaNode::string().nullable()),
+        ]);
+        assert!(!schema
+            .validate_value(&json!({"id": "x", "note": null}))
+            .has_errors());
+    }
+
+    #[test]
+    fn required_non_nullable_field_rejects_explicit_null() {
+        let schema = SchemaNode::object(vec![FieldSchema::required("id", SchemaNode::string())]);
+        let bag = schema.validate_value(&json!({"id": null}));
+        assert_eq!(
+            bag.diagnostics[0].code,
+            codes::COMMAND_INPUT_NULL_NOT_ALLOWED
+        );
+        assert_eq!(
+            bag.diagnostics[0]
+                .location
+                .as_ref()
+                .unwrap()
+                .field_path
+                .as_deref(),
+            Some("/id")
+        );
+    }
+
+    #[test]
+    fn required_nullable_field_accepts_explicit_null() {
+        let schema = SchemaNode::object(vec![FieldSchema::required(
+            "id",
+            SchemaNode::string().nullable(),
+        )]);
+        assert!(!schema.validate_value(&json!({"id": null})).has_errors());
+    }
+
+    // -- SchemaDefinition: unknown keyword, version, extension --
+
+    #[test]
+    fn definition_rejects_unknown_unnamespaced_keyword() {
+        let json = json!({
+            "x-schema-version": 1,
+            "type": "object",
+            "fields": [],
+            "bogusKeyword": true
+        });
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.code, codes::SCHEMA_DEFINITION_INVALID);
+        assert_eq!(error.keyword, "bogusKeyword");
+    }
+
+    #[test]
+    fn definition_accepts_x_guiyi_extension() {
+        let json = json!({
+            "x-schema-version": 1,
+            "type": "object",
+            "fields": [],
+            "x-guiyi-custom-hint": "metadata"
+        });
+        let def = SchemaDefinition::from_json(&json).unwrap();
+        assert_eq!(def.schema_version, 1);
+        assert_eq!(
+            def.extensions.get("x-guiyi-custom-hint"),
+            Some(&json!("metadata"))
+        );
+    }
+
+    #[test]
+    fn definition_rejects_unsupported_schema_version() {
+        let json = json!({
+            "x-schema-version": 2,
+            "type": "object",
+            "fields": []
+        });
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.code, codes::SCHEMA_DEFINITION_INVALID);
+        assert_eq!(error.keyword, "x-schema-version");
+        assert!(error.message.contains("unsupported"));
+    }
+
+    #[test]
+    fn definition_rejects_missing_schema_version() {
+        let json = json!({"type": "object", "fields": []});
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.keyword, "x-schema-version");
+    }
+
+    #[test]
+    fn registry_error_includes_type_id_and_keyword() {
+        let mut registry = SchemaRegistry::default();
+        let bad_schema = SchemaNode::integer().with_min_length(1);
+        let result = registry.register(EngineTypeId::from_static("bad.type"), bad_schema);
+        match result {
+            Err(SchemaRegistryError::DefinitionInvalid(error, type_id)) => {
+                assert_eq!(type_id, EngineTypeId::from_static("bad.type"));
+                assert_eq!(error.keyword, "minLength");
+            }
+            other => panic!("expected DefinitionInvalid, got {other:?}"),
+        }
     }
 }
