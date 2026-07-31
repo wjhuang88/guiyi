@@ -109,6 +109,8 @@ pub struct SchemaNode {
         skip_serializing_if = "AdditionalProperties::is_allowed"
     )]
     pub additional_properties: AdditionalProperties,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extensions: BTreeMap<String, Value>,
 }
 
 fn is_false(value: &bool) -> bool {
@@ -139,6 +141,7 @@ impl Default for SchemaNode {
             items: None,
             fields: Vec::new(),
             additional_properties: AdditionalProperties::Allowed,
+            extensions: BTreeMap::new(),
         }
     }
 }
@@ -367,7 +370,8 @@ impl SchemaNode {
                 self.check_duplicate_fields(path)?;
                 self.check_object_bounds(path)?;
                 for field in &self.fields {
-                    let field_path = append_pointer(path, &field.name);
+                    let field_path =
+                        format!("{path}/properties/{}", escape_pointer_segment(&field.name));
                     field.schema.validate_definition_inner(&field_path)?;
                 }
             }
@@ -400,14 +404,14 @@ impl SchemaNode {
             return Err(SchemaDefinitionError::new(
                 "minimum",
                 "numeric constraint `minimum` is not valid for this value kind",
-                path,
+                format!("{path}/minimum"),
             ));
         }
         if self.maximum.is_some() {
             return Err(SchemaDefinitionError::new(
                 "maximum",
                 "numeric constraint `maximum` is not valid for this value kind",
-                path,
+                format!("{path}/maximum"),
             ));
         }
         Ok(())
@@ -418,14 +422,14 @@ impl SchemaNode {
             return Err(SchemaDefinitionError::new(
                 "minLength",
                 "string constraint `minLength` is not valid for this value kind",
-                path,
+                format!("{path}/minLength"),
             ));
         }
         if self.max_length.is_some() {
             return Err(SchemaDefinitionError::new(
                 "maxLength",
                 "string constraint `maxLength` is not valid for this value kind",
-                path,
+                format!("{path}/maxLength"),
             ));
         }
         Ok(())
@@ -436,28 +440,28 @@ impl SchemaNode {
             return Err(SchemaDefinitionError::new(
                 "minItems",
                 "array constraint `minItems` is not valid for this value kind",
-                path,
+                format!("{path}/minItems"),
             ));
         }
         if self.max_items.is_some() {
             return Err(SchemaDefinitionError::new(
                 "maxItems",
                 "array constraint `maxItems` is not valid for this value kind",
-                path,
+                format!("{path}/maxItems"),
             ));
         }
         if self.unique_items {
             return Err(SchemaDefinitionError::new(
                 "uniqueItems",
                 "array constraint `uniqueItems` is not valid for this value kind",
-                path,
+                format!("{path}/uniqueItems"),
             ));
         }
         if self.items.is_some() {
             return Err(SchemaDefinitionError::new(
                 "items",
                 "array constraint `items` is not valid for this value kind",
-                path,
+                format!("{path}/items"),
             ));
         }
         Ok(())
@@ -466,16 +470,16 @@ impl SchemaNode {
     fn ensure_no_object_constraints(&self, path: &str) -> Result<(), SchemaDefinitionError> {
         if !self.fields.is_empty() {
             return Err(SchemaDefinitionError::new(
-                "fields",
+                "properties",
                 "object fields are not valid for this value kind",
-                path,
+                format!("{path}/properties"),
             ));
         }
         if self.additional_properties == AdditionalProperties::Forbidden {
             return Err(SchemaDefinitionError::new(
                 "additionalProperties",
                 "object constraint `additionalProperties` is not valid for this value kind",
-                path,
+                format!("{path}/additionalProperties"),
             ));
         }
         Ok(())
@@ -485,9 +489,9 @@ impl SchemaNode {
         if let (Some(min), Some(max)) = (self.minimum, self.maximum) {
             if min > max {
                 return Err(SchemaDefinitionError::new(
-                    "minimum/maximum",
+                    "minimum",
                     format!("minimum ({min}) is greater than maximum ({max})"),
-                    path,
+                    format!("{path}/minimum"),
                 ));
             }
         }
@@ -498,9 +502,9 @@ impl SchemaNode {
         if let (Some(min), Some(max)) = (self.min_length, self.max_length) {
             if min > max {
                 return Err(SchemaDefinitionError::new(
-                    "minLength/maxLength",
+                    "minLength",
                     format!("minLength ({min}) is greater than maxLength ({max})"),
-                    path,
+                    format!("{path}/minLength"),
                 ));
             }
         }
@@ -511,9 +515,9 @@ impl SchemaNode {
         if let (Some(min), Some(max)) = (self.min_items, self.max_items) {
             if min > max {
                 return Err(SchemaDefinitionError::new(
-                    "minItems/maxItems",
+                    "minItems",
                     format!("minItems ({min}) is greater than maxItems ({max})"),
-                    path,
+                    format!("{path}/minItems"),
                 ));
             }
         }
@@ -525,9 +529,9 @@ impl SchemaNode {
         for field in &self.fields {
             if !seen.insert(field.name.clone()) {
                 return Err(SchemaDefinitionError::new(
-                    "fields",
+                    "properties",
                     format!("duplicate field name: `{}`", field.name),
-                    path,
+                    format!("{path}/properties/{}", escape_pointer_segment(&field.name)),
                 ));
             }
         }
@@ -544,7 +548,7 @@ impl SchemaNode {
                 return Err(SchemaDefinitionError::new(
                     "enum",
                     "enum must contain at least one value",
-                    path,
+                    format!("{path}/enum"),
                 ));
             }
         }
@@ -563,7 +567,7 @@ impl SchemaNode {
                         "default value does not conform to its own schema: {}",
                         first.message
                     ),
-                    path,
+                    format!("{path}/default"),
                 ));
             }
         }
@@ -1022,6 +1026,10 @@ impl SchemaNode {
             Value::Number(SCHEMA_DIALECT_VERSION.into()),
         );
 
+        for (ext_key, ext_value) in &self.extensions {
+            map.insert(ext_key.clone(), ext_value.clone());
+        }
+
         Value::Object(map)
     }
 }
@@ -1167,41 +1175,248 @@ fn parse_value_kind_str(s: &str) -> Option<ValueKind> {
     }
 }
 
-fn parse_type_field(
+// ---------------------------------------------------------------------------
+// Strict keyword helpers (FIX 1)
+// ---------------------------------------------------------------------------
+
+fn optional_bool(
     map: &Map<String, Value>,
+    key: &str,
     path: &str,
-) -> Result<(ValueKind, bool), SchemaDefinitionError> {
-    match map.get("type") {
-        None => Ok((ValueKind::Any, false)),
-        Some(Value::String(s)) => {
-            let kind = parse_value_kind_str(s).ok_or_else(|| {
-                SchemaDefinitionError::new("type", format!("unknown value kind: `{s}`"), path)
-            })?;
-            Ok((kind, false))
-        }
-        Some(Value::Array(arr)) => {
-            let has_null = arr.iter().any(|v| v.as_str() == Some("null"));
-            let non_null_kind = arr
-                .iter()
-                .filter_map(|v| v.as_str())
-                .filter(|s| *s != "null")
-                .find_map(parse_value_kind_str);
-            Ok((non_null_kind.unwrap_or(ValueKind::Any), has_null))
-        }
+) -> Result<Option<bool>, SchemaDefinitionError> {
+    match map.get(key) {
+        None => Ok(None),
+        Some(Value::Bool(b)) => Ok(Some(*b)),
         Some(_) => Err(SchemaDefinitionError::new(
-            "type",
-            "type must be a string or array of strings",
-            path,
+            key,
+            format!("{key} must be a boolean"),
+            format!("{path}/{key}"),
         )),
     }
 }
 
-fn parse_schema_node(value: &Value, path: &str) -> Result<SchemaNode, SchemaDefinitionError> {
+fn optional_u32(
+    map: &Map<String, Value>,
+    key: &str,
+    path: &str,
+) -> Result<Option<u32>, SchemaDefinitionError> {
+    match map.get(key) {
+        None => Ok(None),
+        Some(v) => v
+            .as_u64()
+            .filter(|n| *n <= u32::MAX as u64)
+            .and_then(|n| u32::try_from(n).ok())
+            .ok_or_else(|| {
+                SchemaDefinitionError::new(
+                    key,
+                    format!("{key} must be a non-negative integer <= u32::MAX"),
+                    format!("{path}/{key}"),
+                )
+            })
+            .map(Some),
+    }
+}
+
+fn optional_number(
+    map: &Map<String, Value>,
+    key: &str,
+    path: &str,
+) -> Result<Option<f64>, SchemaDefinitionError> {
+    match map.get(key) {
+        None => Ok(None),
+        Some(Value::Number(n)) => Ok(Some(n.as_f64().ok_or_else(|| {
+            SchemaDefinitionError::new(
+                key,
+                format!("{key} must be a finite number"),
+                format!("{path}/{key}"),
+            )
+        })?)),
+        Some(_) => Err(SchemaDefinitionError::new(
+            key,
+            format!("{key} must be a number"),
+            format!("{path}/{key}"),
+        )),
+    }
+}
+
+fn optional_string(
+    map: &Map<String, Value>,
+    key: &str,
+    path: &str,
+) -> Result<Option<String>, SchemaDefinitionError> {
+    match map.get(key) {
+        None => Ok(None),
+        Some(Value::String(s)) => Ok(Some(s.clone())),
+        Some(_) => Err(SchemaDefinitionError::new(
+            key,
+            format!("{key} must be a string"),
+            format!("{path}/{key}"),
+        )),
+    }
+}
+
+fn optional_object<'a>(
+    map: &'a Map<String, Value>,
+    key: &str,
+    path: &str,
+) -> Result<Option<&'a Map<String, Value>>, SchemaDefinitionError> {
+    match map.get(key) {
+        None => Ok(None),
+        Some(Value::Object(m)) => Ok(Some(m)),
+        Some(_) => Err(SchemaDefinitionError::new(
+            key,
+            format!("{key} must be an object"),
+            format!("{path}/{key}"),
+        )),
+    }
+}
+
+fn optional_array<'a>(
+    map: &'a Map<String, Value>,
+    key: &str,
+    path: &str,
+) -> Result<Option<&'a Vec<Value>>, SchemaDefinitionError> {
+    match map.get(key) {
+        None => Ok(None),
+        Some(Value::Array(a)) => Ok(Some(a)),
+        Some(_) => Err(SchemaDefinitionError::new(
+            key,
+            format!("{key} must be an array"),
+            format!("{path}/{key}"),
+        )),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Type-field parsing (FIX 2)
+// ---------------------------------------------------------------------------
+
+fn parse_type_field(
+    map: &Map<String, Value>,
+    path: &str,
+) -> Result<(ValueKind, bool), SchemaDefinitionError> {
+    let type_path = format!("{path}/type");
+    match map.get("type") {
+        None => Ok((ValueKind::Any, false)),
+        Some(Value::String(s)) => {
+            let kind = parse_value_kind_str(s).ok_or_else(|| {
+                SchemaDefinitionError::new("type", format!("unknown value kind: `{s}`"), type_path)
+            })?;
+            Ok((kind, false))
+        }
+        Some(Value::Array(arr)) => {
+            if arr.is_empty() {
+                return Err(SchemaDefinitionError::new(
+                    "type",
+                    "type array must not be empty",
+                    type_path,
+                ));
+            }
+
+            let mut has_null = false;
+            let mut non_null_kind: Option<ValueKind> = None;
+
+            for (i, element) in arr.iter().enumerate() {
+                let s = match element {
+                    Value::String(s) => s.as_str(),
+                    _ => {
+                        return Err(SchemaDefinitionError::new(
+                            "type",
+                            format!("type array element at index {i} must be a string"),
+                            format!("{path}/type/{i}"),
+                        ));
+                    }
+                };
+
+                if s == "null" {
+                    if has_null {
+                        return Err(SchemaDefinitionError::new(
+                            "type",
+                            "type array contains duplicate `null`",
+                            format!("{path}/type/{i}"),
+                        ));
+                    }
+                    has_null = true;
+                } else {
+                    let kind = parse_value_kind_str(s).ok_or_else(|| {
+                        SchemaDefinitionError::new(
+                            "type",
+                            format!("unknown value kind: `{s}`"),
+                            format!("{path}/type/{i}"),
+                        )
+                    })?;
+                    if non_null_kind.is_some() {
+                        return Err(SchemaDefinitionError::new(
+                            "type",
+                            "type array must contain at most one non-null kind",
+                            format!("{path}/type/{i}"),
+                        ));
+                    }
+                    non_null_kind = Some(kind);
+                }
+            }
+
+            match (has_null, non_null_kind) {
+                (true, None) => Err(SchemaDefinitionError::new(
+                    "type",
+                    "type array `[\"null\"]` alone is not allowed; omit `type` for nullable Any",
+                    type_path,
+                )),
+                (false, None) => Err(SchemaDefinitionError::new(
+                    "type",
+                    "type array must contain at least one kind",
+                    type_path,
+                )),
+                (_, Some(kind)) => Ok((kind, has_null)),
+            }
+        }
+        Some(_) => Err(SchemaDefinitionError::new(
+            "type",
+            "type must be a string or array of strings",
+            type_path,
+        )),
+    }
+}
+
+fn parse_schema_node(
+    value: &Value,
+    path: &str,
+    expected_version: u32,
+) -> Result<SchemaNode, SchemaDefinitionError> {
     let map = value.as_object().ok_or_else(|| {
         SchemaDefinitionError::new("type", "schema node must be a JSON object", path)
     })?;
 
-    let mut extensions = BTreeMap::new();
+    // FIX 4: nested x-schema-version must equal the root dialect version
+    // when present (missing inherits the root version).
+    if let Some(v) = map.get("x-schema-version") {
+        let parsed = match v {
+            Value::Number(n) => n
+                .as_u64()
+                .filter(|n| *n > 0)
+                .and_then(|n| u32::try_from(n).ok()),
+            _ => None,
+        };
+        let parsed = parsed.ok_or_else(|| {
+            SchemaDefinitionError::new(
+                "x-schema-version",
+                "x-schema-version must be a positive integer",
+                format!("{path}/x-schema-version"),
+            )
+        })?;
+        if parsed != expected_version {
+            return Err(SchemaDefinitionError::new(
+                "x-schema-version",
+                format!(
+                    "nested x-schema-version ({parsed}) does not match root version ({expected_version})"
+                ),
+                format!("{path}/x-schema-version"),
+            ));
+        }
+    }
+
+    // Collect x-guiyi-* extensions; reject unknown unnamespaced keywords.
+    let mut extensions: BTreeMap<String, Value> = BTreeMap::new();
     for key in map.keys() {
         if key.starts_with("x-guiyi-") {
             extensions.insert(key.clone(), map[key].clone());
@@ -1215,77 +1430,95 @@ fn parse_schema_node(value: &Value, path: &str) -> Result<SchemaNode, SchemaDefi
     }
 
     let (kind, nullable_from_type) = parse_type_field(map, path)?;
-    let explicit_nullable = map
-        .get("nullable")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let explicit_nullable = optional_bool(map, "nullable", path)?.unwrap_or(false);
+    let description = optional_string(map, "description", path)?.unwrap_or_default();
+    let minimum = optional_number(map, "minimum", path)?;
+    let maximum = optional_number(map, "maximum", path)?;
+    let min_length = optional_u32(map, "minLength", path)?;
+    let max_length = optional_u32(map, "maxLength", path)?;
+    let min_items = optional_u32(map, "minItems", path)?;
+    let max_items = optional_u32(map, "maxItems", path)?;
+    let unique_items = optional_bool(map, "uniqueItems", path)?.unwrap_or(false);
+    let enum_values = optional_array(map, "enum", path)?.cloned();
+
+    let additional_properties = match optional_bool(map, "additionalProperties", path)? {
+        None => AdditionalProperties::Allowed,
+        Some(true) => AdditionalProperties::Allowed,
+        Some(false) => AdditionalProperties::Forbidden,
+    };
 
     let mut node = SchemaNode {
         kind,
         nullable: nullable_from_type || explicit_nullable,
-        description: map
-            .get("description")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string(),
+        description,
         default: map.get("default").cloned(),
-        enum_values: map.get("enum").and_then(|v| v.as_array()).cloned(),
-        minimum: map.get("minimum").and_then(|v| v.as_f64()),
-        maximum: map.get("maximum").and_then(|v| v.as_f64()),
-        min_length: map
-            .get("minLength")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as u32),
-        max_length: map
-            .get("maxLength")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as u32),
-        min_items: map
-            .get("minItems")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as u32),
-        max_items: map
-            .get("maxItems")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as u32),
-        unique_items: map
-            .get("uniqueItems")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false),
+        enum_values,
+        minimum,
+        maximum,
+        min_length,
+        max_length,
+        min_items,
+        max_items,
+        unique_items,
         items: None,
         fields: Vec::new(),
-        additional_properties: map
-            .get("additionalProperties")
-            .and_then(|v| v.as_bool())
-            .map(|ap| {
-                if ap {
-                    AdditionalProperties::Allowed
-                } else {
-                    AdditionalProperties::Forbidden
-                }
-            })
-            .unwrap_or_default(),
+        additional_properties,
+        extensions,
     };
 
     if let Some(items_json) = map.get("items") {
-        let items_node = parse_schema_node(items_json, &format!("{path}/items"))?;
+        if !items_json.is_object() {
+            return Err(SchemaDefinitionError::new(
+                "items",
+                "items must be a schema object",
+                format!("{path}/items"),
+            ));
+        }
+        let items_node = parse_schema_node(items_json, &format!("{path}/items"), expected_version)?;
         node.items = Some(Box::new(items_node));
     }
 
-    if let Some(properties) = map.get("properties").and_then(|v| v.as_object()) {
-        let required_set: std::collections::BTreeSet<String> = map
-            .get("required")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default();
+    // properties (Section 9): must be an object of schema nodes; required
+    // must be an array of unique strings that exist in properties.
+    let properties_obj = optional_object(map, "properties", path)?;
+    let required_arr = optional_array(map, "required", path)?;
 
+    // Validate required entries: strings, unique. Existence in properties
+    // is checked after property names are known.
+    let mut required_set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    if let Some(arr) = required_arr {
+        for (i, v) in arr.iter().enumerate() {
+            let s = match v {
+                Value::String(s) => s.as_str(),
+                _ => {
+                    return Err(SchemaDefinitionError::new(
+                        "required",
+                        format!("required[{i}] must be a string"),
+                        format!("{path}/required/{i}"),
+                    ));
+                }
+            };
+            if !required_set.insert(s.to_string()) {
+                return Err(SchemaDefinitionError::new(
+                    "required",
+                    format!("required contains duplicate entry: `{s}`"),
+                    format!("{path}/required/{i}"),
+                ));
+            }
+        }
+    }
+
+    if let Some(properties) = properties_obj {
         for (field_name, field_json) in properties {
-            let field_path = format!("{path}/properties/{field_name}");
-            let field_node = parse_schema_node(field_json, &field_path)?;
+            if !field_json.is_object() {
+                return Err(SchemaDefinitionError::new(
+                    "properties",
+                    format!("properties.{field_name} must be a schema object"),
+                    format!("{path}/properties/{}", escape_pointer_segment(field_name)),
+                ));
+            }
+            let field_path = format!("{path}/properties/{}", escape_pointer_segment(field_name));
+            let field_node = parse_schema_node(field_json, &field_path, expected_version)?;
             node.fields.push(FieldSchema {
                 name: field_name.clone(),
                 required: required_set.contains(field_name),
@@ -1294,7 +1527,25 @@ fn parse_schema_node(value: &Value, path: &str) -> Result<SchemaNode, SchemaDefi
         }
     }
 
-    let _ = extensions;
+    // Now that property names are known, required entries must reference one.
+    if !required_set.is_empty() {
+        let known: std::collections::BTreeSet<&str> = properties_obj
+            .map(|p| p.keys().map(|s| s.as_str()).collect())
+            .unwrap_or_default();
+        if let Some(arr) = required_arr {
+            for (i, v) in arr.iter().enumerate() {
+                let s = v.as_str().expect("validated above");
+                if !known.contains(s) {
+                    return Err(SchemaDefinitionError::new(
+                        "required",
+                        format!("required[{i}] references property `{s}` not in properties"),
+                        format!("{path}/required/{i}"),
+                    ));
+                }
+            }
+        }
+    }
+
     Ok(node)
 }
 
@@ -1326,16 +1577,33 @@ impl SchemaDefinition {
             SchemaDefinitionError::new("type", "schema definition must be a JSON object", "")
         })?;
 
-        let schema_version = map
-            .get("x-schema-version")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| {
-                SchemaDefinitionError::new(
+        let schema_version = match map.get("x-schema-version") {
+            None => {
+                return Err(SchemaDefinitionError::new(
                     "x-schema-version",
-                    "missing or invalid x-schema-version (must be a positive integer)",
-                    "",
-                )
-            })? as u32;
+                    "missing x-schema-version (must be a positive integer)",
+                    "/x-schema-version",
+                ));
+            }
+            Some(Value::Number(n)) => n
+                .as_u64()
+                .filter(|n| *n > 0)
+                .and_then(|n| u32::try_from(n).ok())
+                .ok_or_else(|| {
+                    SchemaDefinitionError::new(
+                        "x-schema-version",
+                        "x-schema-version must be a positive integer",
+                        "/x-schema-version",
+                    )
+                })?,
+            Some(_) => {
+                return Err(SchemaDefinitionError::new(
+                    "x-schema-version",
+                    "x-schema-version must be a positive integer",
+                    "/x-schema-version",
+                ));
+            }
+        };
 
         if schema_version != SCHEMA_DIALECT_VERSION {
             return Err(SchemaDefinitionError::new(
@@ -1344,7 +1612,7 @@ impl SchemaDefinition {
                     "unsupported schema version: {} (supported: {})",
                     schema_version, SCHEMA_DIALECT_VERSION
                 ),
-                "",
+                "/x-schema-version",
             ));
         }
 
@@ -1355,7 +1623,7 @@ impl SchemaDefinition {
             }
         }
 
-        let root = parse_schema_node(value, "")?;
+        let root = parse_schema_node(value, "", schema_version)?;
 
         let definition = SchemaDefinition {
             schema_version,
@@ -2207,5 +2475,147 @@ mod tests {
             }
             other => panic!("expected DefinitionInvalid, got {other:?}"),
         }
+    }
+
+    // -- strict keyword value-type rejection --
+
+    #[test]
+    fn definition_rejects_string_min_length() {
+        let json = json!({"x-schema-version": 1, "type": "string", "minLength": "3"});
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.keyword, "minLength");
+        assert_eq!(error.field_path, "/minLength");
+    }
+
+    #[test]
+    fn definition_rejects_non_boolean_nullable() {
+        let json = json!({"x-schema-version": 1, "type": "string", "nullable": "yes"});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn definition_rejects_non_boolean_additional_properties() {
+        let json = json!({"x-schema-version": 1, "type": "object", "properties": {}, "additionalProperties": "true"});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn definition_rejects_array_properties() {
+        let json = json!({"x-schema-version": 1, "type": "object", "properties": []});
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.keyword, "properties");
+    }
+
+    #[test]
+    fn definition_rejects_non_array_required() {
+        let json =
+            json!({"x-schema-version": 1, "type": "object", "properties": {}, "required": "name"});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn definition_rejects_non_string_required_item() {
+        let json = json!({"x-schema-version": 1, "type": "object", "properties": {"name": {"type": "string"}}, "required": [1]});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn definition_rejects_duplicate_required_item() {
+        let json = json!({"x-schema-version": 1, "type": "object", "properties": {"name": {"type": "string"}}, "required": ["name", "name"]});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn definition_rejects_required_unknown_property() {
+        let json = json!({"x-schema-version": 1, "type": "object", "properties": {"name": {"type": "string"}}, "required": ["missing"]});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn definition_rejects_non_object_items() {
+        let json = json!({"x-schema-version": 1, "type": "array", "items": "string"});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn definition_rejects_invalid_type_array_multiple_kinds() {
+        let json = json!({"x-schema-version": 1, "type": ["string", "integer"]});
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.keyword, "type");
+    }
+
+    #[test]
+    fn definition_rejects_invalid_type_array_unknown_kind() {
+        let json = json!({"x-schema-version": 1, "type": ["string", "bogus"]});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    // -- nested version enforcement --
+
+    #[test]
+    fn definition_rejects_nested_unsupported_schema_version() {
+        let json = json!({"x-schema-version": 1, "type": "array", "items": {"x-schema-version": 2, "type": "string"}});
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.keyword, "x-schema-version");
+        assert_eq!(error.field_path, "/items/x-schema-version");
+    }
+
+    #[test]
+    fn definition_accepts_nested_matching_schema_version() {
+        let json = json!({"x-schema-version": 1, "type": "array", "items": {"x-schema-version": 1, "type": "string"}});
+        assert!(SchemaDefinition::from_json(&json).is_ok());
+    }
+
+    // -- extension preservation --
+
+    #[test]
+    fn definition_preserves_nested_extension() {
+        let json = json!({"x-schema-version": 1, "type": "array", "items": {"type": "string", "x-guiyi-item-hint": "fast-lookup"}});
+        let def = SchemaDefinition::from_json(&json).unwrap();
+        let items = def.root.items.as_ref().unwrap();
+        assert_eq!(items.extensions["x-guiyi-item-hint"], json!("fast-lookup"));
+    }
+
+    #[test]
+    fn nested_extension_round_trips() {
+        let mut items = SchemaNode::string();
+        items
+            .extensions
+            .insert("x-guiyi-item-hint".into(), json!("fast-lookup"));
+        let schema = SchemaNode {
+            kind: ValueKind::Array,
+            items: Some(Box::new(items)),
+            ..SchemaNode::default()
+        };
+        let rendered = schema.to_json_schema();
+        let parsed = SchemaDefinition::from_json(&rendered).unwrap();
+        let parsed_items = parsed.root.items.as_ref().unwrap();
+        assert_eq!(
+            parsed_items.extensions.get("x-guiyi-item-hint"),
+            Some(&json!("fast-lookup"))
+        );
+    }
+
+    // -- public dialect definition error paths --
+
+    #[test]
+    fn definition_error_path_for_nested_default() {
+        let json = json!({
+            "x-schema-version": 1,
+            "type": "object",
+            "properties": {
+                "count": {"type": "integer", "minimum": 1, "default": 0}
+            }
+        });
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.keyword, "default");
+        assert!(error.field_path.contains("/properties/count"));
+    }
+
+    #[test]
+    fn definition_error_path_for_root_bounds() {
+        let json = json!({"x-schema-version": 1, "type": "integer", "minimum": 10, "maximum": 5});
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert!(error.field_path.contains("/minimum") || error.field_path.contains("/maximum"));
     }
 }
