@@ -9,6 +9,7 @@ guiyi-engine-core = { path = "../engine_core" }
 guiyi-engine-content = { path = "../engine_content" }
 guiyi-engine-command = { path = "../engine_command" }
 guiyi-engine-query = { path = "../engine_query" }
+guiyi-engine-schema = { path = "../engine_schema" }
 guiyi-engine-agent-tools = { path = "../engine_agent_tools" }
 guiyi-engine-protocol = { path = "../engine_protocol" }
 guiyi-engine-validation = { path = "../engine_validation" }
