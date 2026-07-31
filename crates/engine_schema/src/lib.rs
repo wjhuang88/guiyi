@@ -1074,6 +1074,31 @@ impl SchemaRegistry {
         Ok(())
     }
 
+    pub fn register_definition(
+        &mut self,
+        type_id: EngineTypeId,
+        definition: SchemaDefinition,
+    ) -> Result<(), SchemaRegistryError> {
+        definition
+            .validate()
+            .map_err(|error| SchemaRegistryError::from_definition_error(error, &type_id))?;
+        if self.schemas.contains_key(&type_id) {
+            return Err(SchemaRegistryError::Duplicate(type_id));
+        }
+        self.schemas.insert(type_id, definition.root);
+        Ok(())
+    }
+
+    pub fn register_json_definition(
+        &mut self,
+        type_id: EngineTypeId,
+        value: &Value,
+    ) -> Result<(), SchemaRegistryError> {
+        let definition = SchemaDefinition::from_json(value)
+            .map_err(|error| SchemaRegistryError::from_definition_error(error, &type_id))?;
+        self.register_definition(type_id, definition)
+    }
+
     pub fn get(&self, type_id: &EngineTypeId) -> Result<&SchemaNode, SchemaRegistryError> {
         self.schemas
             .get(type_id)
@@ -1099,7 +1124,8 @@ impl SchemaRegistryError {
 /// and optional `x-guiyi-*` extensions.
 ///
 /// `from_json` is the executable boundary that rejects unknown unnamespaced
-/// keywords and unsupported schema versions.
+/// keywords and unsupported schema versions. It parses recursively and
+/// guarantees full definition validation before returning.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SchemaDefinition {
     pub schema_version: u32,
@@ -1108,7 +1134,8 @@ pub struct SchemaDefinition {
     pub extensions: BTreeMap<String, Value>,
 }
 
-const KNOWN_KEYWORDS: &[&str] = &[
+const KNOWN_NODE_KEYWORDS: &[&str] = &[
+    "x-schema-version",
     "type",
     "description",
     "nullable",
@@ -1122,11 +1149,154 @@ const KNOWN_KEYWORDS: &[&str] = &[
     "maxItems",
     "uniqueItems",
     "items",
-    "fields",
-    "additionalProperties",
-    "name",
+    "properties",
     "required",
+    "additionalProperties",
 ];
+
+fn parse_value_kind_str(s: &str) -> Option<ValueKind> {
+    match s {
+        "any" => Some(ValueKind::Any),
+        "string" => Some(ValueKind::String),
+        "integer" => Some(ValueKind::Integer),
+        "number" => Some(ValueKind::Number),
+        "boolean" => Some(ValueKind::Boolean),
+        "object" => Some(ValueKind::Object),
+        "array" => Some(ValueKind::Array),
+        _ => None,
+    }
+}
+
+fn parse_type_field(
+    map: &Map<String, Value>,
+    path: &str,
+) -> Result<(ValueKind, bool), SchemaDefinitionError> {
+    match map.get("type") {
+        None => Ok((ValueKind::Any, false)),
+        Some(Value::String(s)) => {
+            let kind = parse_value_kind_str(s).ok_or_else(|| {
+                SchemaDefinitionError::new("type", format!("unknown value kind: `{s}`"), path)
+            })?;
+            Ok((kind, false))
+        }
+        Some(Value::Array(arr)) => {
+            let has_null = arr.iter().any(|v| v.as_str() == Some("null"));
+            let non_null_kind = arr
+                .iter()
+                .filter_map(|v| v.as_str())
+                .filter(|s| *s != "null")
+                .find_map(parse_value_kind_str);
+            Ok((non_null_kind.unwrap_or(ValueKind::Any), has_null))
+        }
+        Some(_) => Err(SchemaDefinitionError::new(
+            "type",
+            "type must be a string or array of strings",
+            path,
+        )),
+    }
+}
+
+fn parse_schema_node(value: &Value, path: &str) -> Result<SchemaNode, SchemaDefinitionError> {
+    let map = value.as_object().ok_or_else(|| {
+        SchemaDefinitionError::new("type", "schema node must be a JSON object", path)
+    })?;
+
+    let mut extensions = BTreeMap::new();
+    for key in map.keys() {
+        if key.starts_with("x-guiyi-") {
+            extensions.insert(key.clone(), map[key].clone());
+        } else if !KNOWN_NODE_KEYWORDS.contains(&key.as_str()) {
+            return Err(SchemaDefinitionError::new(
+                key,
+                format!("unknown unnamespaced keyword: `{key}`"),
+                format!("{path}/{key}"),
+            ));
+        }
+    }
+
+    let (kind, nullable_from_type) = parse_type_field(map, path)?;
+    let explicit_nullable = map
+        .get("nullable")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    let mut node = SchemaNode {
+        kind,
+        nullable: nullable_from_type || explicit_nullable,
+        description: map
+            .get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        default: map.get("default").cloned(),
+        enum_values: map.get("enum").and_then(|v| v.as_array()).cloned(),
+        minimum: map.get("minimum").and_then(|v| v.as_f64()),
+        maximum: map.get("maximum").and_then(|v| v.as_f64()),
+        min_length: map
+            .get("minLength")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u32),
+        max_length: map
+            .get("maxLength")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u32),
+        min_items: map
+            .get("minItems")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u32),
+        max_items: map
+            .get("maxItems")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u32),
+        unique_items: map
+            .get("uniqueItems")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        items: None,
+        fields: Vec::new(),
+        additional_properties: map
+            .get("additionalProperties")
+            .and_then(|v| v.as_bool())
+            .map(|ap| {
+                if ap {
+                    AdditionalProperties::Allowed
+                } else {
+                    AdditionalProperties::Forbidden
+                }
+            })
+            .unwrap_or_default(),
+    };
+
+    if let Some(items_json) = map.get("items") {
+        let items_node = parse_schema_node(items_json, &format!("{path}/items"))?;
+        node.items = Some(Box::new(items_node));
+    }
+
+    if let Some(properties) = map.get("properties").and_then(|v| v.as_object()) {
+        let required_set: std::collections::BTreeSet<String> = map
+            .get("required")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        for (field_name, field_json) in properties {
+            let field_path = format!("{path}/properties/{field_name}");
+            let field_node = parse_schema_node(field_json, &field_path)?;
+            node.fields.push(FieldSchema {
+                name: field_name.clone(),
+                required: required_set.contains(field_name),
+                schema: field_node,
+            });
+        }
+    }
+
+    let _ = extensions;
+    Ok(node)
+}
 
 impl SchemaDefinition {
     pub fn new(root: SchemaNode) -> Self {
@@ -1182,24 +1352,18 @@ impl SchemaDefinition {
         for key in map.keys() {
             if key.starts_with("x-guiyi-") {
                 extensions.insert(key.clone(), map[key].clone());
-            } else if key != "x-schema-version" && !KNOWN_KEYWORDS.contains(&key.as_str()) {
-                return Err(SchemaDefinitionError::new(
-                    key,
-                    format!("unknown unnamespaced keyword: `{key}`"),
-                    "",
-                ));
             }
         }
 
-        let root: SchemaNode = serde_json::from_value(value.clone()).map_err(|e| {
-            SchemaDefinitionError::new("parse", format!("failed to parse schema node: {e}"), "")
-        })?;
+        let root = parse_schema_node(value, "")?;
 
-        Ok(SchemaDefinition {
+        let definition = SchemaDefinition {
             schema_version,
             root,
             extensions,
-        })
+        };
+        definition.validate()?;
+        Ok(definition)
     }
 }
 
@@ -1768,7 +1932,7 @@ mod tests {
         let json = json!({
             "x-schema-version": 1,
             "type": "object",
-            "fields": [],
+            "properties": {},
             "bogusKeyword": true
         });
         let error = SchemaDefinition::from_json(&json).unwrap_err();
@@ -1781,7 +1945,7 @@ mod tests {
         let json = json!({
             "x-schema-version": 1,
             "type": "object",
-            "fields": [],
+            "properties": {},
             "x-guiyi-custom-hint": "metadata"
         });
         let def = SchemaDefinition::from_json(&json).unwrap();
@@ -1797,7 +1961,7 @@ mod tests {
         let json = json!({
             "x-schema-version": 2,
             "type": "object",
-            "fields": []
+            "properties": {}
         });
         let error = SchemaDefinition::from_json(&json).unwrap_err();
         assert_eq!(error.code, codes::SCHEMA_DEFINITION_INVALID);
@@ -1807,7 +1971,7 @@ mod tests {
 
     #[test]
     fn definition_rejects_missing_schema_version() {
-        let json = json!({"type": "object", "fields": []});
+        let json = json!({"type": "object", "properties": {}});
         let error = SchemaDefinition::from_json(&json).unwrap_err();
         assert_eq!(error.keyword, "x-schema-version");
     }
@@ -1821,6 +1985,225 @@ mod tests {
             Err(SchemaRegistryError::DefinitionInvalid(error, type_id)) => {
                 assert_eq!(type_id, EngineTypeId::from_static("bad.type"));
                 assert_eq!(error.keyword, "minLength");
+            }
+            other => panic!("expected DefinitionInvalid, got {other:?}"),
+        }
+    }
+
+    // -- recursive unknown keyword rejection --
+
+    #[test]
+    fn definition_rejects_nested_unknown_keyword_in_items() {
+        let json = json!({
+            "x-schema-version": 1,
+            "type": "array",
+            "items": {
+                "type": "string",
+                "bogusKeyword": true
+            }
+        });
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.code, codes::SCHEMA_DEFINITION_INVALID);
+        assert_eq!(error.keyword, "bogusKeyword");
+        assert_eq!(error.field_path, "/items/bogusKeyword");
+    }
+
+    #[test]
+    fn definition_rejects_nested_unknown_keyword_in_property() {
+        let json = json!({
+            "x-schema-version": 1,
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "badProp": 42
+                }
+            }
+        });
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.keyword, "badProp");
+        assert_eq!(error.field_path, "/properties/name/badProp");
+    }
+
+    #[test]
+    fn definition_accepts_nested_x_guiyi_extension() {
+        let json = json!({
+            "x-schema-version": 1,
+            "type": "array",
+            "items": {
+                "type": "string",
+                "x-guiyi-item-hint": "fast-lookup"
+            }
+        });
+        let def = SchemaDefinition::from_json(&json).unwrap();
+        assert!(def.root.items.is_some());
+    }
+
+    // -- camelCase keyword preservation --
+
+    #[test]
+    fn definition_preserves_min_length() {
+        let json = json!({"x-schema-version": 1, "type": "string", "minLength": 3});
+        let def = SchemaDefinition::from_json(&json).unwrap();
+        assert_eq!(def.root.min_length, Some(3));
+        assert_eq!(def.root.to_json_schema()["minLength"], 3);
+    }
+
+    #[test]
+    fn definition_preserves_max_length() {
+        let json = json!({"x-schema-version": 1, "type": "string", "maxLength": 10});
+        let def = SchemaDefinition::from_json(&json).unwrap();
+        assert_eq!(def.root.max_length, Some(10));
+    }
+
+    #[test]
+    fn definition_preserves_min_items() {
+        let json = json!({"x-schema-version": 1, "type": "array", "items": {"type": "string"}, "minItems": 2});
+        let def = SchemaDefinition::from_json(&json).unwrap();
+        assert_eq!(def.root.min_items, Some(2));
+    }
+
+    #[test]
+    fn definition_preserves_max_items() {
+        let json = json!({"x-schema-version": 1, "type": "array", "items": {"type": "string"}, "maxItems": 5});
+        let def = SchemaDefinition::from_json(&json).unwrap();
+        assert_eq!(def.root.max_items, Some(5));
+    }
+
+    #[test]
+    fn definition_preserves_unique_items() {
+        let json = json!({"x-schema-version": 1, "type": "array", "items": {"type": "integer"}, "uniqueItems": true});
+        let def = SchemaDefinition::from_json(&json).unwrap();
+        assert!(def.root.unique_items);
+    }
+
+    #[test]
+    fn definition_preserves_additional_properties() {
+        let json = json!({
+            "x-schema-version": 1,
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+        });
+        let def = SchemaDefinition::from_json(&json).unwrap();
+        assert_eq!(
+            def.root.additional_properties,
+            AdditionalProperties::Forbidden
+        );
+    }
+
+    #[test]
+    fn definition_preserves_default_and_enum() {
+        let json = json!({
+            "x-schema-version": 1,
+            "type": "string",
+            "default": "active",
+            "enum": ["active", "inactive"]
+        });
+        let def = SchemaDefinition::from_json(&json).unwrap();
+        assert_eq!(def.root.default, Some(json!("active")));
+        assert_eq!(
+            def.root.enum_values.as_deref(),
+            Some(&[json!("active"), json!("inactive")][..])
+        );
+    }
+
+    // -- from_json complete validation --
+
+    #[test]
+    fn definition_from_json_rejects_contradictory_bounds() {
+        let json = json!({
+            "x-schema-version": 1,
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 5
+        });
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.code, codes::SCHEMA_DEFINITION_INVALID);
+    }
+
+    #[test]
+    fn definition_from_json_rejects_invalid_default() {
+        let json = json!({
+            "x-schema-version": 1,
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 0
+                }
+            }
+        });
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.keyword, "default");
+    }
+
+    // -- round-trip tests --
+
+    #[test]
+    fn rendered_schema_round_trips_through_definition_parser() {
+        let schema = SchemaNode::object(vec![
+            FieldSchema::required("id", SchemaNode::string()),
+            FieldSchema::optional(
+                "version",
+                SchemaNode::integer()
+                    .with_minimum(1.0)
+                    .with_default(json!(1)),
+            ),
+            FieldSchema::optional(
+                "tags",
+                SchemaNode::array(SchemaNode::string()).with_default(json!([])),
+            ),
+        ]);
+        let original = schema.to_json_schema();
+        let parsed = SchemaDefinition::from_json(&original).unwrap();
+        assert_eq!(parsed.root.to_json_schema(), original);
+    }
+
+    #[test]
+    fn deeply_nested_rendered_schema_round_trips() {
+        let schema = SchemaNode::object(vec![FieldSchema::required(
+            "meta",
+            SchemaNode::object(vec![
+                FieldSchema::required("version", SchemaNode::integer().with_minimum(1.0)),
+                FieldSchema::optional(
+                    "tags",
+                    SchemaNode::array(SchemaNode::string()).with_max_items(5),
+                ),
+            ]),
+        )]);
+        let original = schema.to_json_schema();
+        let parsed = SchemaDefinition::from_json(&original).unwrap();
+        assert_eq!(parsed.root.to_json_schema(), original);
+    }
+
+    // -- SchemaRegistry JSON registration --
+
+    #[test]
+    fn schema_registry_register_json_rejects_unsupported_version() {
+        let mut registry = SchemaRegistry::default();
+        let json = json!({"x-schema-version": 2, "type": "string"});
+        let result =
+            registry.register_json_definition(EngineTypeId::from_static("test.bad"), &json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn schema_registry_error_preserves_type_id_and_nested_path() {
+        let mut registry = SchemaRegistry::default();
+        let json = json!({
+            "x-schema-version": 1,
+            "type": "array",
+            "items": { "type": "string", "bogus": true }
+        });
+        let result =
+            registry.register_json_definition(EngineTypeId::from_static("test.nested"), &json);
+        match result {
+            Err(SchemaRegistryError::DefinitionInvalid(error, type_id)) => {
+                assert_eq!(type_id, EngineTypeId::from_static("test.nested"));
+                assert_eq!(error.keyword, "bogus");
+                assert_eq!(error.field_path, "/items/bogus");
             }
             other => panic!("expected DefinitionInvalid, got {other:?}"),
         }
