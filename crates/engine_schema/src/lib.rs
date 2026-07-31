@@ -341,6 +341,7 @@ impl SchemaNode {
     }
 
     fn validate_definition_inner(&self, path: &str) -> Result<(), SchemaDefinitionError> {
+        self.validate_extensions(path)?;
         match self.kind {
             ValueKind::Any => {
                 self.ensure_no_constraints(path)?;
@@ -388,6 +389,19 @@ impl SchemaNode {
 
         self.check_enum_constraints(path)?;
         self.check_default_value(path)?;
+        Ok(())
+    }
+
+    fn validate_extensions(&self, path: &str) -> Result<(), SchemaDefinitionError> {
+        for key in self.extensions.keys() {
+            if !key.starts_with("x-guiyi-") {
+                return Err(SchemaDefinitionError::new(
+                    key,
+                    format!("extension key `{key}` must use x-guiyi-* namespace"),
+                    append_pointer(path, key),
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -1190,7 +1204,7 @@ fn optional_bool(
         Some(_) => Err(SchemaDefinitionError::new(
             key,
             format!("{key} must be a boolean"),
-            format!("{path}/{key}"),
+            append_pointer(path, key),
         )),
     }
 }
@@ -1210,7 +1224,7 @@ fn optional_u32(
                 SchemaDefinitionError::new(
                     key,
                     format!("{key} must be a non-negative integer <= u32::MAX"),
-                    format!("{path}/{key}"),
+                    append_pointer(path, key),
                 )
             })
             .map(Some),
@@ -1228,13 +1242,13 @@ fn optional_number(
             SchemaDefinitionError::new(
                 key,
                 format!("{key} must be a finite number"),
-                format!("{path}/{key}"),
+                append_pointer(path, key),
             )
         })?)),
         Some(_) => Err(SchemaDefinitionError::new(
             key,
             format!("{key} must be a number"),
-            format!("{path}/{key}"),
+            append_pointer(path, key),
         )),
     }
 }
@@ -1250,7 +1264,7 @@ fn optional_string(
         Some(_) => Err(SchemaDefinitionError::new(
             key,
             format!("{key} must be a string"),
-            format!("{path}/{key}"),
+            append_pointer(path, key),
         )),
     }
 }
@@ -1266,7 +1280,7 @@ fn optional_object<'a>(
         Some(_) => Err(SchemaDefinitionError::new(
             key,
             format!("{key} must be an object"),
-            format!("{path}/{key}"),
+            append_pointer(path, key),
         )),
     }
 }
@@ -1282,7 +1296,7 @@ fn optional_array<'a>(
         Some(_) => Err(SchemaDefinitionError::new(
             key,
             format!("{key} must be an array"),
-            format!("{path}/{key}"),
+            append_pointer(path, key),
         )),
     }
 }
@@ -1290,6 +1304,84 @@ fn optional_array<'a>(
 // ---------------------------------------------------------------------------
 // Type-field parsing (FIX 2)
 // ---------------------------------------------------------------------------
+
+fn applicable_keywords(kind: ValueKind) -> &'static [&'static str] {
+    let base = &[
+        "x-schema-version",
+        "type",
+        "description",
+        "nullable",
+        "default",
+        "enum",
+    ];
+    match kind {
+        ValueKind::Any | ValueKind::Boolean => base,
+        ValueKind::String => &[
+            "x-schema-version",
+            "type",
+            "description",
+            "nullable",
+            "default",
+            "enum",
+            "minLength",
+            "maxLength",
+        ],
+        ValueKind::Integer | ValueKind::Number => &[
+            "x-schema-version",
+            "type",
+            "description",
+            "nullable",
+            "default",
+            "enum",
+            "minimum",
+            "maximum",
+        ],
+        ValueKind::Array => &[
+            "x-schema-version",
+            "type",
+            "description",
+            "nullable",
+            "default",
+            "enum",
+            "items",
+            "minItems",
+            "maxItems",
+            "uniqueItems",
+        ],
+        ValueKind::Object => &[
+            "x-schema-version",
+            "type",
+            "description",
+            "nullable",
+            "default",
+            "enum",
+            "properties",
+            "required",
+            "additionalProperties",
+        ],
+    }
+}
+
+fn validate_keyword_applicability(
+    map: &Map<String, Value>,
+    kind: ValueKind,
+    path: &str,
+) -> Result<(), SchemaDefinitionError> {
+    let applicable = applicable_keywords(kind);
+    for key in map.keys() {
+        if key.starts_with("x-guiyi-") {
+            continue;
+        }
+        if KNOWN_NODE_KEYWORDS.contains(&key.as_str()) && !applicable.contains(&key.as_str()) {
+            return Err(SchemaDefinitionError::new(
+                key,
+                format!("keyword `{key}` is not valid for kind `{kind:?}`"),
+                append_pointer(path, key),
+            ));
+        }
+    }
+    Ok(())
+}
 
 fn parse_type_field(
     map: &Map<String, Value>,
@@ -1357,6 +1449,12 @@ fn parse_type_field(
             }
 
             match (has_null, non_null_kind) {
+                (true, Some(kind)) => Ok((kind, true)),
+                (false, Some(_)) => Err(SchemaDefinitionError::new(
+                    "type",
+                    "type array must be exactly [\"kind\", \"null\"] for nullable; use a string for non-nullable",
+                    type_path,
+                )),
                 (true, None) => Err(SchemaDefinitionError::new(
                     "type",
                     "type array `[\"null\"]` alone is not allowed; omit `type` for nullable Any",
@@ -1364,10 +1462,9 @@ fn parse_type_field(
                 )),
                 (false, None) => Err(SchemaDefinitionError::new(
                     "type",
-                    "type array must contain at least one kind",
+                    "type array must not be empty",
                     type_path,
                 )),
-                (_, Some(kind)) => Ok((kind, has_null)),
             }
         }
         Some(_) => Err(SchemaDefinitionError::new(
@@ -1424,12 +1521,13 @@ fn parse_schema_node(
             return Err(SchemaDefinitionError::new(
                 key,
                 format!("unknown unnamespaced keyword: `{key}`"),
-                format!("{path}/{key}"),
+                append_pointer(path, key),
             ));
         }
     }
 
     let (kind, nullable_from_type) = parse_type_field(map, path)?;
+    validate_keyword_applicability(map, kind, path)?;
     let explicit_nullable = optional_bool(map, "nullable", path)?.unwrap_or(false);
     let description = optional_string(map, "description", path)?.unwrap_or_default();
     let minimum = optional_number(map, "minimum", path)?;
@@ -1566,7 +1664,7 @@ impl SchemaDefinition {
                     "unsupported schema version: {} (supported: {})",
                     self.schema_version, SCHEMA_DIALECT_VERSION
                 ),
-                "",
+                "/x-schema-version",
             ));
         }
         self.root.validate_definition()
@@ -2617,5 +2715,148 @@ mod tests {
         let json = json!({"x-schema-version": 1, "type": "integer", "minimum": 10, "maximum": 5});
         let error = SchemaDefinition::from_json(&json).unwrap_err();
         assert!(error.field_path.contains("/minimum") || error.field_path.contains("/maximum"));
+    }
+
+    // -- extension namespace enforcement --
+
+    #[test]
+    fn programmatic_schema_rejects_unnamespaced_extension() {
+        let mut schema = SchemaNode::string();
+        schema.extensions.insert("type".into(), json!("integer"));
+        let error = schema.validate_definition().unwrap_err();
+        assert_eq!(error.keyword, "type");
+        assert_eq!(error.field_path, "/type");
+    }
+
+    #[test]
+    fn programmatic_schema_extension_cannot_override_type() {
+        let mut schema = SchemaNode::string();
+        schema.extensions.insert("type".into(), json!("integer"));
+        assert!(schema.validate_definition().is_err());
+    }
+
+    #[test]
+    fn programmatic_schema_extension_cannot_override_version() {
+        let mut schema = SchemaNode::string();
+        schema
+            .extensions
+            .insert("x-schema-version".into(), json!(2));
+        let error = schema.validate_definition().unwrap_err();
+        assert_eq!(error.keyword, "x-schema-version");
+        assert_eq!(error.field_path, "/x-schema-version");
+    }
+
+    #[test]
+    fn programmatic_nested_schema_rejects_invalid_extension() {
+        let mut items = SchemaNode::string();
+        items.extensions.insert("bad".into(), json!(true));
+        let schema = SchemaNode {
+            kind: ValueKind::Array,
+            items: Some(Box::new(items)),
+            ..SchemaNode::default()
+        };
+        let error = schema.validate_definition().unwrap_err();
+        assert!(error.field_path.contains("/items"));
+    }
+
+    #[test]
+    fn valid_x_guiyi_extension_still_round_trips() {
+        let mut schema = SchemaNode::string();
+        schema
+            .extensions
+            .insert("x-guiyi-hint".into(), json!("fast"));
+        assert!(schema.validate_definition().is_ok());
+        let rendered = schema.to_json_schema();
+        let parsed = SchemaDefinition::from_json(&rendered).unwrap();
+        assert_eq!(
+            parsed.root.extensions.get("x-guiyi-hint"),
+            Some(&json!("fast"))
+        );
+    }
+
+    // -- keyword applicability by presence --
+
+    #[test]
+    fn definition_rejects_unique_items_false_on_string() {
+        let json = json!({"x-schema-version": 1, "type": "string", "uniqueItems": false});
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.keyword, "uniqueItems");
+    }
+
+    #[test]
+    fn definition_rejects_empty_properties_on_string() {
+        let json = json!({"x-schema-version": 1, "type": "string", "properties": {}});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn definition_rejects_minimum_zero_on_string() {
+        let json = json!({"x-schema-version": 1, "type": "string", "minimum": 0});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn definition_rejects_min_length_zero_on_integer() {
+        let json = json!({"x-schema-version": 1, "type": "integer", "minLength": 0});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn definition_rejects_object_keywords_on_any() {
+        let json = json!({"x-schema-version": 1, "properties": {}});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn definition_rejects_array_keywords_on_any() {
+        let json = json!({"x-schema-version": 1, "minItems": 1});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    // -- strict type-array contract --
+
+    #[test]
+    fn definition_rejects_single_element_type_array() {
+        let json = json!({"x-schema-version": 1, "type": ["string"]});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn definition_accepts_exact_nullable_type_array() {
+        let json = json!({"x-schema-version": 1, "type": ["string", "null"]});
+        let def = SchemaDefinition::from_json(&json).unwrap();
+        assert_eq!(def.root.kind, ValueKind::String);
+        assert!(def.root.nullable);
+    }
+
+    // -- RFC 6901 escaping for dynamic paths --
+
+    #[test]
+    fn definition_unknown_keyword_path_escapes_slash() {
+        let json = json!({"x-schema-version": 1, "type": "string", "bad/key": true});
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.keyword, "bad/key");
+        assert!(error.field_path.contains("/bad~1key"));
+    }
+
+    #[test]
+    fn definition_unknown_keyword_path_escapes_tilde() {
+        let json = json!({"x-schema-version": 1, "type": "string", "bad~name": true});
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert!(error.field_path.contains("/bad~0name"));
+    }
+
+    // -- programmatic version public path --
+
+    #[test]
+    fn programmatic_definition_version_error_uses_public_path() {
+        let def = SchemaDefinition {
+            schema_version: 2,
+            root: SchemaNode::string(),
+            extensions: BTreeMap::new(),
+        };
+        let error = def.validate().unwrap_err();
+        assert_eq!(error.keyword, "x-schema-version");
+        assert_eq!(error.field_path, "/x-schema-version");
     }
 }
