@@ -6,6 +6,7 @@ use guiyi_engine_content::{ContentError, DocumentEnvelope, DocumentHeader, Docum
 use guiyi_engine_core::{
     DocumentAccessPlan, DocumentId, EngineTypeId, Permission, PermissionSet, ToolId, TransactionId,
 };
+use guiyi_engine_schema::{SchemaDefinitionError, SchemaNode};
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -45,15 +46,14 @@ pub struct CommandContext {
 pub trait CommandHandler: Send + Sync {
     fn descriptor(&self) -> CommandDescriptor;
 
-    /// Declares the documents that must be present in an agent working set.
-    ///
-    /// The conservative default is a project scan, which restricted sessions
-    /// reject for mutations until the handler declares a bounded access plan.
+    fn input_schema(&self) -> SchemaNode;
+
     fn document_access(&self, _input: &Value) -> Result<DocumentAccessPlan, CommandError> {
         Ok(DocumentAccessPlan::project())
     }
 
-    fn validate(&self, _input: &Value, _state: &EngineState) -> DiagnosticBag {
+    fn validate(&self, input: &Value, state: &EngineState) -> DiagnosticBag {
+        let _ = (input, state);
         DiagnosticBag::default()
     }
 
@@ -63,6 +63,7 @@ pub trait CommandHandler: Send + Sync {
 #[derive(Default)]
 pub struct CommandRegistry {
     handlers: BTreeMap<ToolId, Box<dyn CommandHandler>>,
+    schemas: BTreeMap<ToolId, SchemaNode>,
 }
 
 impl CommandRegistry {
@@ -71,6 +72,11 @@ impl CommandRegistry {
         if self.handlers.contains_key(&id) {
             return Err(CommandError::DuplicateCommand(id));
         }
+        let schema = handler.input_schema();
+        schema
+            .validate_definition()
+            .map_err(CommandError::SchemaDefinitionInvalid)?;
+        self.schemas.insert(id.clone(), schema);
         self.handlers.insert(id, Box::new(handler));
         Ok(())
     }
@@ -82,10 +88,20 @@ impl CommandRegistry {
             .ok_or_else(|| CommandError::CommandNotFound(id.clone()))
     }
 
+    pub fn schema(&self, id: &ToolId) -> Option<&SchemaNode> {
+        self.schemas.get(id)
+    }
+
     pub fn descriptors(&self) -> Vec<CommandDescriptor> {
         self.handlers
             .values()
-            .map(|item| item.descriptor())
+            .map(|handler| {
+                let mut descriptor = handler.descriptor();
+                if let Some(schema) = self.schemas.get(&descriptor.id) {
+                    descriptor.input_schema = schema.to_json_schema();
+                }
+                descriptor
+            })
             .collect()
     }
 }
@@ -145,13 +161,23 @@ impl CommandExecutor {
         &self.audit
     }
 
+    pub fn prepare_input(&self, request: &CommandRequest) -> Result<Value, CommandError> {
+        match self.registry.schema(&request.command) {
+            Some(schema) => schema
+                .validate_and_normalize(&request.input)
+                .map_err(CommandError::ValidationFailed),
+            None => Ok(request.input.clone()),
+        }
+    }
+
     pub fn document_access(
         &self,
         request: &CommandRequest,
     ) -> Result<DocumentAccessPlan, CommandError> {
+        let normalized = self.prepare_input(request)?;
         self.registry
             .handler(&request.command)?
-            .document_access(&request.input)
+            .document_access(&normalized)
     }
 
     pub fn execute(
@@ -163,8 +189,6 @@ impl CommandExecutor {
         self.execute_scoped(request, context, state, None)
     }
 
-    /// Executes a command and verifies its actual transaction diff against the
-    /// allowed document set before committing any state.
     pub fn execute_scoped(
         &mut self,
         request: CommandRequest,
@@ -184,14 +208,16 @@ impl CommandExecutor {
             return Err(CommandError::PermissionDenied(request.command));
         }
 
-        let diagnostics = handler.validate(&request.input, state);
+        let normalized_input = self.prepare_input(&request)?;
+
+        let diagnostics = handler.validate(&normalized_input, state);
         if diagnostics.has_errors() {
             return Err(CommandError::ValidationFailed(diagnostics));
         }
 
         let before = state.clone();
         let mut working = state.clone();
-        let output = handler.apply(&request.input, &mut working)?;
+        let output = handler.apply(&normalized_input, &mut working)?;
         let diffs = diff_stores(&before.documents, &working.documents)?;
         if let Some(allowed) = allowed_documents {
             let denied = diffs
@@ -277,11 +303,17 @@ pub enum CommandError {
     InvalidInput(String),
     #[error("command validation failed")]
     ValidationFailed(DiagnosticBag),
+    #[error("schema definition invalid: {0}")]
+    SchemaDefinitionInvalid(SchemaDefinitionError),
     #[error(transparent)]
     Content(#[from] ContentError),
     #[error(transparent)]
     Serialization(#[from] serde_json::Error),
 }
+
+// ---------------------------------------------------------------------------
+// Built-in document commands
+// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 struct CreateDocumentInput {
@@ -298,6 +330,23 @@ const fn default_schema_version() -> u32 {
     1
 }
 
+fn document_create_schema() -> SchemaNode {
+    use guiyi_engine_schema::codes;
+    let _ = codes::COMMAND_INPUT_REQUIRED;
+    SchemaNode::object(vec![
+        guiyi_engine_schema::FieldSchema::required("id", SchemaNode::string()),
+        guiyi_engine_schema::FieldSchema::required("type_id", SchemaNode::string()),
+        guiyi_engine_schema::FieldSchema::required("display_name", SchemaNode::string()),
+        guiyi_engine_schema::FieldSchema::optional(
+            "schema_version",
+            SchemaNode::integer()
+                .with_minimum(1.0)
+                .with_default(json!(1)),
+        ),
+        guiyi_engine_schema::FieldSchema::optional("payload", SchemaNode::any()),
+    ])
+}
+
 pub struct CreateDocumentCommand;
 
 impl CommandHandler for CreateDocumentCommand {
@@ -306,22 +355,16 @@ impl CommandHandler for CreateDocumentCommand {
             id: ToolId::from_static("document.create"),
             title: "Create document".into(),
             description: "Create a typed authoring document in the current transaction.".into(),
-            input_schema: json!({
-                "type": "object",
-                "required": ["id", "type_id", "display_name"],
-                "properties": {
-                    "id": {"type": "string"},
-                    "type_id": {"type": "string"},
-                    "display_name": {"type": "string"},
-                    "schema_version": {"type": "integer", "minimum": 1},
-                    "payload": {}
-                }
-            }),
+            input_schema: Value::Null,
             output_schema: json!({"type": "object"}),
             required_permissions: PermissionSet::new([Permission::EditContent]),
             side_effects: vec!["creates_document".into()],
             related_tools: vec![ToolId::from_static("project.document.get")],
         }
+    }
+
+    fn input_schema(&self) -> SchemaNode {
+        document_create_schema()
     }
 
     fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
@@ -331,19 +374,16 @@ impl CommandHandler for CreateDocumentCommand {
 
     fn validate(&self, input: &Value, state: &EngineState) -> DiagnosticBag {
         let mut bag = DiagnosticBag::default();
-        match serde_json::from_value::<CreateDocumentInput>(input.clone()) {
-            Ok(parsed) if state.documents.get(&parsed.id).is_ok() => bag.push(
-                Diagnostic::error(
-                    "DOCUMENT_ALREADY_EXISTS",
-                    "document identifier already exists",
-                )
-                .at_document(parsed.id),
-            ),
-            Err(error) => bag.push(Diagnostic::error(
-                "COMMAND_INPUT_INVALID",
-                error.to_string(),
-            )),
-            _ => {}
+        if let Ok(parsed) = serde_json::from_value::<CreateDocumentInput>(input.clone()) {
+            if state.documents.get(&parsed.id).is_ok() {
+                bag.push(
+                    Diagnostic::error(
+                        "DOCUMENT_ALREADY_EXISTS",
+                        "document identifier already exists",
+                    )
+                    .at_document(parsed.id),
+                );
+            }
         }
         bag
     }
@@ -378,16 +418,19 @@ impl CommandHandler for DeleteDocumentCommand {
             id: ToolId::from_static("document.delete"),
             title: "Delete document".into(),
             description: "Delete one authoring document atomically.".into(),
-            input_schema: json!({
-                "type": "object",
-                "required": ["document_id"],
-                "properties": {"document_id": {"type": "string"}}
-            }),
+            input_schema: Value::Null,
             output_schema: json!({"type": "object"}),
             required_permissions: PermissionSet::new([Permission::EditContent]),
             side_effects: vec!["deletes_document".into()],
             related_tools: vec![ToolId::from_static("project.references.find")],
         }
+    }
+
+    fn input_schema(&self) -> SchemaNode {
+        SchemaNode::object(vec![guiyi_engine_schema::FieldSchema::required(
+            "document_id",
+            SchemaNode::string(),
+        )])
     }
 
     fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
@@ -417,20 +460,23 @@ impl CommandHandler for SetDocumentFieldCommand {
             id: ToolId::from_static("document.set_field"),
             title: "Set document field".into(),
             description: "Set a JSON object field using a typed path inside a transaction.".into(),
-            input_schema: json!({
-                "type": "object",
-                "required": ["document_id", "path", "value"],
-                "properties": {
-                    "document_id": {"type": "string"},
-                    "path": {"type": "array", "items": {"type": "string"}, "minItems": 1},
-                    "value": {}
-                }
-            }),
+            input_schema: Value::Null,
             output_schema: json!({"type": "object"}),
             required_permissions: PermissionSet::new([Permission::EditContent]),
             side_effects: vec!["modifies_document".into()],
             related_tools: vec![ToolId::from_static("project.document.get")],
         }
+    }
+
+    fn input_schema(&self) -> SchemaNode {
+        SchemaNode::object(vec![
+            guiyi_engine_schema::FieldSchema::required("document_id", SchemaNode::string()),
+            guiyi_engine_schema::FieldSchema::required(
+                "path",
+                SchemaNode::array(SchemaNode::string()).with_min_items(1),
+            ),
+            guiyi_engine_schema::FieldSchema::required("value", SchemaNode::any()),
+        ])
     }
 
     fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
@@ -440,9 +486,6 @@ impl CommandHandler for SetDocumentFieldCommand {
 
     fn apply(&self, input: &Value, state: &mut EngineState) -> Result<Value, CommandError> {
         let input: SetFieldInput = serde_json::from_value(input.clone())?;
-        if input.path.is_empty() {
-            return Err(CommandError::InvalidInput("path cannot be empty".into()));
-        }
         let document = state.documents.get_mut(&input.document_id)?;
         set_json_path(&mut document.payload, &input.path, input.value)?;
         Ok(json!({"document_id": input.document_id, "path": input.path}))
@@ -479,6 +522,7 @@ pub fn register_builtin_document_commands(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use guiyi_engine_schema::codes;
 
     fn executor() -> CommandExecutor {
         let mut registry = CommandRegistry::default();
@@ -563,12 +607,16 @@ mod tests {
                     id: ToolId::from_static("test.cross_document"),
                     title: "Cross document".into(),
                     description: "Test command".into(),
-                    input_schema: json!({"type": "object"}),
+                    input_schema: Value::Null,
                     output_schema: json!({"type": "object"}),
                     required_permissions: PermissionSet::new([Permission::EditContent]),
                     side_effects: vec!["modifies_document".into()],
                     related_tools: Vec::new(),
                 }
+            }
+
+            fn input_schema(&self) -> SchemaNode {
+                SchemaNode::object(vec![])
             }
 
             fn document_access(&self, _input: &Value) -> Result<DocumentAccessPlan, CommandError> {
@@ -611,5 +659,146 @@ mod tests {
         );
         assert!(matches!(result, Err(CommandError::WorkingSetDenied(_))));
         assert_eq!(state, before);
+    }
+
+    #[test]
+    fn missing_required_field_produces_stable_diagnostic() {
+        let mut executor = executor();
+        let mut state = EngineState::default();
+        let result = executor.execute(
+            CommandRequest {
+                command: ToolId::from_static("document.create"),
+                input: json!({"id": "doc.test"}),
+                dry_run: false,
+            },
+            &context(),
+            &mut state,
+        );
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CommandError::ValidationFailed(bag) => {
+                let diag = &bag.diagnostics[0];
+                assert_eq!(diag.code, codes::COMMAND_INPUT_REQUIRED);
+                assert_eq!(
+                    diag.location.as_ref().unwrap().field_path.as_deref(),
+                    Some("/type_id")
+                );
+            }
+            other => panic!("expected ValidationFailed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn wrong_type_produces_stable_diagnostic() {
+        let mut executor = executor();
+        let mut state = EngineState::default();
+        let result = executor.execute(
+            CommandRequest {
+                command: ToolId::from_static("document.create"),
+                input: json!({
+                    "id": 42,
+                    "type_id": "example.document",
+                    "display_name": "Test"
+                }),
+                dry_run: false,
+            },
+            &context(),
+            &mut state,
+        );
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CommandError::ValidationFailed(bag) => {
+                let diag = &bag.diagnostics[0];
+                assert_eq!(diag.code, codes::COMMAND_INPUT_TYPE_MISMATCH);
+                assert_eq!(
+                    diag.location.as_ref().unwrap().field_path.as_deref(),
+                    Some("/id")
+                );
+            }
+            other => panic!("expected ValidationFailed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn default_normalization_applies_schema_version() {
+        let mut executor = executor();
+        let mut state = EngineState::default();
+        executor
+            .execute(
+                CommandRequest {
+                    command: ToolId::from_static("document.create"),
+                    input: json!({
+                        "id": "doc.norm",
+                        "type_id": "example.document",
+                        "display_name": "Normalized"
+                    }),
+                    dry_run: false,
+                },
+                &context(),
+                &mut state,
+            )
+            .unwrap();
+        let doc = state
+            .documents
+            .get(&DocumentId::from_static("doc.norm"))
+            .unwrap();
+        assert_eq!(doc.header.schema_version, 1);
+    }
+
+    #[test]
+    fn structural_failure_does_not_consume_transaction() {
+        let mut executor = executor();
+        let mut state = EngineState::default();
+        let tx_before = executor.next_transaction;
+        let _ = executor.execute(
+            CommandRequest {
+                command: ToolId::from_static("document.create"),
+                input: json!({"missing": true}),
+                dry_run: false,
+            },
+            &context(),
+            &mut state,
+        );
+        assert_eq!(executor.next_transaction, tx_before);
+        assert!(executor.audit_log().is_empty());
+    }
+
+    #[test]
+    fn empty_path_rejected_structurally() {
+        let mut executor = executor();
+        let mut state = EngineState::default();
+        create_document(&mut executor, &mut state, "doc.path");
+        let result = executor.execute(
+            CommandRequest {
+                command: ToolId::from_static("document.set_field"),
+                input: json!({"document_id": "doc.path", "path": [], "value": 1}),
+                dry_run: false,
+            },
+            &context(),
+            &mut state,
+        );
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CommandError::ValidationFailed(bag) => {
+                assert!(bag.diagnostics.iter().any(|d| {
+                    d.code == codes::COMMAND_INPUT_CONSTRAINT_FAILED
+                        && d.location.as_ref().unwrap().field_path.as_deref() == Some("/path")
+                }));
+            }
+            other => panic!("expected ValidationFailed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn descriptor_input_schema_generated_from_authority() {
+        let executor = executor();
+        let descriptors = executor.registry().descriptors();
+        let create = descriptors
+            .iter()
+            .find(|d| d.id == ToolId::from_static("document.create"))
+            .unwrap();
+        assert_eq!(create.input_schema["x-schema-version"], 1);
+        assert_eq!(create.input_schema["type"], "object");
+        assert!(create.input_schema["properties"]["id"]["type"] == "string");
     }
 }

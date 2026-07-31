@@ -8,6 +8,7 @@ license.workspace = true
 guiyi-engine-core = { path = "../engine_core" }
 guiyi-engine-content = { path = "../engine_content" }
 guiyi-engine-validation = { path = "../engine_validation" }
+guiyi-engine-schema = { path = "../engine_schema" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
