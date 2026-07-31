@@ -9,6 +9,7 @@ guiyi-engine-core = { path = "../../../crates/engine_core" }
 guiyi-engine-content = { path = "../../../crates/engine_content" }
 guiyi-engine-command = { path = "../../../crates/engine_command" }
 guiyi-engine-query = { path = "../../../crates/engine_query" }
+guiyi-engine-schema = { path = "../../../crates/engine_schema" }
 guiyi-engine-validation = { path = "../../../crates/engine_validation" }
 tactical-rpg-content = { path = "../content" }
 tactical-rpg-validation = { path = "../validation" }
