@@ -1127,4 +1127,79 @@ mod tests {
             assert!(registry.definition(&desc.id).is_some());
         }
     }
+
+    #[test]
+    fn command_registration_rejects_invalid_envelope_extension() {
+        struct TestCmd;
+        impl CommandHandler for TestCmd {
+            fn descriptor(&self) -> CommandDescriptor {
+                CommandDescriptor {
+                    id: ToolId::from_static("test.envelope"),
+                    title: "Env".into(),
+                    description: "Test".into(),
+                    input_schema: Value::Null,
+                    output_schema: json!({"type": "object"}),
+                    required_permissions: PermissionSet::new([Permission::EditContent]),
+                    side_effects: vec![],
+                    related_tools: vec![],
+                }
+            }
+            fn input_schema(&self) -> SchemaNode {
+                SchemaNode::string()
+            }
+            fn apply(&self, _: &Value, _: &mut EngineState) -> Result<Value, CommandError> {
+                Ok(json!({}))
+            }
+        }
+        let mut definition = SchemaDefinition::new(SchemaNode::string());
+        definition
+            .extensions
+            .insert("type".into(), json!("integer"));
+        let mut registry = CommandRegistry::default();
+        let result = registry.register_with_definition(TestCmd, definition);
+        assert!(result.is_err());
+        assert!(registry
+            .handler(&ToolId::from_static("test.envelope"))
+            .is_err());
+        assert!(registry
+            .definition(&ToolId::from_static("test.envelope"))
+            .is_none());
+    }
+
+    #[test]
+    fn command_registration_accepts_valid_x_guiyi_envelope_extension() {
+        struct TestCmd;
+        impl CommandHandler for TestCmd {
+            fn descriptor(&self) -> CommandDescriptor {
+                CommandDescriptor {
+                    id: ToolId::from_static("test.valid_env"),
+                    title: "ValidEnv".into(),
+                    description: "Test".into(),
+                    input_schema: Value::Null,
+                    output_schema: json!({"type": "object"}),
+                    required_permissions: PermissionSet::new([Permission::EditContent]),
+                    side_effects: vec![],
+                    related_tools: vec![],
+                }
+            }
+            fn input_schema(&self) -> SchemaNode {
+                SchemaNode::string()
+            }
+            fn apply(&self, _: &Value, _: &mut EngineState) -> Result<Value, CommandError> {
+                Ok(json!({}))
+            }
+        }
+        let mut definition = SchemaDefinition::new(SchemaNode::string());
+        definition
+            .extensions
+            .insert("x-guiyi-hint".into(), json!("fast"));
+        let mut registry = CommandRegistry::default();
+        registry
+            .register_with_definition(TestCmd, definition)
+            .unwrap();
+        let def = registry
+            .definition(&ToolId::from_static("test.valid_env"))
+            .unwrap();
+        assert_eq!(def.extensions.get("x-guiyi-hint"), Some(&json!("fast")));
+    }
 }

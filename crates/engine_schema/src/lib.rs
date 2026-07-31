@@ -393,16 +393,7 @@ impl SchemaNode {
     }
 
     fn validate_extensions(&self, path: &str) -> Result<(), SchemaDefinitionError> {
-        for key in self.extensions.keys() {
-            if !key.starts_with("x-guiyi-") {
-                return Err(SchemaDefinitionError::new(
-                    key,
-                    format!("extension key `{key}` must use x-guiyi-* namespace"),
-                    append_pointer(path, key),
-                ));
-            }
-        }
-        Ok(())
+        validate_extension_map(&self.extensions, path)
     }
 
     fn ensure_no_constraints(&self, path: &str) -> Result<(), SchemaDefinitionError> {
@@ -1362,6 +1353,22 @@ fn applicable_keywords(kind: ValueKind) -> &'static [&'static str] {
     }
 }
 
+fn validate_extension_map(
+    extensions: &BTreeMap<String, Value>,
+    path: &str,
+) -> Result<(), SchemaDefinitionError> {
+    for key in extensions.keys() {
+        if !key.starts_with("x-guiyi-") {
+            return Err(SchemaDefinitionError::new(
+                key,
+                format!("extension key `{key}` must use x-guiyi-* namespace"),
+                append_pointer(path, key),
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn validate_keyword_applicability(
     map: &Map<String, Value>,
     kind: ValueKind,
@@ -1397,75 +1404,40 @@ fn parse_type_field(
             Ok((kind, false))
         }
         Some(Value::Array(arr)) => {
-            if arr.is_empty() {
+            if arr.len() != 2 {
                 return Err(SchemaDefinitionError::new(
                     "type",
-                    "type array must not be empty",
+                    "nullable type array must be exactly [\"kind\", \"null\"]",
                     type_path,
                 ));
             }
-
-            let mut has_null = false;
-            let mut non_null_kind: Option<ValueKind> = None;
-
-            for (i, element) in arr.iter().enumerate() {
-                let s = match element {
-                    Value::String(s) => s.as_str(),
-                    _ => {
-                        return Err(SchemaDefinitionError::new(
-                            "type",
-                            format!("type array element at index {i} must be a string"),
-                            format!("{path}/type/{i}"),
-                        ));
-                    }
-                };
-
-                if s == "null" {
-                    if has_null {
-                        return Err(SchemaDefinitionError::new(
-                            "type",
-                            "type array contains duplicate `null`",
-                            format!("{path}/type/{i}"),
-                        ));
-                    }
-                    has_null = true;
-                } else {
-                    let kind = parse_value_kind_str(s).ok_or_else(|| {
-                        SchemaDefinitionError::new(
-                            "type",
-                            format!("unknown value kind: `{s}`"),
-                            format!("{path}/type/{i}"),
-                        )
-                    })?;
-                    if non_null_kind.is_some() {
-                        return Err(SchemaDefinitionError::new(
-                            "type",
-                            "type array must contain at most one non-null kind",
-                            format!("{path}/type/{i}"),
-                        ));
-                    }
-                    non_null_kind = Some(kind);
+            let kind = match &arr[0] {
+                Value::String(s) if s != "null" => parse_value_kind_str(s).ok_or_else(|| {
+                    SchemaDefinitionError::new(
+                        "type",
+                        format!("unknown value kind: `{s}`"),
+                        format!("{type_path}/0"),
+                    )
+                })?,
+                _ => {
+                    return Err(SchemaDefinitionError::new(
+                        "type",
+                        "type array index 0 must be a non-null kind string",
+                        format!("{type_path}/0"),
+                    ));
+                }
+            };
+            match &arr[1] {
+                Value::String(s) if s == "null" => {}
+                _ => {
+                    return Err(SchemaDefinitionError::new(
+                        "type",
+                        "type array index 1 must be \"null\"",
+                        format!("{type_path}/1"),
+                    ));
                 }
             }
-
-            match (has_null, non_null_kind) {
-                (true, Some(kind)) => Ok((kind, true)),
-                (false, Some(_)) => Err(SchemaDefinitionError::new(
-                    "type",
-                    "type array must be exactly [\"kind\", \"null\"] for nullable; use a string for non-nullable",
-                    type_path,
-                )),
-                (true, None) => Err(SchemaDefinitionError::new(
-                    "type",
-                    "type array `[\"null\"]` alone is not allowed; omit `type` for nullable Any",
-                    type_path,
-                )),
-                (false, None) => Err(SchemaDefinitionError::new(
-                    "type",
-                    "type array must not be empty",
-                    type_path,
-                )),
-            }
+            Ok((kind, true))
         }
         Some(_) => Err(SchemaDefinitionError::new(
             "type",
@@ -1667,6 +1639,7 @@ impl SchemaDefinition {
                 "/x-schema-version",
             ));
         }
+        validate_extension_map(&self.extensions, "")?;
         self.root.validate_definition()
     }
 
@@ -2858,5 +2831,73 @@ mod tests {
         let error = def.validate().unwrap_err();
         assert_eq!(error.keyword, "x-schema-version");
         assert_eq!(error.field_path, "/x-schema-version");
+    }
+
+    // -- fifth round: reversed type-array, envelope extensions --
+
+    #[test]
+    fn definition_rejects_reversed_nullable_type_array() {
+        let json = json!({"x-schema-version": 1, "type": ["null", "string"]});
+        let error = SchemaDefinition::from_json(&json).unwrap_err();
+        assert_eq!(error.keyword, "type");
+    }
+
+    #[test]
+    fn definition_rejects_three_element_type_array() {
+        let json = json!({"x-schema-version": 1, "type": ["string", "null", "extra"]});
+        assert!(SchemaDefinition::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn schema_definition_rejects_unnamespaced_envelope_extension() {
+        let mut def = SchemaDefinition::new(SchemaNode::string());
+        def.extensions.insert("type".into(), json!("integer"));
+        let error = def.validate().unwrap_err();
+        assert_eq!(error.keyword, "type");
+        assert_eq!(error.field_path, "/type");
+    }
+
+    #[test]
+    fn schema_definition_rejects_version_override_envelope_extension() {
+        let mut def = SchemaDefinition::new(SchemaNode::string());
+        def.extensions.insert("x-schema-version".into(), json!(2));
+        let error = def.validate().unwrap_err();
+        assert_eq!(error.keyword, "x-schema-version");
+        assert_eq!(error.field_path, "/x-schema-version");
+    }
+
+    #[test]
+    fn schema_definition_envelope_extension_path_escapes_rfc6901() {
+        let mut def = SchemaDefinition::new(SchemaNode::string());
+        def.extensions.insert("bad/key~name".into(), json!(true));
+        let error = def.validate().unwrap_err();
+        assert_eq!(error.keyword, "bad/key~name");
+        assert_eq!(error.field_path, "/bad~1key~0name");
+    }
+
+    #[test]
+    fn schema_registry_rejects_invalid_envelope_extension() {
+        let mut def = SchemaDefinition::new(SchemaNode::string());
+        def.extensions.insert("type".into(), json!("integer"));
+        let mut registry = SchemaRegistry::default();
+        let result = registry.register_definition(EngineTypeId::from_static("test.envelope"), def);
+        assert!(result.is_err());
+        assert!(registry
+            .get(&EngineTypeId::from_static("test.envelope"))
+            .is_err());
+    }
+
+    #[test]
+    fn schema_registry_accepts_valid_x_guiyi_envelope_extension() {
+        let mut def = SchemaDefinition::new(SchemaNode::string());
+        def.extensions
+            .insert("x-guiyi-owner".into(), json!("engine"));
+        let mut registry = SchemaRegistry::default();
+        registry
+            .register_definition(EngineTypeId::from_static("test.valid"), def)
+            .unwrap();
+        assert!(registry
+            .get(&EngineTypeId::from_static("test.valid"))
+            .is_ok());
     }
 }
