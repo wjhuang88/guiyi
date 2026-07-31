@@ -68,18 +68,35 @@ pub struct CommandRegistry {
 
 impl CommandRegistry {
     pub fn register(&mut self, handler: impl CommandHandler + 'static) -> Result<(), CommandError> {
+        let definition = SchemaDefinition::new(handler.input_schema());
+        self.register_with_definition(handler, definition)
+    }
+
+    pub fn register_with_definition(
+        &mut self,
+        handler: impl CommandHandler + 'static,
+        definition: SchemaDefinition,
+    ) -> Result<(), CommandError> {
         let id = handler.descriptor().id;
-        if self.handlers.contains_key(&id) {
+        if self.handlers.contains_key(&id) || self.definitions.contains_key(&id) {
             return Err(CommandError::DuplicateCommand(id));
         }
-        let schema = handler.input_schema();
-        let definition = SchemaDefinition::new(schema);
         definition
             .validate()
             .map_err(CommandError::SchemaDefinitionInvalid)?;
         self.definitions.insert(id.clone(), definition);
         self.handlers.insert(id, Box::new(handler));
         Ok(())
+    }
+
+    pub fn register_with_json_definition(
+        &mut self,
+        handler: impl CommandHandler + 'static,
+        schema_json: &Value,
+    ) -> Result<(), CommandError> {
+        let definition = SchemaDefinition::from_json(schema_json)
+            .map_err(CommandError::SchemaDefinitionInvalid)?;
+        self.register_with_definition(handler, definition)
     }
 
     pub fn handler(&self, id: &ToolId) -> Result<&dyn CommandHandler, CommandError> {
@@ -95,20 +112,6 @@ impl CommandRegistry {
 
     pub fn definition(&self, id: &ToolId) -> Option<&SchemaDefinition> {
         self.definitions.get(id)
-    }
-
-    pub fn register_json_input_schema(
-        &mut self,
-        id: ToolId,
-        schema_json: &Value,
-    ) -> Result<(), CommandError> {
-        let definition = SchemaDefinition::from_json(schema_json)
-            .map_err(CommandError::SchemaDefinitionInvalid)?;
-        if self.definitions.contains_key(&id) {
-            return Err(CommandError::DuplicateCommand(id));
-        }
-        self.definitions.insert(id, definition);
-        Ok(())
     }
 
     pub fn descriptors(&self) -> Vec<CommandDescriptor> {
@@ -981,11 +984,35 @@ mod tests {
 
     #[test]
     fn command_registry_rejects_unsupported_definition_version() {
+        struct DummyCommand;
+        impl CommandHandler for DummyCommand {
+            fn descriptor(&self) -> CommandDescriptor {
+                CommandDescriptor {
+                    id: ToolId::from_static("test.bad"),
+                    title: "Bad".into(),
+                    description: "Bad".into(),
+                    input_schema: Value::Null,
+                    output_schema: json!({"type": "object"}),
+                    required_permissions: PermissionSet::new([Permission::EditContent]),
+                    side_effects: vec![],
+                    related_tools: vec![],
+                }
+            }
+            fn input_schema(&self) -> SchemaNode {
+                SchemaNode::string()
+            }
+            fn apply(&self, _: &Value, _: &mut EngineState) -> Result<Value, CommandError> {
+                Ok(json!({}))
+            }
+        }
         let mut registry = CommandRegistry::default();
         let bad_json = json!({"x-schema-version": 2, "type": "string"});
-        let result =
-            registry.register_json_input_schema(ToolId::from_static("test.bad"), &bad_json);
+        let result = registry.register_with_json_definition(DummyCommand, &bad_json);
         assert!(result.is_err());
+        assert!(registry.handler(&ToolId::from_static("test.bad")).is_err());
+        assert!(registry
+            .definition(&ToolId::from_static("test.bad"))
+            .is_none());
     }
 
     #[test]
@@ -1000,5 +1027,104 @@ mod tests {
         assert_eq!(create.input_schema["x-schema-version"], 1);
         let def = registry.definition(&create.id).unwrap();
         assert_eq!(def.root.to_json_schema(), create.input_schema);
+    }
+
+    #[test]
+    fn command_register_with_json_definition_is_executable() {
+        struct TestCmd;
+        impl CommandHandler for TestCmd {
+            fn descriptor(&self) -> CommandDescriptor {
+                CommandDescriptor {
+                    id: ToolId::from_static("test.json_def"),
+                    title: "JSON Def".into(),
+                    description: "Test".into(),
+                    input_schema: Value::Null,
+                    output_schema: json!({"type": "object"}),
+                    required_permissions: PermissionSet::new([Permission::EditContent]),
+                    side_effects: vec![],
+                    related_tools: vec![],
+                }
+            }
+            fn input_schema(&self) -> SchemaNode {
+                SchemaNode::object(vec![guiyi_engine_schema::FieldSchema::required(
+                    "name",
+                    SchemaNode::string(),
+                )])
+            }
+            fn apply(&self, _: &Value, _: &mut EngineState) -> Result<Value, CommandError> {
+                Ok(json!({}))
+            }
+        }
+        let mut registry = CommandRegistry::default();
+        let schema_json = SchemaNode::object(vec![guiyi_engine_schema::FieldSchema::required(
+            "name",
+            SchemaNode::string(),
+        )])
+        .to_json_schema();
+        registry
+            .register_with_json_definition(TestCmd, &schema_json)
+            .unwrap();
+
+        assert!(registry
+            .handler(&ToolId::from_static("test.json_def"))
+            .is_ok());
+        let desc = registry
+            .descriptors()
+            .into_iter()
+            .find(|d| d.id == ToolId::from_static("test.json_def"))
+            .unwrap();
+        assert_eq!(desc.input_schema, schema_json);
+        let def = registry
+            .definition(&ToolId::from_static("test.json_def"))
+            .unwrap();
+        assert_eq!(def.root.to_json_schema(), schema_json);
+    }
+
+    #[test]
+    fn command_registration_failure_is_atomic() {
+        struct FailCmd;
+        impl CommandHandler for FailCmd {
+            fn descriptor(&self) -> CommandDescriptor {
+                CommandDescriptor {
+                    id: ToolId::from_static("test.fail"),
+                    title: "Fail".into(),
+                    description: "Test".into(),
+                    input_schema: Value::Null,
+                    output_schema: json!({"type": "object"}),
+                    required_permissions: PermissionSet::new([Permission::EditContent]),
+                    side_effects: vec![],
+                    related_tools: vec![],
+                }
+            }
+            fn input_schema(&self) -> SchemaNode {
+                SchemaNode::string()
+            }
+            fn apply(&self, _: &Value, _: &mut EngineState) -> Result<Value, CommandError> {
+                Ok(json!({}))
+            }
+        }
+        let mut registry = CommandRegistry::default();
+        let bad_json =
+            json!({"x-schema-version": 1, "type": "integer", "minimum": 10, "maximum": 5});
+        let result = registry.register_with_json_definition(FailCmd, &bad_json);
+        assert!(result.is_err());
+        assert!(registry.handler(&ToolId::from_static("test.fail")).is_err());
+        assert!(registry
+            .definition(&ToolId::from_static("test.fail"))
+            .is_none());
+        assert!(registry
+            .descriptors()
+            .iter()
+            .all(|d| d.id != ToolId::from_static("test.fail")));
+    }
+
+    #[test]
+    fn command_registry_has_no_orphan_definition_api() {
+        let mut registry = CommandRegistry::default();
+        register_builtin_document_commands(&mut registry).unwrap();
+        for desc in registry.descriptors() {
+            assert!(registry.handler(&desc.id).is_ok());
+            assert!(registry.definition(&desc.id).is_some());
+        }
     }
 }
