@@ -222,11 +222,49 @@ impl AgentHost {
             );
         }
 
+        let normalized_input = if descriptor.kind == ToolKind::Command {
+            match self.command_executor.prepare_input(&CommandRequest {
+                command: call.tool.clone(),
+                input: call.input.clone(),
+                dry_run: call.dry_run,
+            }) {
+                Ok(normalized) => normalized,
+                Err(CommandError::ValidationFailed(bag)) => {
+                    return ToolResult {
+                        call_id: call.id.clone(),
+                        status: ToolResultStatus::Rejected,
+                        output: json!({
+                            "error": {
+                                "code": "COMMAND_VALIDATION_FAILED",
+                                "message": "command input structural validation failed"
+                            }
+                        }),
+                        diagnostics: bag
+                            .diagnostics
+                            .iter()
+                            .map(|item| serde_json::to_value(item).unwrap_or(Value::Null))
+                            .collect(),
+                        transaction: None,
+                    };
+                }
+                Err(error) => {
+                    return failed(
+                        call,
+                        AGENT_TOOL_FAILED,
+                        error.to_string(),
+                        json!({"tool": call.tool}),
+                    )
+                }
+            }
+        } else {
+            call.input.clone()
+        };
+
         let allowed = session.allowed_documents();
         let access = match descriptor.kind {
             ToolKind::Command => self.command_executor.document_access(&CommandRequest {
                 command: call.tool.clone(),
-                input: call.input.clone(),
+                input: normalized_input.clone(),
                 dry_run: call.dry_run,
             }),
             ToolKind::Query => self
@@ -271,7 +309,9 @@ impl AgentHost {
         }
 
         match descriptor.kind {
-            ToolKind::Command => self.execute_command(session, call, allowed.as_ref()),
+            ToolKind::Command => {
+                self.execute_command(session, call, &normalized_input, allowed.as_ref())
+            }
             ToolKind::Query => self.execute_query(session, call, allowed.as_ref()),
         }
     }
@@ -280,12 +320,13 @@ impl AgentHost {
         &mut self,
         session: &AgentSession,
         call: &ToolCall,
+        normalized_input: &Value,
         allowed: Option<&BTreeSet<DocumentId>>,
     ) -> ToolResult {
         let result = self.command_executor.execute_scoped(
             CommandRequest {
                 command: call.tool.clone(),
-                input: call.input.clone(),
+                input: normalized_input.clone(),
                 dry_run: call.dry_run,
             },
             &CommandContext {
@@ -746,6 +787,10 @@ mod tests {
                 }
             }
 
+            fn input_schema(&self) -> guiyi_engine_schema::SchemaNode {
+                guiyi_engine_schema::SchemaNode::object(vec![])
+            }
+
             fn document_access(&self, _input: &Value) -> Result<DocumentAccessPlan, CommandError> {
                 Ok(DocumentAccessPlan::documents([
                     DocumentId::from_static("stage.a"),
@@ -812,5 +857,25 @@ mod tests {
         assert_eq!(session.status, SessionStatus::Completed);
         assert_eq!(host.state.documents.len(), 1);
         assert_eq!(session.actions.len(), 2);
+    }
+
+    #[test]
+    fn malformed_command_input_rejected_before_access_planning() {
+        let mut host = host();
+        let mut session = session(PermissionSet::content_author());
+        let result = host.execute(
+            &mut session,
+            ToolCall {
+                id: "call-malformed".into(),
+                tool: ToolId::from_static("document.create"),
+                input: json!({"missing_required": true}),
+                dry_run: false,
+            },
+        );
+        assert_eq!(result.status, ToolResultStatus::Rejected);
+        assert_eq!(result.output["error"]["code"], "COMMAND_VALIDATION_FAILED");
+        assert!(!result.diagnostics.is_empty());
+        let following = host.execute(&mut session, list_call("call-after"));
+        assert_eq!(following.status, ToolResultStatus::Ok);
     }
 }

@@ -10,6 +10,7 @@ use guiyi_engine_core::{
     DocumentAccessPlan, DocumentId, ObjectId, Permission, PermissionSet, ToolId,
 };
 use guiyi_engine_query::{QueryDescriptor, QueryError, QueryHandler, QueryRegistry};
+use guiyi_engine_schema::{FieldSchema, SchemaNode};
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -34,21 +35,21 @@ impl CommandHandler for CreateStageCommand {
             id: ToolId::from_static("stage.create"),
             title: "Create tactical Stage".into(),
             description: "Create a hex-grid Stage authoring document.".into(),
-            input_schema: json!({
-                "type": "object",
-                "required": ["id", "name", "width", "height"],
-                "properties": {
-                    "id": {"type": "string"},
-                    "name": {"type": "string", "minLength": 1},
-                    "width": {"type": "integer", "minimum": 1},
-                    "height": {"type": "integer", "minimum": 1}
-                }
-            }),
+            input_schema: Value::Null,
             output_schema: json!({"type": "object"}),
             required_permissions: PermissionSet::new([Permission::EditContent]),
             side_effects: vec!["creates_document".into()],
             related_tools: vec![ToolId::from_static("stage.place_actor")],
         }
+    }
+
+    fn input_schema(&self) -> SchemaNode {
+        SchemaNode::object(vec![
+            FieldSchema::required("id", SchemaNode::string()),
+            FieldSchema::required("name", SchemaNode::string().with_min_length(1)),
+            FieldSchema::required("width", SchemaNode::integer().with_minimum(1.0)),
+            FieldSchema::required("height", SchemaNode::integer().with_minimum(1.0)),
+        ])
     }
 
     fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
@@ -58,25 +59,13 @@ impl CommandHandler for CreateStageCommand {
 
     fn validate(&self, input: &Value, state: &EngineState) -> DiagnosticBag {
         let mut bag = DiagnosticBag::default();
-        match serde_json::from_value::<CreateStageInput>(input.clone()) {
-            Ok(parsed) => {
-                if parsed.width == 0 || parsed.height == 0 {
-                    bag.push(Diagnostic::error(
-                        "STAGE_DIMENSIONS_INVALID",
-                        "Stage dimensions must be greater than zero",
-                    ));
-                }
-                if state.documents.get(&parsed.id).is_ok() {
-                    bag.push(
-                        Diagnostic::error("DOCUMENT_ALREADY_EXISTS", "Stage id already exists")
-                            .at_document(parsed.id),
-                    );
-                }
+        if let Ok(parsed) = serde_json::from_value::<CreateStageInput>(input.clone()) {
+            if state.documents.get(&parsed.id).is_ok() {
+                bag.push(
+                    Diagnostic::error("DOCUMENT_ALREADY_EXISTS", "Stage id already exists")
+                        .at_document(parsed.id),
+                );
             }
-            Err(error) => bag.push(Diagnostic::error(
-                "COMMAND_INPUT_INVALID",
-                error.to_string(),
-            )),
         }
         bag
     }
@@ -108,23 +97,23 @@ impl CommandHandler for PlaceActorCommand {
             id: ToolId::from_static("stage.place_actor"),
             title: "Place actor".into(),
             description: "Place an actor definition instance into a tactical Stage.".into(),
-            input_schema: json!({
-                "type": "object",
-                "required": ["stage_id", "object_id", "definition", "q", "r"],
-                "properties": {
-                    "stage_id": {"type": "string"},
-                    "object_id": {"type": "string"},
-                    "definition": {"type": "string"},
-                    "q": {"type": "integer"},
-                    "r": {"type": "integer"},
-                    "properties": {"type": "object"}
-                }
-            }),
+            input_schema: Value::Null,
             output_schema: json!({"type": "object"}),
             required_permissions: PermissionSet::new([Permission::EditContent]),
             side_effects: vec!["modifies_document".into(), "creates_reference".into()],
             related_tools: vec![ToolId::from_static("stage.validate")],
         }
+    }
+
+    fn input_schema(&self) -> SchemaNode {
+        SchemaNode::object(vec![
+            FieldSchema::required("stage_id", SchemaNode::string()),
+            FieldSchema::required("object_id", SchemaNode::string()),
+            FieldSchema::required("definition", SchemaNode::string()),
+            FieldSchema::required("q", SchemaNode::integer()),
+            FieldSchema::required("r", SchemaNode::integer()),
+            FieldSchema::optional("properties", SchemaNode::any().with_default(json!({}))),
+        ])
     }
 
     fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
@@ -174,22 +163,22 @@ impl CommandHandler for CreateSpawnCommand {
             id: ToolId::from_static("stage.create_spawn"),
             title: "Create spawn point".into(),
             description: "Create a named Stage spawn point.".into(),
-            input_schema: json!({
-                "type": "object",
-                "required": ["stage_id", "object_id", "profile", "q", "r"],
-                "properties": {
-                    "stage_id": {"type": "string"},
-                    "object_id": {"type": "string"},
-                    "profile": {"type": "string"},
-                    "q": {"type": "integer"},
-                    "r": {"type": "integer"}
-                }
-            }),
+            input_schema: Value::Null,
             output_schema: json!({"type": "object"}),
             required_permissions: PermissionSet::new([Permission::EditContent]),
             side_effects: vec!["modifies_document".into()],
             related_tools: vec![ToolId::from_static("stage.validate")],
         }
+    }
+
+    fn input_schema(&self) -> SchemaNode {
+        SchemaNode::object(vec![
+            FieldSchema::required("stage_id", SchemaNode::string()),
+            FieldSchema::required("object_id", SchemaNode::string()),
+            FieldSchema::required("profile", SchemaNode::string()),
+            FieldSchema::required("q", SchemaNode::integer()),
+            FieldSchema::required("r", SchemaNode::integer()),
+        ])
     }
 
     fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
@@ -240,24 +229,30 @@ impl CommandHandler for CreateTriggerCommand {
             id: ToolId::from_static("stage.create_trigger"),
             title: "Create trigger".into(),
             description: "Create a trigger using registry-defined conditions and effects.".into(),
-            input_schema: json!({
-                "type": "object",
-                "required": ["stage_id", "object_id", "activation", "q", "r"],
-                "properties": {
-                    "stage_id": {"type": "string"},
-                    "object_id": {"type": "string"},
-                    "activation": {"type": "string"},
-                    "q": {"type": "integer"},
-                    "r": {"type": "integer"},
-                    "conditions": {"type": "array"},
-                    "effects": {"type": "array"}
-                }
-            }),
+            input_schema: Value::Null,
             output_schema: json!({"type": "object"}),
             required_permissions: PermissionSet::new([Permission::EditContent]),
             side_effects: vec!["modifies_document".into()],
             related_tools: vec![ToolId::from_static("stage.validate")],
         }
+    }
+
+    fn input_schema(&self) -> SchemaNode {
+        SchemaNode::object(vec![
+            FieldSchema::required("stage_id", SchemaNode::string()),
+            FieldSchema::required("object_id", SchemaNode::string()),
+            FieldSchema::required("activation", SchemaNode::string()),
+            FieldSchema::required("q", SchemaNode::integer()),
+            FieldSchema::required("r", SchemaNode::integer()),
+            FieldSchema::optional(
+                "conditions",
+                SchemaNode::array(SchemaNode::any()).with_default(json!([])),
+            ),
+            FieldSchema::optional(
+                "effects",
+                SchemaNode::array(SchemaNode::any()).with_default(json!([])),
+            ),
+        ])
     }
 
     fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
@@ -305,21 +300,21 @@ impl CommandHandler for ConnectStageCommand {
             id: ToolId::from_static("stage.connect"),
             title: "Connect Stage".into(),
             description: "Create a semantic connection from one Stage to another.".into(),
-            input_schema: json!({
-                "type": "object",
-                "required": ["stage_id", "connection_id", "to_stage", "entry_point"],
-                "properties": {
-                    "stage_id": {"type": "string"},
-                    "connection_id": {"type": "string"},
-                    "to_stage": {"type": "string"},
-                    "entry_point": {"type": "string"}
-                }
-            }),
+            input_schema: Value::Null,
             output_schema: json!({"type": "object"}),
             required_permissions: PermissionSet::new([Permission::EditContent]),
             side_effects: vec!["modifies_document".into(), "creates_reference".into()],
             related_tools: vec![ToolId::from_static("project.impact.analyze")],
         }
+    }
+
+    fn input_schema(&self) -> SchemaNode {
+        SchemaNode::object(vec![
+            FieldSchema::required("stage_id", SchemaNode::string()),
+            FieldSchema::required("connection_id", SchemaNode::string()),
+            FieldSchema::required("to_stage", SchemaNode::string()),
+            FieldSchema::required("entry_point", SchemaNode::string()),
+        ])
     }
 
     fn document_access(&self, input: &Value) -> Result<DocumentAccessPlan, CommandError> {
