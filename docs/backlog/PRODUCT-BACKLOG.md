@@ -124,7 +124,7 @@ authorization.
 
 - Type: Schema
 - Priority: P1
-- Status: In Progress
+- Status: Done
 - GitHub: [#9](https://github.com/wjhuang88/guiyi/issues/9) — Open
 - Branch: `agent/ENG-010-schema-validation`
 - Goal: replace duplicated command parsing contracts with reusable schema-driven structural validation and stable field-path diagnostics.
