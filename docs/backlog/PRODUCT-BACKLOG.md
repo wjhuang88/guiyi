@@ -2,9 +2,7 @@
 
 This is the only executable requirement list.
 
-GitHub Issue state was last synchronized on 2026-07-31. GitHub `OPEN` means only
-that an Issue is unresolved; the `Status` field below remains the implementation
-authorization.
+GitHub Issue state was last synchronized on 2026-08-01. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
 
 ## Done — Iteration 001
 
@@ -118,19 +116,22 @@ authorization.
 - Gate: type, version, checksum/integrity, duplicate ID, and object validation failures are atomic and structured; valid artifacts retain the repeated load/unload guarantee.
 - Evidence: `docs/validation/ENG-017.md`; CI run `30562016077` (run number 118) passed on 2026-07-30.
 
-## In Progress — Iteration 002
+## Done — Iteration 002
 
 ### ENG-010 Schema-driven command validation
 
 - Type: Schema
 - Priority: P1
 - Status: Done
-- GitHub: [#9](https://github.com/wjhuang88/guiyi/issues/9) — Open
-- Branch: `agent/ENG-010-schema-validation`
+- GitHub: [#9](https://github.com/wjhuang88/guiyi/issues/9) — completed
+- Implementation PR: #30
+- Acceptance PRs: #31, #32, #33, #34, #35
+- Governance closure PR: #38
 - Goal: replace duplicated command parsing contracts with reusable schema-driven structural validation and stable field-path diagnostics.
-- Gate: advertised schemas, runtime validation, constraints, schema versions, and built-in command behavior share one tested authority.
+- Gate: advertised schemas, runtime validation, constraints, schema versions, extensions, defaults, and built-in command behavior share one tested authority.
 - Architecture: `docs/decisions/ADR-0015-SCHEMA-DRIVEN-COMMAND-VALIDATION.md`.
-- Validation: `docs/validation/ENG-010.md`.
+- Reference: `docs/reference/COMMAND-SCHEMA-CONTRACT.md`.
+- Evidence: `docs/validation/ENG-010.md`; PR #35 CI run `30641388046` (run number 136) passed.
 
 ## Ready — Iteration 002
 
