@@ -10,15 +10,22 @@ Near-term work converges on one proof: **Talos can use GUIYI to create, repair, 
 
 Owner: ENG-029.
 
-Exit when Talos is the canonical first-party agent runtime, GUIYI/Talos/Bevy ownership is explicit, generic agent-runtime expansion inside GUIYI is prohibited, and ENG-014 has a clear integration boundary.
+Exit when Talos is the canonical first-party agent runtime, the published `talos-runtime` SDK is the approved dependency boundary, GUIYI/Talos/Bevy ownership is explicit, generic agent-runtime expansion inside GUIYI is prohibited, and ENG-014 has a clear integration contract.
 
-### Gate 1 — Talos runtime integration
+### Gate 1 — Talos runtime SDK integration
 
 Owner: ENG-014.
 
-Integrate a pinned `talos-runtime` at an outer adapter boundary. Talos must be able to discover GUIYI capabilities and invoke at least one query and one command through normal GUIYI permission, working-set, validation, dry-run, transaction, and diagnostic paths. Reusable GUIYI engine crates must not acquire model/provider/planning/conversation responsibilities.
+Use the crates.io `talos-runtime` SDK as GUIYI's only direct Talos dependency by default. Register GUIYI's live capabilities as Talos `AgentTool` adapters through `RuntimeBuilder`; do not use a catch-all Tool when per-capability schemas are available.
 
-ENG-014 also owns the compatibility decision for the transitional `AgentLoopDriver` and overlapping agent-session lifecycle state.
+Exit when:
+
+- the dependency is registry-sourced, intentionally versioned, and locked;
+- no direct dependency on Talos implementation crates is required for the ordinary integration path;
+- Talos can discover GUIYI capabilities and invoke at least one query and one mutating command through normal GUIYI permission, working-set, schema, dry-run, transaction, diagnostic, and persistence paths;
+- recoverable Tool failures remain structured and the Talos runtime can continue;
+- reusable GUIYI engine crates have no model/provider/planning/conversation responsibilities;
+- current `AgentLoopDriver` and overlapping agent-session responsibilities have a documented compatibility/deprecation decision.
 
 ### Gate 2 — Semantic game-world interface
 
@@ -75,7 +82,7 @@ Typed commands, dry-run, atomic state replacement, transaction diff, audit, undo
 
 ## Phase 3 — Query and machine-facing execution platform
 
-Structured queries, capability catalog, protocol, permissions, working sets, domain execution context, and the outer Talos adapter. Generic agent-runtime behavior belongs in Talos.
+Structured queries, capability catalog, protocol, permissions, working sets, domain execution context, and the outer Talos runtime SDK adapter. Generic agent-runtime behavior belongs in Talos.
 
 ## Phase 4 — Stage vertical infrastructure
 
