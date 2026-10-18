@@ -16,12 +16,20 @@ Ownership rule:
 - Game repositories: game-specific mechanics, content and progression.
 - Human UI: a client of the same GUIYI machine-facing APIs, not a second authoring truth.
 
+Dependency rule for the first-party AI path:
+
+- use the published crates.io `talos-runtime` SDK as the default and only direct Talos dependency;
+- target the currently reviewed SDK line explicitly (`0.10.1` at ENG-029 planning time), re-verifying the latest approved release when ENG-014 starts;
+- resolve through committed `Cargo.lock` and treat pre-1.0 Talos minor-version changes as explicit compatibility work;
+- do not commit a Git dependency on Talos `main` or direct dependencies on Talos implementation crates merely for convenience;
+- expose GUIYI's live capabilities as Talos `AgentTool` adapters via the public `RuntimeBuilder` surface.
+
 Current primary sequence:
 
 ```text
 ENG-029 direction governance
     ↓
-ENG-014 Talos runtime integration
+ENG-014 Talos runtime SDK integration
     ↓
 ENG-012 Project Graph + ENG-013 semantic Stage commands
     ↓
@@ -42,22 +50,24 @@ A different sequence requires an explicit backlog/change-control decision.
 - Priority: P0
 - Status: In Progress
 - GitHub: [#50](https://github.com/wjhuang88/guiyi/issues/50)
-- Goal: make Talos the canonical first-party AI agent runtime, keep GUIYI authoritative for game-domain execution, and prevent a second generic Agent framework from growing inside GUIYI.
-- Gate: ADR/reference/roadmap/backlog/SOP agree on ownership; current generic loop/session overlap is explicitly transitional; ENG-014 owns the implementation migration.
+- Goal: make Talos the canonical first-party AI agent runtime, make `talos-runtime` the supported SDK dependency boundary, keep GUIYI authoritative for game-domain execution, and prevent a second generic Agent framework from growing inside GUIYI.
+- Gate: ADR/reference/roadmap/backlog/SOP agree on ownership and registry-first SDK use; current generic loop/session overlap is explicitly transitional; ENG-014 owns the implementation migration.
 - Architecture: `docs/decisions/ADR-0016-TALOS-AGENT-RUNTIME.md`.
 - Non-goal: no Rust implementation or public API break in ENG-029.
 
 ## Ready — Current implementation sequence
 
-### ENG-014 Talos runtime integration
+### ENG-014 Talos runtime SDK integration
 
 - Type: Integration / Architecture
 - Priority: P0
 - Status: Ready after ENG-029
 - Depends on: ENG-029.
-- Goal: integrate a pinned `talos-runtime` through a thin outer adapter and stop growing GUIYI-owned generic Agent-loop behavior.
-- Gate: Talos discovers GUIYI capabilities and executes a query plus a mutating command through normal GUIYI permission, working-set, schema, dry-run, transaction, diagnostic and persistence boundaries. Recoverable Tool failures remain structured. Reusable GUIYI engine crates gain no provider/model/planning/conversation logic.
-- Migration: decide the compatibility/deprecation path for `AgentLoopDriver` and overlapping `AgentSession` lifecycle fields.
+- Goal: integrate the published `talos-runtime` SDK through a thin outer adapter and stop growing GUIYI-owned generic Agent-loop behavior.
+- Dependency gate: start from crates.io `talos-runtime` on the reviewed release line, with no ordinary direct dependency on `talos-agent`, `talos-core`, `talos-session`, `talos-permission`, or other Talos implementation crates. Use the smallest SDK feature set required for GUIYI Tool integration.
+- Tool-adapter gate: map live GUIYI Tool descriptors into Talos `AgentTool` registrations through `RuntimeBuilder`, preserving Tool IDs and machine-readable schemas rather than hiding them behind a single catch-all wrapper.
+- Execution gate: Talos discovers GUIYI capabilities and executes a query plus a mutating command through normal GUIYI permission, working-set, schema, dry-run, transaction, diagnostic and persistence boundaries. Recoverable Tool failures remain structured and the Talos runtime can continue.
+- Migration gate: decide the compatibility/deprecation path for `AgentLoopDriver` and overlapping `AgentSession` lifecycle fields without weakening GUIYI's domain execution/security boundary.
 - Architecture: `docs/decisions/ADR-0016-TALOS-AGENT-RUNTIME.md`.
 
 ### ENG-012 Project graph index
