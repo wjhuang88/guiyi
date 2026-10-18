@@ -4,9 +4,9 @@
 
 AI-native means that GUIYI is designed around machine-consumable game-development capabilities rather than automating mouse clicks in a traditional editor.
 
-GUIYI is not itself the first-party general agent runtime. Talos owns that role. GUIYI provides the structured world, Tools, safety boundaries, diagnostics, and deterministic execution evidence that Talos consumes.
+GUIYI is not itself the first-party general Agent runtime. Talos owns that role. GUIYI provides the structured world, Tools, safety boundaries, diagnostics, and deterministic execution evidence that Talos consumes.
 
-## Canonical first-party agent loop
+## Canonical first-party Agent loop
 
 Talos runs the first-party reasoning loop:
 
@@ -17,12 +17,16 @@ Observe → Query → Plan → Dry run → Apply transaction → Validate → Ev
 
 GUIYI participates at Query, Tool execution, transaction, validation, build, and preview boundaries. Model calls, context compression, planning strategy, generic memory, retries, provider credentials, conversation state, and generic stopping policy remain in Talos.
 
-## Integration contract
+## Supported integration contract
 
-The intended first-party path is:
+The approved first-party dependency boundary is the published crates.io **`talos-runtime`** SDK. GUIYI should not directly embed Talos implementation crates when the runtime facade already exposes the needed contracts.
+
+The intended path is:
 
 ```text
-Talos / talos-runtime
+crates.io talos-runtime
+        ↓
+RuntimeBuilder + GUIYI AgentTool adapters
         ↓
 GUIYI Talos adapter
         ↓
@@ -31,14 +35,20 @@ GUIYI Tool catalog + domain execution boundary
 Commands / Queries / Validation / Build / Preview
 ```
 
-The adapter translates between Talos Tool/runtime contracts and GUIYI machine-facing contracts. It must not bypass GUIYI command validation, permissions, working-set checks, transactions, diagnostics, or persistence.
+ENG-014 should adapt each relevant live GUIYI Tool descriptor into a Talos `AgentTool`, preserving Tool identity and machine-readable schema. The adapter translates Talos Tool invocation into the normal GUIYI Tool execution boundary and translates GUIYI results, diagnostics, and transaction evidence back to Talos.
+
+Use the smallest `talos-runtime` feature set required. Ordinary integration should have one direct Talos dependency, `talos-runtime`, and use its public re-exports/extension points. Direct dependencies on `talos-agent` or other Talos implementation crates require an explicit Story rationale because they bypass the supported SDK boundary.
+
+The committed dependency source is crates.io and the resolved version is locked. Git/path overrides are temporary development mechanisms, not the normal repository dependency. Because Talos is pre-1.0, minor-version upgrades receive explicit compatibility review.
+
+The adapter must not bypass GUIYI command validation, permissions, working-set checks, transactions, diagnostics, or persistence.
 
 Direct CLI/Workbench clients remain supported without Talos.
 
 ## First-class GUIYI concepts
 
 - Tool catalog with input/output schemas.
-- Command and query descriptors.
+- Command and Query descriptors.
 - Domain execution context with caller identity and access scope.
 - Least-privilege GUIYI permission set.
 - Semantic Project Graph.
@@ -47,7 +57,7 @@ Direct CLI/Workbench clients remain supported without Talos.
 - Headless validation, build, and preview.
 - Tactical-RPG domain and intent Tools.
 
-Generic conversation history, model/provider configuration, prompt policy, agent memory, reasoning-loop budgets, and retry policy are not GUIYI product concepts unless an accepted ADR explicitly changes the boundary.
+Generic conversation history, model/provider configuration, prompt policy, Agent memory, reasoning-loop budgets, and retry policy are not GUIYI product concepts unless an accepted ADR explicitly changes the boundary.
 
 ## Safety defaults
 
@@ -57,7 +67,7 @@ Talos may apply its own generic permission and approval policy, but GUIYI still 
 
 ## Transitional alpha APIs
 
-The current `AgentLoopDriver` and generic loop/lifecycle portions of `engine_agent_host::AgentSession` predate the Talos convergence decision. They are transitional compatibility surfaces, not a mandate to grow a second agent framework.
+The current `AgentLoopDriver` and generic loop/lifecycle portions of `engine_agent_host::AgentSession` predate the Talos convergence decision. They are transitional compatibility surfaces, not a mandate to grow a second Agent framework.
 
 ENG-014 owns the implementation migration. Until then:
 
