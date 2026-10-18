@@ -2,10 +2,12 @@
 
 ## First-party integration boundary
 
-Talos is the canonical first-party AI agent runtime. GUIYI is the game-development execution environment Talos consumes.
+Talos is the canonical first-party AI Agent runtime. GUIYI is the game-development execution environment Talos consumes.
+
+The supported embedding boundary is the published crates.io `talos-runtime` SDK. GUIYI's normal first-party integration has one direct Talos dependency, `talos-runtime`, at an outer adapter boundary.
 
 ```text
-Talos / talos-runtime
+crates.io talos-runtime
         |
         v
 GUIYI Talos adapter (outer integration only)
@@ -20,7 +22,7 @@ GUIYI Tool catalog        GUIYI protocol
        domain execution boundary
           /                   \
          v                     v
-queries / project graph   commands / transactions
+queries / Project Graph   commands / transactions
          \                     /
           +---------+---------+
                     v
@@ -29,6 +31,8 @@ queries / project graph   commands / transactions
                     v
                  Bevy ECS
 ```
+
+The adapter uses public `talos-runtime` composition contracts such as `RuntimeBuilder` and `AgentTool`. GUIYI's live Tool catalog remains capability/schema authority; relevant capabilities should be exposed as individual Talos Tools rather than hidden behind a catch-all call when their schemas are available.
 
 Direct CLI, JSONL Workbench, tests, and future human clients may enter through the same GUIYI machine-facing boundary without Talos.
 
@@ -53,7 +57,9 @@ Talos and game-specific repositories
 The arrows describe allowed outward consumers, not permission for engine-core crates to depend upward. In particular:
 
 - reusable GUIYI engine crates must not depend on Talos;
-- the Talos adapter may depend on both `talos-runtime` and public GUIYI machine-facing APIs;
+- the Talos adapter may depend on crates.io `talos-runtime` and public GUIYI machine-facing APIs;
+- the normal integration must not directly depend on Talos implementation crates such as `talos-agent` merely for convenience;
+- Git/path Talos dependencies are temporary development overrides, not the committed normal dependency source;
 - tactical-RPG crates may depend on engine crates; the reverse is forbidden;
 - game-specific repositories consume GUIYI and may use Talos, but GUIYI never depends on a game repository.
 
@@ -80,7 +86,7 @@ The repository enforces important internal edges with `scripts/check_architectur
 - project/domain permissions and working-set enforcement;
 - dry-run, diff, transaction, audit, rollback/undo policy;
 - diagnostics and repair evidence;
-- validation, build, artifacts, preview, and Bevy runtime loading.
+- validation, build, artifacts, preview, persistence, and Bevy runtime loading.
 
 Talos may request an operation; GUIYI remains authoritative for whether that operation is valid, allowed, and committed.
 
@@ -100,10 +106,10 @@ Until ENG-014 completes:
 - Authoring truth: `DocumentEnvelope` and registered document schemas.
 - Build truth: deterministic `ArtifactEnvelope` output.
 - Runtime truth: short-lived ECS entities owned by a Stage instance.
-- Mutation truth: registered commands and transaction reports.
-- Read truth: registered queries and project semantic references.
+- Mutation truth: registered Commands and transaction reports.
+- Read truth: registered Queries and project semantic references.
 - Error truth: machine-readable diagnostics with stable codes.
-- First-party agent-runtime truth: Talos, integrated through the approved outer adapter.
+- First-party Agent-runtime truth: Talos through the published `talos-runtime` SDK.
 
 ## State boundary
 
@@ -114,8 +120,8 @@ Document → Artifact → Runtime Instance
 
 A Bevy `Entity` is never a persistent identity. Cross-document and saved references use stable IDs.
 
-`Session` in GUIYI domain/reference material must be qualified when ambiguity matters: Talos owns generic agent/session lifecycle, while GUIYI may retain a domain execution context carrying caller identity, access scope, permissions, and audit/transaction metadata.
+`Session` in GUIYI domain/reference material must be qualified when ambiguity matters: Talos owns generic Agent/session lifecycle, while GUIYI may retain a domain execution context carrying caller identity, access scope, permissions, and audit/transaction metadata.
 
 ## Extension boundary
 
-Engine core knows only projects, documents, objects, assets, commands, queries, diagnostics, transactions, artifacts, runtime instances, permissions, and other reusable game-development primitives. Tactical concepts live in the toolkit. Game concepts live in separate extensions. Generic AI-agent runtime concepts belong in Talos rather than expanding GUIYI engine core.
+Engine core knows only projects, documents, objects, assets, Commands, Queries, diagnostics, transactions, artifacts, runtime instances, permissions, and other reusable game-development primitives. Tactical concepts live in the toolkit. Game concepts live in separate extensions. Generic AI-Agent runtime concepts belong in Talos rather than expanding GUIYI engine core.
