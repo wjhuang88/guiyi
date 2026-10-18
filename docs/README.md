@@ -19,12 +19,15 @@
 - [Implementation roadmap](roadmap/IMPLEMENTATION-ROADMAP.md) — sequencing and convergence path
 - [ADR-0016 Talos agent runtime boundary](decisions/ADR-0016-TALOS-AGENT-RUNTIME.md)
 - [Product direction governance](sop/DIRECTION-GOVERNANCE.md)
+- [Iteration 003 direction-convergence plan](iterations/iteration-003/PLAN.md)
+- [ENG-029 validation](validation/ENG-029.md)
 
 ## Delivery and validation
 
 - [Iteration 001 plan](iterations/iteration-001/PLAN.md)
 - [Iteration 001 validation](iterations/iteration-001/VALIDATION.md)
 - [Iteration 001 retrospective](iterations/iteration-001/RETROSPECTIVE.md)
+- [Iteration 002 plan](iterations/iteration-002/PLAN.md)
 - [ENG-007 validation](validation/ENG-007.md)
 - [ENG-008 validation](validation/ENG-008.md)
 - [ENG-009 validation](validation/ENG-009.md)
