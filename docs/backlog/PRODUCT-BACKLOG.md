@@ -193,7 +193,8 @@ A different primary sequence requires an explicit Backlog/change-control decisio
 - Type: Integration / Architecture
 - Priority: P0
 - Status: Ready after ENG-029
-- Depends on: ENG-029.
+- GitHub: [#52](https://github.com/wjhuang88/guiyi/issues/52) — Open
+- Depends on: ENG-029 / #50.
 - Goal: integrate the published `talos-runtime` SDK through a thin outer adapter and stop growing GUIYI-owned generic Agent-loop behavior.
 - Dependency gate: start from crates.io `talos-runtime` on the reviewed release line, with no ordinary direct dependency on `talos-agent`, `talos-core`, `talos-session`, `talos-permission`, or other Talos implementation crates. Use the smallest SDK feature set required for GUIYI Tool integration.
 - Tool-adapter gate: map live GUIYI Tool descriptors into Talos `AgentTool` registrations through `RuntimeBuilder`, preserving Tool IDs and machine-readable schemas rather than hiding them behind a single catch-all wrapper.
