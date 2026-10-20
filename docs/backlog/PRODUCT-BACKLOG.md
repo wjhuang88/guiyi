@@ -2,7 +2,57 @@
 
 This is the only executable requirement list.
 
-GitHub Issue state was last synchronized on 2026-08-01. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
+GitHub Issue state was last synchronized on 2026-10-20. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
+
+## Current direction and ownership
+
+The current product proof is a real Talos-driven workflow over GUIYI's game-development capabilities.
+
+Ownership rule:
+
+- Talos: model/provider, conversation/turn lifecycle, planning, context, generic memory/Skills, Tool-choice policy, retry and stopping.
+- GUIYI engine: game/project semantics, Tool catalog, Queries, Commands, access scope, transactions, diagnostics, validation, build, artifacts, preview and Bevy runtime.
+- Tactical RPG toolkit: reusable tactical-domain semantics and intent Tools.
+- Game repositories: game-specific mechanics, content and progression.
+- Human UI: a client of the same GUIYI machine-facing APIs, not a second authoring truth.
+
+First-party AI dependency rule:
+
+- use the published crates.io `talos-runtime` SDK as the default and only direct Talos dependency;
+- target the currently reviewed SDK line explicitly (`0.10.1` at ENG-029 planning time), re-verifying the approved release when ENG-014 starts;
+- resolve through committed `Cargo.lock` and treat pre-1.0 Talos minor-version changes as explicit compatibility work;
+- do not commit a Git dependency on Talos `main` or direct dependencies on Talos implementation crates merely for convenience;
+- expose GUIYI's live capabilities as Talos `AgentTool` adapters through the public `RuntimeBuilder` surface.
+
+Current primary sequence:
+
+```text
+ENG-014 Talos runtime SDK integration
+    ↓
+ENG-012 Project Graph + ENG-013 semantic Stage commands
+    ↓
+ENG-020..023 tactical RPG vertical
+    ↓
+ENG-030 Talos-driven playable-slice demo
+    ↓
+ENG-024 human review workbench
+```
+
+A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
+
+## Done — Direction convergence
+
+### ENG-029 Converge GUIYI AI boundary on Talos and add product-direction governance
+
+- Type: Architecture / Governance
+- Priority: P0
+- Status: Done
+- GitHub: [#50](https://github.com/wjhuang88/guiyi/issues/50) — completed by PR #51
+- Goal: make Talos the canonical first-party AI agent runtime, make `talos-runtime` the supported SDK dependency boundary, keep GUIYI authoritative for game-domain execution, and prevent a second generic Agent framework from growing inside GUIYI.
+- Gate: ADR/reference/roadmap/backlog/SOP agree on ownership and registry-first SDK use; current generic loop/session overlap is explicitly transitional; ENG-014 owns the implementation migration.
+- Architecture: `docs/decisions/ADR-0016-TALOS-AGENT-RUNTIME.md`.
+- Evidence: `docs/validation/ENG-029.md`; PR #51 clean-head CI passed before merge.
+- Non-goal: no Rust implementation or public API break in ENG-029.
 
 ## Done — Iteration 001
 
@@ -65,6 +115,7 @@ GitHub Issue state was last synchronized on 2026-08-01. GitHub `OPEN` means an I
 - Goal: enforce permissions, working sets, budgets, action history, and deterministic session status through one session-aware executor used by every client.
 - Gate: JSONL Workbench, embedded Agent Host loops, and future clients cannot bypass permission, working-set, budget, status, or audit enforcement.
 - Evidence: `docs/validation/ENG-008.md`; CI run `30556104345` (run number 50) passed on 2026-07-30.
+- Direction note: ADR-0016 preserves the domain-security guarantees while ENG-014 owns migration of overlapping generic Agent lifecycle behavior to Talos.
 
 ### ENG-009 Return structured JSONL tool errors without terminating the Workbench
 
@@ -133,22 +184,31 @@ GitHub Issue state was last synchronized on 2026-08-01. GitHub `OPEN` means an I
 - Reference: `docs/reference/COMMAND-SCHEMA-CONTRACT.md`.
 - Evidence: `docs/validation/ENG-010.md`; PR #35 CI run `30641388046` (run number 136) passed.
 
-## Ready — Iteration 002
+## Ready — Current implementation sequence
+
+### ENG-014 Talos runtime SDK integration
+
+- Type: Integration / Architecture
+- Priority: P0
+- Status: Ready
+- GitHub: [#52](https://github.com/wjhuang88/guiyi/issues/52) — Open
+- Depends on: ENG-029 / #50 (Done).
+- Goal: integrate the published `talos-runtime` SDK through a thin outer adapter and stop growing GUIYI-owned generic Agent-loop behavior.
+- Dependency gate: start from crates.io `talos-runtime` on the reviewed release line, with no ordinary direct dependency on `talos-agent`, `talos-core`, `talos-session`, `talos-permission`, or other Talos implementation crates. Use the smallest SDK feature set required for GUIYI Tool integration.
+- Tool-adapter gate: map live GUIYI Tool descriptors into Talos `AgentTool` registrations through `RuntimeBuilder`, preserving Tool IDs and machine-readable schemas rather than hiding them behind a single catch-all wrapper.
+- Execution gate: Talos discovers GUIYI capabilities and executes a query plus a mutating command through normal GUIYI permission, working-set, schema, dry-run, transaction, diagnostic and persistence boundaries. Recoverable Tool failures remain structured and the Talos runtime can continue.
+- Migration gate: decide the compatibility/deprecation path for `AgentLoopDriver` and overlapping `AgentSession` lifecycle fields without weakening GUIYI's domain execution/security boundary.
+- Architecture: `docs/decisions/ADR-0016-TALOS-AGENT-RUNTIME.md`.
 
 ### ENG-012 Project graph index
 
-- Status: Ready
-- Goal: maintain an incremental semantic graph rather than rebuilding it for each query.
+- Status: Ready after ENG-014 baseline
+- Goal: maintain an incremental semantic graph rather than rebuilding it for each query, and expose reusable game-world relationships/impact to Talos and other clients.
 
 ### ENG-013 Stage object move/remove commands
 
-- Status: Ready
-- Goal: add high-level commands with dry-run and bounds diagnostics.
-
-### ENG-014 External agent-loop adapter
-
-- Status: Ready
-- Goal: integrate the separate agent-loop project behind `AgentLoopDriver` without provider coupling.
+- Status: Ready after ENG-014 baseline
+- Goal: add high-level commands with dry-run, transaction diff, and bounds diagnostics so Talos can make semantic Stage edits without file-level mutation.
 
 ## Proposed — Synced GitHub issue intake
 
@@ -203,6 +263,7 @@ GitHub Issue state was last synchronized on 2026-08-01. GitHub `OPEN` means an I
 - ENG-020 Navigation and reachability validation.
 - ENG-021 Encounter document and compiler.
 - ENG-022 Dialogue graph and condition/effect registry.
-- ENG-023 Intent-level `tactical.make_stage_playable` tool.
-- ENG-024 Visual transaction-review workbench.
+- ENG-023 Intent-level `tactical.make_stage_playable` Tool.
+- ENG-024 Human transaction-review and spatial-inspection workbench.
 - ENG-025 Content and save schema migration framework.
+- ENG-030 Talos-driven playable-slice production demo: a real Talos session creates or repairs a tactical-RPG slice, consumes at least one structured GUIYI diagnostic, validates, builds, previews, and produces a reviewable transaction/audit summary. Promotion requires ENG-014 plus enough ENG-012/013/020-023 capability to make the demo meaningful.
