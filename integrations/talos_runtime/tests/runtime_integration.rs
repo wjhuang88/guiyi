@@ -47,7 +47,7 @@ enum ProviderStep {
 struct ScriptedProviderState {
     steps: VecDeque<ProviderStep>,
     tool_definitions: Vec<Vec<ToolDefinition>>,
-    tool_results: BTreeMap<String, MessageToolResult>,
+    model_tool_results: BTreeMap<String, MessageToolResult>,
 }
 
 #[derive(Default)]
@@ -76,14 +76,8 @@ impl ScriptedProvider {
             .unwrap_or_default()
     }
 
-    fn result(&self, id: &str) -> MessageToolResult {
-        self.state
-            .lock()
-            .unwrap()
-            .tool_results
-            .get(id)
-            .cloned()
-            .unwrap_or_else(|| panic!("missing tool result for {id}"))
+    fn model_received_result(&self, id: &str) -> bool {
+        self.state.lock().unwrap().model_tool_results.contains_key(id)
     }
 
     async fn emit(
@@ -97,7 +91,7 @@ impl ScriptedProvider {
             for message in messages {
                 if let Message::Tool { result } = message {
                     state
-                        .tool_results
+                        .model_tool_results
                         .entry(result.tool_use_id.clone())
                         .or_insert_with(|| result.clone());
                 }
@@ -174,7 +168,19 @@ impl ApprovalHandler for ApproveOnce {
     }
 }
 
-async fn run_runtime(adapter: &GuiyiTalosAdapter, provider: Arc<ScriptedProvider>) {
+fn capture_tool_result(
+    results: &mut BTreeMap<String, MessageToolResult>,
+    event: AgentEvent,
+) {
+    if let AgentEvent::ToolResult { result } = event {
+        results.insert(result.tool_use_id.clone(), result);
+    }
+}
+
+async fn run_runtime(
+    adapter: &GuiyiTalosAdapter,
+    provider: Arc<ScriptedProvider>,
+) -> BTreeMap<String, MessageToolResult> {
     let mut runtime = adapter
         .register(
             talos_runtime::RuntimeBuilder::new()
@@ -189,9 +195,25 @@ async fn run_runtime(adapter: &GuiyiTalosAdapter, provider: Arc<ScriptedProvider
         .await
         .unwrap();
     let mut completed = false;
+    let mut tool_results = BTreeMap::new();
     while let Some(event) = runtime.next_event().await {
         match event {
             SessionEvent::TurnEvent {
+                payload: TurnEventPayload::Progress { event },
+                ..
+            }
+            | SessionEvent::StructuredTurnEvent {
+                payload: TurnEventPayload::Progress { event },
+                ..
+            }
+            | SessionEvent::AgentEvent { event } => {
+                capture_tool_result(&mut tool_results, event);
+            }
+            SessionEvent::TurnEvent {
+                payload: TurnEventPayload::Completed { status },
+                ..
+            }
+            | SessionEvent::StructuredTurnEvent {
                 payload: TurnEventPayload::Completed { status },
                 ..
             }
@@ -209,10 +231,12 @@ async fn run_runtime(adapter: &GuiyiTalosAdapter, provider: Arc<ScriptedProvider
     }
     assert!(completed, "Talos runtime did not complete the turn");
     runtime.shutdown().await.unwrap();
+    tool_results
 }
 
-fn parsed_result(result: MessageToolResult) -> Value {
-    serde_json::from_str(&result.content).unwrap()
+fn parsed_result(result: &MessageToolResult) -> Value {
+    serde_json::from_str(&result.content)
+        .unwrap_or_else(|error| panic!("non-JSON ToolResult `{}`: {error}", result.content))
 }
 
 #[tokio::test]
@@ -232,7 +256,7 @@ async fn live_catalog_becomes_schema_bearing_talos_tools_and_query_executes() {
         },
         ProviderStep::Text("done"),
     ]));
-    run_runtime(&adapter, Arc::clone(&provider)).await;
+    let results = run_runtime(&adapter, Arc::clone(&provider)).await;
 
     let tools = provider.observed_tools();
     let query = tools
@@ -241,9 +265,10 @@ async fn live_catalog_becomes_schema_bearing_talos_tools_and_query_executes() {
         .expect("live query registered with Talos");
     assert_eq!(query.parameters["type"], "object");
     assert!(tools.iter().any(|tool| tool.name == "document.create"));
-    let result = parsed_result(provider.result("query"));
+    let result = parsed_result(results.get("query").expect("typed query result event"));
     assert_eq!(result["status"], "ok");
     assert!(result["output"].is_array());
+    assert!(provider.model_received_result("query"));
 }
 
 #[tokio::test]
@@ -281,10 +306,10 @@ async fn dry_run_then_apply_persists_transaction_and_audit() {
         },
         ProviderStep::Text("done"),
     ]));
-    run_runtime(&adapter, Arc::clone(&provider)).await;
+    let results = run_runtime(&adapter, Arc::clone(&provider)).await;
 
-    let dry = parsed_result(provider.result("dry"));
-    let apply = parsed_result(provider.result("apply"));
+    let dry = parsed_result(results.get("dry").expect("typed dry-run result event"));
+    let apply = parsed_result(results.get("apply").expect("typed apply result event"));
     assert_eq!(dry["status"], "ok");
     assert_eq!(dry["transaction"]["status"], "previewed");
     assert_eq!(apply["status"], "ok");
@@ -293,6 +318,9 @@ async fn dry_run_then_apply_persists_transaction_and_audit() {
         .as_array()
         .unwrap()
         .is_empty());
+    assert!(provider.model_received_result("dry"));
+    assert!(provider.model_received_result("apply"));
+    assert!(provider.model_received_result("query"));
 
     let storage = ProjectStorage::open(&root).unwrap();
     let manifest: ProjectManifest = storage
@@ -342,20 +370,31 @@ async fn guiyi_security_rejects_talos_admitted_calls_and_runtime_continues() {
         },
         ProviderStep::Text("done"),
     ]));
-    run_runtime(&adapter, Arc::clone(&provider)).await;
+    let results = run_runtime(&adapter, Arc::clone(&provider)).await;
 
-    let permission = parsed_result(provider.result("permission"));
+    let permission = parsed_result(
+        results
+            .get("permission")
+            .expect("typed permission rejection event"),
+    );
     assert_eq!(
         permission["output"]["error"]["code"],
         "AGENT_PERMISSION_DENIED"
     );
-    let working_set = parsed_result(provider.result("working-set"));
+    let working_set = parsed_result(
+        results
+            .get("working-set")
+            .expect("typed working-set rejection event"),
+    );
     assert_eq!(
         working_set["output"]["error"]["code"],
         "AGENT_WORKING_SET_DENIED"
     );
-    let after = parsed_result(provider.result("after"));
+    let after = parsed_result(results.get("after").expect("typed continuation result event"));
     assert_eq!(after["status"], "ok");
+    assert!(provider.model_received_result("permission"));
+    assert!(provider.model_received_result("working-set"));
+    assert!(provider.model_received_result("after"));
 }
 
 #[tokio::test]
@@ -380,13 +419,15 @@ async fn recoverable_guiyi_failure_is_structured_and_followed_by_valid_tool_call
         },
         ProviderStep::Text("done"),
     ]));
-    run_runtime(&adapter, Arc::clone(&provider)).await;
+    let results = run_runtime(&adapter, Arc::clone(&provider)).await;
 
-    let missing = parsed_result(provider.result("missing"));
+    let missing = parsed_result(results.get("missing").expect("typed failed query result event"));
     assert_eq!(missing["status"], "failed");
     assert_eq!(missing["output"]["error"]["code"], "AGENT_TOOL_FAILED");
-    let after = parsed_result(provider.result("after"));
+    let after = parsed_result(results.get("after").expect("typed continuation result event"));
     assert_eq!(after["status"], "ok");
+    assert!(provider.model_received_result("missing"));
+    assert!(provider.model_received_result("after"));
 }
 
 fn temporary_project(name: &str) -> std::path::PathBuf {
