@@ -13,6 +13,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  eng014-maintenance-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all
+      - run: cargo generate-lockfile
+      - name: Compile ENG-014 adapter
+        run: cargo check -p guiyi-talos-runtime --tests
+        continue-on-error: true
+      - uses: actions/upload-artifact@v6
+        with:
+          name: eng014-maintenance
+          path: |
+            Cargo.lock
+            integrations/talos_runtime/src/lib.rs
+
   rust:
     runs-on: ubuntu-latest
     steps:
