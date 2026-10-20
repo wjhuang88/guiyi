@@ -77,7 +77,11 @@ impl ScriptedProvider {
     }
 
     fn model_received_result(&self, id: &str) -> bool {
-        self.state.lock().unwrap().model_tool_results.contains_key(id)
+        self.state
+            .lock()
+            .unwrap()
+            .model_tool_results
+            .contains_key(id)
     }
 
     async fn emit(
@@ -168,10 +172,7 @@ impl ApprovalHandler for ApproveOnce {
     }
 }
 
-fn capture_tool_result(
-    results: &mut BTreeMap<String, MessageToolResult>,
-    event: AgentEvent,
-) {
+fn capture_tool_result(results: &mut BTreeMap<String, MessageToolResult>, event: AgentEvent) {
     if let AgentEvent::ToolResult { result } = event {
         results.insert(result.tool_use_id.clone(), result);
     }
@@ -390,7 +391,11 @@ async fn guiyi_security_rejects_talos_admitted_calls_and_runtime_continues() {
         working_set["output"]["error"]["code"],
         "AGENT_WORKING_SET_DENIED"
     );
-    let after = parsed_result(results.get("after").expect("typed continuation result event"));
+    let after = parsed_result(
+        results
+            .get("after")
+            .expect("typed continuation result event"),
+    );
     assert_eq!(after["status"], "ok");
     assert!(provider.model_received_result("permission"));
     assert!(provider.model_received_result("working-set"));
@@ -421,10 +426,18 @@ async fn recoverable_guiyi_failure_is_structured_and_followed_by_valid_tool_call
     ]));
     let results = run_runtime(&adapter, Arc::clone(&provider)).await;
 
-    let missing = parsed_result(results.get("missing").expect("typed failed query result event"));
+    let missing = parsed_result(
+        results
+            .get("missing")
+            .expect("typed failed query result event"),
+    );
     assert_eq!(missing["status"], "failed");
     assert_eq!(missing["output"]["error"]["code"], "AGENT_TOOL_FAILED");
-    let after = parsed_result(results.get("after").expect("typed continuation result event"));
+    let after = parsed_result(
+        results
+            .get("after")
+            .expect("typed continuation result event"),
+    );
     assert_eq!(after["status"], "ok");
     assert!(provider.model_received_result("missing"));
     assert!(provider.model_received_result("after"));
