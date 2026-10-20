@@ -7,9 +7,7 @@ use guiyi_engine_command::{
 use guiyi_engine_content::{DocumentEnvelope, ProjectManifest, ProjectPath, ProjectStorage};
 use guiyi_engine_core::{AgentSessionId, DocumentId, PermissionSet};
 use guiyi_engine_query::{register_builtin_queries, QueryExecutor, QueryRegistry};
-use guiyi_talos_runtime::{
-    GuiyiExecutionContext, GuiyiTalosAdapter, ProjectStoragePersistence,
-};
+use guiyi_talos_runtime::{GuiyiExecutionContext, GuiyiTalosAdapter, ProjectStoragePersistence};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, VecDeque};
 use std::fs;
@@ -104,7 +102,10 @@ impl ScriptedProvider {
                         .or_insert_with(|| result.clone());
                 }
             }
-            state.steps.pop_front().unwrap_or(ProviderStep::Text("done"))
+            state
+                .steps
+                .pop_front()
+                .unwrap_or(ProviderStep::Text("done"))
         };
         let (tx, rx) = tokio::sync::mpsc::channel(8);
         tokio::spawn(async move {
@@ -130,9 +131,7 @@ impl ScriptedProvider {
                         .await;
                 }
                 ProviderStep::Text(text) => {
-                    let _ = tx
-                        .send(AgentEvent::TextDelta { delta: text.into() })
-                        .await;
+                    let _ = tx.send(AgentEvent::TextDelta { delta: text.into() }).await;
                     let _ = tx
                         .send(AgentEvent::TurnEnd {
                             stop_reason: StopReason::EndTurn,
@@ -287,10 +286,13 @@ async fn dry_run_then_apply_persists_transaction_and_audit() {
     let dry = parsed_result(provider.result("dry"));
     let apply = parsed_result(provider.result("apply"));
     assert_eq!(dry["status"], "ok");
-    assert_eq!(dry["transaction"]["status"], "dry_run");
+    assert_eq!(dry["transaction"]["status"], "previewed");
     assert_eq!(apply["status"], "ok");
     assert_eq!(apply["transaction"]["status"], "applied");
-    assert!(!apply["transaction"]["diff"].as_array().unwrap().is_empty());
+    assert!(!apply["transaction"]["document_diffs"]
+        .as_array()
+        .unwrap()
+        .is_empty());
 
     let storage = ProjectStorage::open(&root).unwrap();
     let manifest: ProjectManifest = storage
@@ -382,10 +384,7 @@ async fn recoverable_guiyi_failure_is_structured_and_followed_by_valid_tool_call
 
     let missing = parsed_result(provider.result("missing"));
     assert_eq!(missing["status"], "failed");
-    assert_eq!(
-        missing["output"]["error"]["code"],
-        "AGENT_TOOL_FAILED"
-    );
+    assert_eq!(missing["output"]["error"]["code"], "AGENT_TOOL_FAILED");
     let after = parsed_result(provider.result("after"));
     assert_eq!(after["status"], "ok");
 }
@@ -395,10 +394,8 @@ fn temporary_project(name: &str) -> std::path::PathBuf {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let root = std::env::temp_dir().join(format!(
-        "guiyi-talos-{name}-{}-{nonce}",
-        std::process::id()
-    ));
+    let root =
+        std::env::temp_dir().join(format!("guiyi-talos-{name}-{}-{nonce}", std::process::id()));
     fs::create_dir_all(&root).unwrap();
     fs::write(
         root.join("engine-project.json"),
