@@ -4,13 +4,13 @@
 
 Talos is the canonical first-party AI Agent runtime. GUIYI is the game-development execution environment Talos consumes.
 
-The supported embedding boundary is the published crates.io `talos-runtime` SDK. GUIYI's normal first-party integration has one direct Talos dependency, `talos-runtime`, at an outer adapter boundary.
+The supported embedding boundary is the published crates.io `talos-runtime` SDK. GUIYI's normal first-party integration has one direct Talos dependency, `talos-runtime`, at an outer adapter boundary. ENG-014 implements that boundary in `integrations/talos_runtime`.
 
 ```text
 crates.io talos-runtime
         |
         v
-GUIYI Talos adapter (outer integration only)
+integrations/talos_runtime
         |
         +----------------------+
         |                      |
@@ -32,7 +32,9 @@ queries / Project Graph   commands / transactions
                  Bevy ECS
 ```
 
-The adapter uses public `talos-runtime` composition contracts such as `RuntimeBuilder` and `AgentTool`. GUIYI's live Tool catalog remains capability/schema authority; relevant capabilities should be exposed as individual Talos Tools rather than hidden behind a catch-all call when their schemas are available.
+The adapter uses only public `talos-runtime` composition contracts such as `RuntimeBuilder`, `AgentTool`, `RuntimeHandle`, provider traits, and typed session events. GUIYI's live Tool catalog remains capability/schema authority: ENG-014 materializes one Talos `AgentTool` per eligible live `ToolDescriptor` instead of maintaining a second static list or a catch-all `guiyi.call_tool` facade.
+
+For Queries, the Talos Tool parameters are the GUIYI input schema directly. For Commands, the adapter adds only a transport envelope containing the GUIYI command input plus the GUIYI protocol-level `dry_run` flag; the nested command schema remains the live GUIYI schema. Tool execution always delegates to `AgentHost::execute`, so Talos approval never replaces GUIYI permission, working-set, access-plan, schema, transaction, diagnostic, or audit enforcement.
 
 Direct CLI, JSONL Workbench, tests, and future human clients may enter through the same GUIYI machine-facing boundary without Talos.
 
@@ -49,7 +51,7 @@ protocol / agent_tools / current domain execution boundary / preview
    ↑
 CLI / workbench / tactical_rpg toolkit
    ↑
-outer integrations such as the Talos adapter
+integrations/talos_runtime
    ↑
 Talos and game-specific repositories
 ```
@@ -57,13 +59,15 @@ Talos and game-specific repositories
 The arrows describe allowed outward consumers, not permission for engine-core crates to depend upward. In particular:
 
 - reusable GUIYI engine crates must not depend on Talos;
-- the Talos adapter may depend on crates.io `talos-runtime` and public GUIYI machine-facing APIs;
-- the normal integration must not directly depend on Talos implementation crates such as `talos-agent` merely for convenience;
+- `guiyi-talos-runtime` is the only repository package allowed a direct Talos dependency;
+- the direct dependency is exactly crates.io `talos-runtime = 0.10.1`, with default features disabled and no optional Talos features enabled for ENG-014;
+- the normal integration must not directly depend on Talos implementation crates such as `talos-agent`, `talos-core`, `talos-session`, or `talos-permission` merely for convenience;
+- transitive Talos implementation crates present in `Cargo.lock` are implementation details of the published facade, not GUIYI direct dependencies;
 - Git/path Talos dependencies are temporary development overrides, not the committed normal dependency source;
 - tactical-RPG crates may depend on engine crates; the reverse is forbidden;
 - game-specific repositories consume GUIYI and may use Talos, but GUIYI never depends on a game repository.
 
-The repository enforces important internal edges with `scripts/check_architecture.py`. ENG-014 must extend the architecture gate when the Talos adapter crate/path is introduced.
+`scripts/check_architecture.py` enforces the direct Talos dependency boundary and the location of the adapter in addition to existing GUIYI dependency rules.
 
 ## Responsibility boundary
 
@@ -90,16 +94,44 @@ The repository enforces important internal edges with `scripts/check_architectur
 
 Talos may request an operation; GUIYI remains authoritative for whether that operation is valid, allowed, and committed.
 
-## Transitional boundary
+## Talos integration execution path
 
-The current `engine_agent_host` contains both valuable GUIYI execution safety and generic loop/session concepts. `AgentLoopDriver`, agent objective/final-summary state, loop orchestration, and overlapping lifecycle state are transitional alpha APIs.
+The implemented first-party path is:
 
-Until ENG-014 completes:
+```text
+RuntimeBuilder / Talos runtime
+        ↓
+GuiyiTalosAdapter
+        ↓
+live ToolCatalog → one AgentTool per ToolDescriptor
+        ↓
+AgentHost::execute
+        ↓
+permission + working-set + document-access planning
+        ↓
+QueryExecutor OR CommandExecutor
+        ↓
+schema normalization / validation / dry-run / transaction report
+        ↓
+ProjectStorage + ProjectTransaction for persisted apply
+```
 
-- preserve their current compatibility unless the Story explicitly approves migration;
-- do not expand them with provider, model, prompt, planning, memory, context-compression, conversation, or retry features;
-- keep command/query execution safety in GUIYI;
-- record the final Talos adapter and execution-context shape in reference docs and tests.
+`ProjectStoragePersistence` is an outer coordinator over the existing `ProjectStorage` / `ProjectTransaction` authority. It does not introduce a second persistence model. Dry-runs are never storage commits; successful applied mutations are committed through the existing project transaction journal, and persistence failure is reported as a structured Talos Tool failure after rolling the in-memory document state back.
+
+## Legacy Agent-host compatibility boundary
+
+`engine_agent_host` still contains both valuable GUIYI execution safety and transitional generic loop/session concepts. ENG-014 deliberately does not make an alpha-breaking removal because the JSONL Workbench, examples, and tests still use the direct API.
+
+The migration decision is:
+
+- `AgentHost::execute` remains the authoritative GUIYI domain-execution seam;
+- `AgentLoopDriver` and `AgentHost::run` are legacy compatibility APIs and are not used by the Talos first-party path; no new first-party functionality should be built on them;
+- `AgentSession.objective`, generic lifecycle status, `final_summary`, and loop orchestration are not part of the Talos adapter contract and remain compatibility-only state;
+- `AgentBudget.max_actions` is a legacy generic action budget, not an independent GUIYI domain-safety policy. The Talos adapter disables it as a practical second stopping budget while the compatibility `AgentSession` is still required internally;
+- the Talos adapter exposes the narrower `GuiyiExecutionContext`: session/caller identity for audit, GUIYI permissions, and working-set scope;
+- a later explicit migration may remove or redesign legacy generic fields after direct alpha clients have a narrow domain execution context of their own.
+
+This is a sunset decision, not permission to weaken GUIYI security. Permissions, working sets, document-access plans, transaction checks, diagnostics, persistence, and audit remain GUIYI-owned regardless of caller.
 
 ## Sources of truth
 
@@ -120,7 +152,7 @@ Document → Artifact → Runtime Instance
 
 A Bevy `Entity` is never a persistent identity. Cross-document and saved references use stable IDs.
 
-`Session` in GUIYI domain/reference material must be qualified when ambiguity matters: Talos owns generic Agent/session lifecycle, while GUIYI may retain a domain execution context carrying caller identity, access scope, permissions, and audit/transaction metadata.
+`Session` in GUIYI domain/reference material must be qualified when ambiguity matters: Talos owns generic Agent/session lifecycle, while GUIYI retains only domain execution context carrying caller identity, access scope, permissions, and audit/transaction metadata.
 
 ## Extension boundary
 
