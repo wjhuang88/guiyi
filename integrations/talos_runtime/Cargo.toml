@@ -1,0 +1,24 @@
+[package]
+name = "guiyi-talos-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+guiyi-engine-agent-host = { path = "../../crates/engine_agent_host" }
+guiyi-engine-agent-tools = { path = "../../crates/engine_agent_tools" }
+guiyi-engine-command = { path = "../../crates/engine_command" }
+guiyi-engine-content = { path = "../../crates/engine_content" }
+guiyi-engine-core = { path = "../../crates/engine_core" }
+guiyi-engine-protocol = { path = "../../crates/engine_protocol" }
+guiyi-engine-query = { path = "../../crates/engine_query" }
+serde_json.workspace = true
+talos-runtime.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true
