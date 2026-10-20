@@ -2,7 +2,7 @@
 
 This is the only executable requirement list.
 
-GitHub Issue state was last synchronized on 2026-10-18. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
+GitHub Issue state was last synchronized on 2026-10-20. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
 
 ## Current direction and ownership
 
@@ -27,8 +27,6 @@ First-party AI dependency rule:
 Current primary sequence:
 
 ```text
-ENG-029 direction governance
-    ↓
 ENG-014 Talos runtime SDK integration
     ↓
 ENG-012 Project Graph + ENG-013 semantic Stage commands
@@ -42,18 +40,18 @@ ENG-024 human review workbench
 
 A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
 
-## In Progress — Direction convergence
+## Done — Direction convergence
 
 ### ENG-029 Converge GUIYI AI boundary on Talos and add product-direction governance
 
 - Type: Architecture / Governance
 - Priority: P0
-- Status: In Progress
-- GitHub: [#50](https://github.com/wjhuang88/guiyi/issues/50) — Open
+- Status: Done
+- GitHub: [#50](https://github.com/wjhuang88/guiyi/issues/50) — completed by PR #51
 - Goal: make Talos the canonical first-party AI agent runtime, make `talos-runtime` the supported SDK dependency boundary, keep GUIYI authoritative for game-domain execution, and prevent a second generic Agent framework from growing inside GUIYI.
 - Gate: ADR/reference/roadmap/backlog/SOP agree on ownership and registry-first SDK use; current generic loop/session overlap is explicitly transitional; ENG-014 owns the implementation migration.
 - Architecture: `docs/decisions/ADR-0016-TALOS-AGENT-RUNTIME.md`.
-- Evidence: `docs/validation/ENG-029.md`; PR #51 clean-head CI required before Done.
+- Evidence: `docs/validation/ENG-029.md`; PR #51 clean-head CI passed before merge.
 - Non-goal: no Rust implementation or public API break in ENG-029.
 
 ## Done — Iteration 001
@@ -192,9 +190,9 @@ A different primary sequence requires an explicit Backlog/change-control decisio
 
 - Type: Integration / Architecture
 - Priority: P0
-- Status: Ready after ENG-029
+- Status: Ready
 - GitHub: [#52](https://github.com/wjhuang88/guiyi/issues/52) — Open
-- Depends on: ENG-029 / #50.
+- Depends on: ENG-029 / #50 (Done).
 - Goal: integrate the published `talos-runtime` SDK through a thin outer adapter and stop growing GUIYI-owned generic Agent-loop behavior.
 - Dependency gate: start from crates.io `talos-runtime` on the reviewed release line, with no ordinary direct dependency on `talos-agent`, `talos-core`, `talos-session`, `talos-permission`, or other Talos implementation crates. Use the smallest SDK feature set required for GUIYI Tool integration.
 - Tool-adapter gate: map live GUIYI Tool descriptors into Talos `AgentTool` registrations through `RuntimeBuilder`, preserving Tool IDs and machine-readable schemas rather than hiding them behind a single catch-all wrapper.
