@@ -2,54 +2,67 @@
 
 ## Status
 
-This document describes the **current alpha GUIYI execution boundary** implemented by `engine_agent_host`. Under ADR-0016, Talos owns the first-party generic Agent/session/turn lifecycle going forward. ENG-014 will migrate or narrow the overlapping GUIYI lifecycle surface while preserving the domain security/audit guarantees documented here.
+This document describes the **current alpha GUIYI domain-execution boundary** after ENG-014 integrates Talos as the canonical first-party Agent runtime.
 
-Until ENG-014 lands, the existing APIs remain authoritative current behavior. Do not extend them with generic provider, prompt, planning, context, memory, conversation, retry, or stopping features.
+Under ADR-0016, Talos owns generic Agent/session/turn lifecycle. GUIYI retains domain execution security and audit semantics. The existing `AgentSession` / `AgentLoopDriver` API remains available only for alpha direct-client compatibility; the Talos first-party path does not use GUIYI's generic loop orchestration.
 
-## Purpose
+Do not extend GUIYI with generic provider, prompt, planning, context, memory, conversation, retry, stopping, or generic Agent lifecycle features.
 
-`AgentSession` is currently the mandatory GUIYI security and audit boundary for every Tool call. Embedded test loops, the JSONL Workbench, future clients, and other public callers execute through the same mutable `AgentHost::execute` path.
+## First-party Talos execution context
 
-Clients must not call command or query executors directly when acting through this session-aware public boundary.
+The Talos adapter exposes `GuiyiExecutionContext`, containing only GUIYI-owned state required to authorize and audit a Tool call:
 
-The long-term boundary retained by GUIYI is the domain execution/security context: caller identity, permissions, working set/access scope, transaction/audit evidence, and any explicitly domain-specific operation limits. Talos owns the generic first-party Agent loop and conversation/session lifecycle.
+- `session_id`: caller/session identity used by GUIYI command context and durable audit records;
+- `permissions`: GUIYI domain `PermissionSet`;
+- `working_set`: optional strict project-document access scope.
 
-## Current session lifecycle
+The adapter converts this narrow context to an internal compatibility `AgentSession` only because `AgentHost::execute` currently requires that alpha type. Talos objective, turn lifecycle, retry, stopping, final response, conversation history, and generic reasoning/action budget do not flow through that compatibility session.
 
-A new current-alpha `AgentSession` begins in `Ready`. Its first valid Tool attempt moves it to `Running`.
+Every Talos `AgentTool` invocation still enters the exact same `AgentHost::execute` path as direct GUIYI clients. Talos permission/approval may decide whether Talos attempts a call, but GUIYI independently enforces its own permissions and access scope after that decision.
 
-Current terminal states are:
+## Legacy `AgentSession` compatibility
 
-- `Completed`: the current embedded loop API returned an explicit completion summary;
-- `Stopped`: the current embedded loop API returned an explicit stop reason;
-- `BudgetExceeded`: a Tool call was attempted after the current GUIYI action budget was exhausted;
-- `Failed`: the current loop driver or unrecoverable session-host operation failed and the loop cannot continue safely.
+`AgentSession` remains a public alpha compatibility surface for the JSONL Workbench, embedded tests/examples, and other direct clients. Its current fields include:
 
-Ordinary Tool-level outcomes do not make the session terminal. Successful, rejected, and failed `ToolResult` values are recorded and the next call may be processed. This includes unknown Tools, invalid input, permission denial, validation rejection, command/query failure, and other recoverable Tool outcomes.
+- GUIYI-owned compatibility state: session identity, permissions, working set, action/audit records;
+- transitional generic state: objective, status, `final_summary`, `AgentBudget`, and `actions_used`.
 
-Calls made after a terminal state receive `AGENT_SESSION_NOT_ACTIVE`. They are retained in action history and do not reactivate the session.
+The transitional generic fields are not part of the first-party Talos runtime contract. No new first-party code should depend on them.
 
-A budget rejection is the exception among structured rejections: it moves the current session to `BudgetExceeded` because no further Tool call is permitted under the current API.
+The current direct-client lifecycle still behaves as before: a new `AgentSession` begins in `Ready`, first valid Tool processing moves it to `Running`, and legacy `AgentHost::run` may produce `Completed`, `Stopped`, `BudgetExceeded`, or `Failed` terminal states. Calls made after a legacy terminal state receive `AGENT_SESSION_NOT_ACTIVE`.
 
-ENG-014 must decide which lifecycle/budget concepts remain meaningful GUIYI domain-safety controls and which become Talos-only concerns. It must not preserve duplicate generic reasoning-loop state solely for backward familiarity.
+This behavior is retained to avoid an unrelated alpha breaking change in ENG-014; it is not a second canonical Agent lifecycle beside Talos.
 
-## Action budget and history
+## `AgentLoopDriver` migration decision
 
-`AgentBudget.max_actions` currently limits calls that enter Tool permission, access, and dispatch processing. Accepted, rejected, and failed Tool attempts all consume one action consistently.
+`AgentLoopDriver` and `AgentHost::run` are legacy compatibility APIs with a sunset direction:
 
-A call rejected because the budget is already exhausted is still recorded for audit, but does not increase `actions_used`.
+- the Talos first-party path does not call them;
+- new provider/model/planner/session behavior must not be added to them;
+- new first-party Agent features belong in Talos;
+- removal or replacement requires a separate explicit migration once direct clients no longer need the compatibility surface.
 
-Because budget enforcement occurs only when a new Tool call is attempted, the current embedded loop may use exactly `max_actions` Tool calls and then return `Complete` or `Stop`.
+`AgentHost::execute` remains the reusable authoritative GUIYI execution seam and is intentionally independent of Talos.
 
-Every valid `ToolCall` produces one `AgentActionRecord` containing:
+## Action budget decision
 
-- a monotonic session-local sequence;
+`AgentBudget.max_actions` currently limits direct legacy-session calls that enter Tool permission, access, and dispatch processing. Accepted, rejected, and failed Tool attempts consume one legacy action consistently; budget-denied attempts are recorded without incrementing `actions_used`.
+
+ENG-014 classifies this as a **generic legacy Agent action budget**, not an independent GUIYI domain-safety invariant. Talos owns first-party reasoning/action stopping. Therefore the Talos adapter sets the internal compatibility session budget to an effectively non-limiting value instead of imposing a second stopping policy.
+
+If GUIYI later needs a true game-domain safety limit, it must be modeled explicitly as domain policy with its own semantics and diagnostics, not smuggled back in as a duplicate generic Agent budget.
+
+## Tool action history and durable audit
+
+Every valid direct `ToolCall` still produces an `AgentActionRecord` containing:
+
+- a monotonic compatibility-session sequence;
 - the original call;
 - the complete structured result.
 
-Protocol lines that cannot deserialize as a valid `ToolCall` produce a structured Workbench result but are not session actions because no valid call entered the session executor.
+This in-memory history remains useful to direct alpha clients but is not the canonical Talos conversation history.
 
-The auditability of GUIYI Tool attempts is a durable requirement. The specific generic Agent lifecycle representation is not.
+Durable mutation audit remains owned by `ProjectStorage` / `ProjectTransaction`. The Talos persistence adapter commits only successful applied Commands through that existing boundary. Dry-runs do not create storage commits. Talos session/transcript state never substitutes for GUIYI transaction audit.
 
 ## Working-set semantics
 
@@ -65,7 +78,13 @@ A non-empty working set is a strict visibility and mutation boundary:
 
 This means a caller limited to `stage.a` cannot read, modify, delete, list, or derive project-query results from `stage.b`.
 
-Working-set enforcement is a GUIYI domain-security invariant and remains mandatory when Talos is the caller.
+Working-set enforcement is a GUIYI domain-security invariant and remains mandatory when Talos is the caller. ENG-014 integration tests deliberately allow the Talos approval layer to admit calls that GUIYI then rejects, proving the layers are independent.
+
+## Project-scope semantics
+
+A Talos adapter instance is created around one already scoped GUIYI `AgentHost` / project state. Persisted operation uses `ProjectStorage`, whose sandboxed `ProjectPath` boundary remains authoritative. Talos cannot use the Agent runtime to retarget the adapter to another project root or bypass GUIYI path validation.
+
+Project-scope security therefore remains the composition of the selected GUIYI project, `ProjectStorage` sandboxing, Tool access planning, permissions, and working-set enforcement rather than a Talos permission rule.
 
 ## Document access plans
 
@@ -84,10 +103,10 @@ Cross-document Tools declare every relevant document. For example:
 
 ## Structured execution errors
 
-The unified executor currently returns structured `ToolResult` errors with stable codes, including:
+The unified executor returns structured `ToolResult` errors with stable codes, including:
 
-- `AGENT_SESSION_NOT_ACTIVE`;
-- `AGENT_BUDGET_EXCEEDED`;
+- `AGENT_SESSION_NOT_ACTIVE` for direct legacy-session terminal calls;
+- `AGENT_BUDGET_EXCEEDED` for direct legacy-session budget exhaustion;
 - `AGENT_PERMISSION_DENIED`;
 - `AGENT_WORKING_SET_DENIED`;
 - `AGENT_ACCESS_PLAN_INVALID`;
@@ -96,15 +115,13 @@ The unified executor currently returns structured `ToolResult` errors with stabl
 
 The result preserves the original call ID and includes relevant details such as required permissions, denied document IDs, action usage, and working-set contents.
 
-Unknown Tools are recoverable rejected results. A caller may correct the Tool ID and continue. Other Tool-level failed results are likewise returned without automatically terminating the Workbench.
-
-ENG-014 may rename or narrow generic `AGENT_*` lifecycle-oriented codes as part of an explicit migration, but permission/access/validation/transaction failures must remain structured and machine-actionable.
+For Talos, the adapter serializes the complete GUIYI `ToolResult` into the Talos Tool result. GUIYI `Rejected` and `Failed` results become Talos Tool errors rather than runtime-fatal session errors. The Talos runtime may therefore inspect the structured failure and continue with a later legal Tool call.
 
 JSONL parsing and framing codes are specified in [Command and query protocol](COMMAND-QUERY-PROTOCOL.md).
 
-## JSONL Workbench
+## JSONL Workbench and direct clients
 
-The Workbench currently creates one mutable GUIYI session for its process and routes every valid decoded Tool call through `AgentHost::execute`.
+The Workbench continues to create one mutable GUIYI compatibility session for its process and routes every valid decoded Tool call through `AgentHost::execute`.
 
 Supported controls include:
 
@@ -113,19 +130,21 @@ Supported controls include:
 --working-set <DOCUMENT_ID>
 ```
 
-`--working-set` may be repeated. Omitting it selects unrestricted working-set semantics. `--read-only` changes permissions but does not bypass budget, status, history, or working-set enforcement.
+`--working-set` may be repeated. Omitting it selects unrestricted working-set semantics. `--read-only` changes permissions but does not bypass legacy budget, status, history, or working-set enforcement.
 
 Tool-level results do not terminate the Workbench. Host infrastructure failures, such as project storage or stdin/stdout failure, remain process-level failures and terminate with a non-zero exit code.
 
-The direct Workbench remains supported after Talos integration because Talos is a first-party client, not the sole client of GUIYI's execution boundary.
+The direct Workbench, CLI, and tests do **not** depend on or start `talos-runtime`. Talos is the canonical first-party Agent client, not the sole client of GUIYI's execution boundary.
 
-## ENG-014 migration invariants
+## ENG-014 invariants
 
-The Talos Runtime SDK integration must preserve all of the following while narrowing duplicate lifecycle behavior:
+The implemented Talos Runtime SDK integration preserves all of the following:
 
-- GUIYI remains authoritative for domain permissions and working sets;
+- GUIYI remains authoritative for domain permissions, working sets, project scope, schema validation, and document access planning;
 - every GUIYI Tool still reaches the normal validation/transaction/audit path;
+- capability discovery is generated from the live GUIYI `ToolCatalog` rather than a duplicated static list;
 - recoverable GUIYI Tool failures remain structured and do not require Talos runtime termination;
 - direct Workbench/CLI/test clients remain usable without Talos;
-- generic first-party Agent loop/session/turn state moves to Talos rather than being reimplemented beside it;
-- compatibility breaks are explicit, documented, and covered by migration tests.
+- generic first-party Agent loop/session/turn state belongs to Talos rather than being reimplemented beside it;
+- the remaining `AgentSession`/`AgentLoopDriver` overlap is explicitly compatibility-only and has a documented sunset direction;
+- compatibility breaks remain explicit, tested, and separately authorized.
