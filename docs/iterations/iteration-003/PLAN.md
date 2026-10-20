@@ -2,110 +2,144 @@
 
 ## Goal
 
-Converge GUIYI's product and architecture direction on the published Talos runtime SDK before implementing further AI/agent infrastructure.
+Converge GUIYI's product and architecture direction on the published Talos runtime SDK and implement the first real Talos-driven GUIYI Tool vertical slice without weakening GUIYI's domain execution authority.
 
 ## Authorization
 
-- ENG-029 is the only active Story in this direction-convergence slice.
-- ENG-014 remains implementation-blocked until ENG-029 is accepted and merged.
-- ENG-012 and ENG-013 remain sequenced after an ENG-014 integration baseline.
+- ENG-029 is Done and merged through PR #51 (`4dc57fe7203795e20b45042dfca22ceeb8adae0c`).
+- ENG-014 / #52 is the active implementation Story for this iteration slice.
+- ENG-012 and ENG-013 remain sequenced after an accepted ENG-014 integration baseline.
 - Proposed Stories remain non-executable.
 
 ## Active Story
 
-### ENG-029 Converge GUIYI AI boundary on Talos and add product-direction governance
+### ENG-014 Integrate Talos runtime SDK as GUIYI's first-party Agent runtime
 
-GitHub Issue: #50
+GitHub Issue: #52
 
-Branch: `docs/ENG-029-talos-boundary-governance`
+Branch: `feature/ENG-014-talos-runtime-integration`
+
+Implementation PR: #53
 
 Architecture decision: `docs/decisions/ADR-0016-TALOS-AGENT-RUNTIME.md`
 
-Validation record: `docs/validation/ENG-029.md`
+Validation record: `docs/validation/ENG-014.md`
 
 ## Confirmed external baseline
 
-The current Talos workspace line inspected for this iteration is `0.10.1`.
+ENG-014 re-verified the approved Talos release line as `0.10.1` before implementation.
 
-The Talos repository documents `talos-runtime` as the supported embeddable SDK facade. Its public contract exposes `RuntimeBuilder`, `RuntimeHandle`, `AgentTool`, provider/session-event types, permission/sandbox composition, and a single-direct-Talos-dependency embedding path.
+The committed dependency is crates.io `talos-runtime = 0.10.1` with default features disabled and no optional Talos features enabled. `Cargo.lock` is committed. GUIYI does not directly depend on Talos implementation crates such as `talos-agent`, `talos-core`, `talos-session`, or `talos-permission`.
 
-This iteration therefore treats crates.io `talos-runtime` as the default future integration dependency. It does not authorize a Git dependency on Talos `main` or direct use of Talos implementation crates.
+The integration uses public SDK contracts re-exported by `talos-runtime`, including `RuntimeBuilder`, `AgentTool`, `RuntimeHandle`, provider traits, Tool results, and typed session events.
 
 ## Work packages
 
-### A. Architecture ownership
+### A. Outer integration boundary
 
 Deliverables:
 
-- ADR-0016 names Talos as the canonical first-party Agent runtime;
-- ADR-0009 is superseded without deleting history;
-- GUIYI remains authoritative for game-world semantics and domain execution safety;
-- current `AgentLoopDriver`/AgentSession overlap is documented as transitional debt owned by ENG-014.
+- add `integrations/talos_runtime` as the only GUIYI package with a direct Talos dependency;
+- enforce that boundary in `scripts/check_architecture.py`;
+- leave engine core, schema/content, command/query, validation/build/runtime, and toolkit core independent of Talos;
+- avoid provider/model/planner/conversation/retry abstractions inside GUIYI.
 
-### B. SDK integration contract
-
-Deliverables:
-
-- registry-first `talos-runtime` dependency policy;
-- single-direct-Talos-dependency default;
-- `RuntimeBuilder` + `AgentTool` as the intended public SDK extension surface;
-- live GUIYI Tool descriptors remain capability/schema authority;
-- smallest Talos feature-set rule;
-- explicit pre-1.0 version/lockfile upgrade policy.
-
-### C. Product convergence path
+### B. Live Tool adaptation
 
 Deliverables:
 
-- current sequence is ENG-029 → ENG-014 → ENG-012/013 → ENG-020..023 → ENG-030 → ENG-024;
-- ENG-030 becomes the product-level Talos-driven playable-slice proof;
-- human workbench remains after the real Agent workflow is credible.
+- materialize Talos `AgentTool`s from GUIYI's live `ToolCatalog`;
+- preserve Tool IDs, descriptions, and live input schemas;
+- expose Commands individually rather than through a catch-all Tool;
+- carry GUIYI protocol `dry_run` metadata without duplicating command schema authority;
+- route every call to the existing `AgentHost::execute` execution seam.
 
-### D. Governance gate
+### C. Real execution vertical slice
 
-Deliverables:
+Acceptance path:
 
-- mandatory Story ownership test;
-- north-star/blocker justification for new platform work;
-- scope-correction procedure when work belongs in another layer;
-- explicit Talos boundary and dependency rules;
-- semantic Tool preference over low-level mutation exposure.
+```text
+Talos RuntimeBuilder
+  ↓
+register GUIYI AgentTools
+  ↓
+submit objective
+  ↓
+GUIYI Query
+  ↓
+GUIYI dry-run Command
+  ↓
+GUIYI apply Command
+  ↓
+ProjectStorage / ProjectTransaction
+  ↓
+structured ToolResult
+  ↓
+Talos continues
+```
+
+Targeted integration tests cover capability discovery, Query execution, dry-run/apply transaction behavior, durable storage/audit, permission and working-set rejection after Talos approval, and continuation after recoverable GUIYI Tool failure.
+
+### D. Agent lifecycle migration
+
+Decisions:
+
+- Talos owns the canonical first-party Agent/session/turn lifecycle;
+- `AgentHost::execute` remains GUIYI's reusable authoritative execution seam;
+- `AgentLoopDriver` / `AgentHost::run` remain compatibility-only alpha APIs and are not used by the Talos path;
+- `AgentSession` remains temporarily for direct clients and as an internal compatibility seam, but Talos-facing API uses the narrower `GuiyiExecutionContext`;
+- `AgentBudget` is classified as a legacy generic action budget rather than a GUIYI domain-safety invariant; the Talos adapter does not impose it as a second stopping policy;
+- direct JSONL Workbench, CLI, examples, and tests remain usable without starting Talos.
 
 ### E. Documentation and closure
 
 Deliverables:
 
-- root README, documentation index, reference docs, ADR register, roadmap, backlog and SOPs agree;
-- validation report records exact local/CI evidence;
-- Backlog/Issue status changes to Done only after clean-head CI is green.
+- architecture and Agent-session reference docs describe the implemented boundary and migration decision;
+- Product Backlog and this plan reflect ENG-014 state;
+- `docs/validation/ENG-014.md` records exact local/CI evidence;
+- Backlog/Issue status changes to Done only after clean-head PR CI is green.
 
 ## Non-goals
 
-- No Rust integration with Talos in ENG-029.
-- No dependency addition to Cargo manifests.
-- No removal/rename of `engine_agent_host`, `AgentLoopDriver`, or `AgentSession`.
-- No Project Graph, Stage command, tactical-domain, or GUI implementation.
-- No provider/model configuration inside GUIYI.
+- No ENG-012 Project Graph implementation.
+- No ENG-013 Stage move/remove implementation.
+- No ENG-020+ tactical feature implementation.
+- No visual editor/workbench expansion.
+- No generic Talos coding-tool integration.
+- No GUIYI-owned provider/model abstraction, conversation runtime, planner, memory subsystem, retry/stopping framework, or second Agent loop.
+- No direct dependency on Talos implementation crates or Talos `main`.
 
 ## Validation
 
-Documentation/architecture gates:
+Required full suite:
 
 ```bash
+cargo fmt --all -- --check
+cargo check --workspace --all-features
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo doc --workspace --no-deps
+python3 scripts/check_architecture.py
 python3 scripts/check_docs.py
 python3 scripts/validate_repository.py
-python3 scripts/check_architecture.py
+python3 scripts/static_rust_check.py
+cargo run -p guiyi-example-minimal-project
+cargo run -p guiyi-example-tactical-demo
+cargo run -p guiyi-example-mock-agent-workflow
 ```
 
-Also verify repository diff hygiene and, through PR CI, the configured repository gates.
+Do not record a command as passing until it has actually executed successfully on the current clean PR head.
 
 ## Exit gate
 
-ENG-029 exits only when:
+ENG-014 exits only when:
 
-- Issue #50 acceptance criteria are satisfied by current docs;
-- ownership and dependency rules are internally consistent;
-- `talos-runtime` is the named supported default SDK integration boundary;
-- ENG-014 has an implementation-ready objective and explicit non-goals;
-- direction governance prevents future generic Agent-runtime drift;
-- validation evidence is recorded and clean-head CI is green.
+- Issue #52 acceptance scenarios A-F are covered by executable evidence;
+- `talos-runtime` remains the only direct Talos dependency and the architecture gate enforces it;
+- Talos discovers and executes GUIYI live Tools through public SDK contracts;
+- GUIYI remains authoritative for permissions, working sets, access plans, schema validation, dry-run, transactions, persistence, diagnostics, and audit;
+- recoverable Tool failures do not terminate the Talos runtime;
+- direct clients remain Talos-independent;
+- lifecycle/budget compatibility decisions are documented without silently breaking alpha APIs;
+- validation evidence is recorded and clean-head GitHub CI is green.
