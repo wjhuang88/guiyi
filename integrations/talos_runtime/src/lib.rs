@@ -139,7 +139,8 @@ impl ProjectStoragePersistence {
         next_manifest
             .documents
             .retain(|path| next_paths.values().any(|known| known == path));
-        transaction.write_manifest_json(ProjectPath::new("engine-project.json")?, &next_manifest)?;
+        transaction
+            .write_manifest_json(ProjectPath::new("engine-project.json")?, &next_manifest)?;
         self.storage.commit(transaction)?;
         self.manifest = next_manifest;
         self.paths = next_paths;
@@ -463,7 +464,7 @@ mod tests {
     use talos_runtime::{
         AgentEvent, ApprovalChoice, ApprovalHandler, LanguageModel, Message, MessageToolResult,
         ProviderResult, Receiver, RuntimeTurnCompletionStatus, SessionEvent, StopReason,
-        ToolDefinition, ToolCall as TalosToolCall, TurnEventPayload, Usage,
+        ToolCall as TalosToolCall, ToolDefinition, TurnEventPayload, Usage,
     };
 
     fn host(state: EngineState) -> AgentHost {
@@ -549,7 +550,10 @@ mod tests {
                             .or_insert_with(|| result.clone());
                     }
                 }
-                state.steps.pop_front().unwrap_or(ProviderStep::Text("done"))
+                state
+                    .steps
+                    .pop_front()
+                    .unwrap_or(ProviderStep::Text("done"))
             };
             let (tx, rx) = tokio::sync::mpsc::channel(8);
             tokio::spawn(async move {
@@ -575,9 +579,7 @@ mod tests {
                             .await;
                     }
                     ProviderStep::Text(text) => {
-                        let _ = tx
-                            .send(AgentEvent::TextDelta { delta: text.into() })
-                            .await;
+                        let _ = tx.send(AgentEvent::TextDelta { delta: text.into() }).await;
                         let _ = tx
                             .send(AgentEvent::TurnEnd {
                                 stop_reason: StopReason::EndTurn,
@@ -630,7 +632,10 @@ mod tests {
             )
             .build()
             .unwrap();
-        runtime.submit("Execute the scripted GUIYI workflow").await.unwrap();
+        runtime
+            .submit("Execute the scripted GUIYI workflow")
+            .await
+            .unwrap();
         let mut completed = false;
         while let Some(event) = runtime.next_event().await {
             match event {
@@ -781,7 +786,10 @@ mod tests {
         run_runtime(&adapter, Arc::clone(&provider)).await;
 
         let permission = parsed_result(provider.result("permission"));
-        assert_eq!(permission["output"]["error"]["code"], "AGENT_PERMISSION_DENIED");
+        assert_eq!(
+            permission["output"]["error"]["code"],
+            "AGENT_PERMISSION_DENIED"
+        );
         let working_set = parsed_result(provider.result("working-set"));
         assert_eq!(
             working_set["output"]["error"]["code"],
@@ -830,10 +838,8 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "guiyi-talos-{name}-{}-{nonce}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("guiyi-talos-{name}-{}-{nonce}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
         fs::write(
             root.join("engine-project.json"),
