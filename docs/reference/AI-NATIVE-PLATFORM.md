@@ -19,9 +19,9 @@ GUIYI participates at Query, Tool execution, transaction, validation, build, and
 
 ## Supported integration contract
 
-The approved first-party dependency boundary is the published crates.io **`talos-runtime`** SDK. GUIYI should not directly embed Talos implementation crates when the runtime facade already exposes the needed contracts.
+The approved and implemented first-party dependency boundary is the published crates.io **`talos-runtime`** SDK. GUIYI does not directly embed Talos implementation crates when the runtime facade exposes the needed contracts.
 
-The intended path is:
+The implemented path is:
 
 ```text
 crates.io talos-runtime
@@ -35,13 +35,13 @@ GUIYI Tool catalog + domain execution boundary
 Commands / Queries / Validation / Build / Preview
 ```
 
-ENG-014 should adapt each relevant live GUIYI Tool descriptor into a Talos `AgentTool`, preserving Tool identity and machine-readable schema. The adapter translates Talos Tool invocation into the normal GUIYI Tool execution boundary and translates GUIYI results, diagnostics, and transaction evidence back to Talos.
+ENG-014 adapts each relevant live GUIYI Tool descriptor into an individual Talos `AgentTool`, preserving Tool identity and machine-readable schema. The adapter translates Talos Tool invocation into the normal GUIYI `AgentHost::execute` boundary and translates GUIYI results, diagnostics, and transaction evidence back to Talos.
 
-Use the smallest `talos-runtime` feature set required. Ordinary integration should have one direct Talos dependency, `talos-runtime`, and use its public re-exports/extension points. Direct dependencies on `talos-agent` or other Talos implementation crates require an explicit Story rationale because they bypass the supported SDK boundary.
+The current approved SDK line is `talos-runtime 0.10.1` from crates.io, pinned through the committed `Cargo.lock`, with `default-features = false` and no optional Talos features enabled. `integrations/talos_runtime` is the only GUIYI package allowed to declare the direct Talos dependency. Direct dependencies on `talos-agent`, `talos-core`, `talos-session`, `talos-permission`, or other Talos implementation crates remain prohibited without explicit Story/ADR approval.
 
-The committed dependency source is crates.io and the resolved version is locked. Git/path overrides are temporary development mechanisms, not the normal repository dependency. Because Talos is pre-1.0, minor-version upgrades receive explicit compatibility review.
+Because Talos is pre-1.0, minor-version upgrades are explicit compatibility work. Re-check the public facade, re-exports, Tool contract, typed events, permission behavior, feature requirements, and lockfile resolution before changing the approved line.
 
-The adapter must not bypass GUIYI command validation, permissions, working-set checks, transactions, diagnostics, or persistence.
+The adapter does not bypass GUIYI command validation, permissions, working-set checks, project scope, access planning, transactions, diagnostics, audit, or persistence. Talos permission/approval is additive and cannot substitute for GUIYI domain security.
 
 Direct CLI/Workbench clients remain supported without Talos.
 
@@ -63,19 +63,27 @@ Generic conversation history, model/provider configuration, prompt policy, Agent
 
 Content-authoring calls should normally be limited to GUIYI permissions equivalent to `Read`, `Plan`, `DryRun`, `EditContent`, `RunValidation`, `RunBuild`, and `RunPreview`. Code editing, schema editing, external processes, commit, and publish remain outside ordinary content-authoring authority.
 
-Talos may apply its own generic permission and approval policy, but GUIYI still enforces its domain security and transaction invariants for every caller.
+Talos may apply its own generic permission and approval policy, but GUIYI still enforces its domain security and transaction invariants for every caller. ENG-014 tests deliberately admit a write through Talos permission rules and then prove GUIYI can still reject it for insufficient domain permission or working-set scope.
 
-## Transitional alpha APIs
+## Compatibility-only alpha APIs
 
-The current `AgentLoopDriver` and generic loop/lifecycle portions of `engine_agent_host::AgentSession` predate the Talos convergence decision. They are transitional compatibility surfaces, not a mandate to grow a second Agent framework.
+`AgentLoopDriver`, `AgentHost::run`, and the generic loop/lifecycle portions of `engine_agent_host::AgentSession` predate the Talos convergence decision. After ENG-014 they remain compatibility-only alpha surfaces, not a second canonical first-party Agent framework.
 
-ENG-014 owns the implementation migration. Until then:
+The Talos path uses the narrower GUIYI-owned `GuiyiExecutionContext` and does not call `AgentLoopDriver` / `AgentHost::run`. `AgentSession` is still constructed internally as a compatibility seam because the authoritative `AgentHost::execute` API currently accepts it, and direct JSONL Workbench/tests/examples still use the alpha session surface.
+
+`AgentBudget` is classified as a legacy generic Agent action budget rather than a distinct GUIYI domain-safety invariant. The Talos adapter does not impose it as a second practical stopping policy; Talos owns first-party reasoning/action stopping.
+
+Until a separately authorized compatibility migration removes these alpha surfaces:
 
 - no new model/provider abstraction belongs in GUIYI;
 - no generic prompting, planning, memory, conversation, context-compression, retry, or stopping subsystem should be added to `engine_agent_host`;
-- existing domain execution safety must remain intact;
+- existing domain execution safety and direct-client behavior must remain intact;
 - any breaking API migration must be explicit and tested.
+
+See [Agent session execution boundary](AGENT-SESSIONS.md) for the implemented migration semantics.
 
 ## Product proof
 
-The target proof is a real Talos-driven workflow that discovers GUIYI capabilities, creates or edits a tactical-RPG slice, responds to structured diagnostics, repairs invalid content, builds and previews the result, and leaves a reviewable transaction trail. Mock drivers are useful for unit tests but are not the product-level proof of AI-native operation.
+ENG-014 establishes the real Talos Runtime SDK baseline: Talos discovers schema-bearing GUIYI Tools, executes Queries, dry-runs and applies Commands through GUIYI's authoritative boundary, receives structured recoverable failures, and leaves durable transaction/audit evidence while direct clients remain independent.
+
+The broader target proof is a real Talos-driven workflow that creates or edits a tactical-RPG slice, responds to structured diagnostics, repairs invalid content, builds and previews the result, and leaves a reviewable transaction trail. That product-level proof remains owned by later Stories such as ENG-030; mock/scripted providers in ENG-014 are integration acceptance evidence, not the final product demo.
