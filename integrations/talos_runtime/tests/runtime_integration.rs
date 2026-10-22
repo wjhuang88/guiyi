@@ -15,8 +15,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use talos_runtime::{
     AgentEvent, ApprovalChoice, ApprovalHandler, LanguageModel, Message, MessageToolResult,
-    ProviderResult, Receiver, RuntimeTurnCompletionStatus, SessionEvent, StopReason,
-    ToolCall as TalosToolCall, ToolDefinition, TurnEventPayload, Usage,
+    PermissionDecision, PermissionRule, ProviderResult, Receiver, RuntimeTurnCompletionStatus,
+    SessionEvent, StopReason, ToolCall as TalosToolCall, ToolDefinition, ToolNature,
+    TurnEventPayload, Usage,
 };
 
 fn host(state: EngineState) -> AgentHost {
@@ -187,6 +188,12 @@ async fn run_runtime(
             talos_runtime::RuntimeBuilder::new()
                 .provider(provider)
                 .workspace_root(".")
+                .permission_rule(PermissionRule::new_nature(
+                    ToolNature::Write,
+                    None,
+                    None,
+                    PermissionDecision::Allow,
+                ))
                 .approval_handler(Arc::new(ApproveOnce)),
         )
         .build()
@@ -362,7 +369,7 @@ async fn guiyi_security_rejects_talos_admitted_calls_and_runtime_continues() {
         ProviderStep::Tool {
             id: "working-set",
             name: "project.document.get",
-            input: json!({"id": "doc.denied"}),
+            input: json!({"document_id": "doc.denied"}),
         },
         ProviderStep::Tool {
             id: "after",
@@ -415,7 +422,7 @@ async fn recoverable_guiyi_failure_is_structured_and_followed_by_valid_tool_call
         ProviderStep::Tool {
             id: "missing",
             name: "project.document.get",
-            input: json!({"id": "doc.missing"}),
+            input: json!({"document_id": "doc.missing"}),
         },
         ProviderStep::Tool {
             id: "after",
