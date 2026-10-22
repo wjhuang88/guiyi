@@ -37,6 +37,23 @@ for name, (manifest, dependencies) in packages.items():
             if forbidden in dependencies:
                 errors.append(f'content has forbidden dependency: {forbidden}')
 
+    talos_dependencies = {dependency for dependency in dependencies if dependency.startswith('talos-')}
+    if name == 'guiyi-talos-runtime':
+        if talos_dependencies != {'talos-runtime'}:
+            errors.append(
+                'guiyi-talos-runtime must directly depend on exactly talos-runtime; '
+                f'found {sorted(talos_dependencies)}'
+            )
+        if manifest.relative_to(root).parts[:2] != ('integrations', 'talos_runtime'):
+            errors.append('guiyi-talos-runtime must stay at integrations/talos_runtime')
+    elif talos_dependencies:
+        errors.append(
+            f'{name} must not directly depend on Talos crates: {sorted(talos_dependencies)}'
+        )
+
+if 'guiyi-talos-runtime' not in packages:
+    errors.append('missing GUIYI Talos outer integration package')
+
 if errors:
     print('\n'.join(errors))
     sys.exit(1)

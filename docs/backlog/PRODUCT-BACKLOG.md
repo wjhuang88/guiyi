@@ -2,7 +2,7 @@
 
 This is the only executable requirement list.
 
-GitHub Issue state was last synchronized on 2026-10-20. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
+GitHub Issue state was last synchronized on 2026-10-22. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
 
 ## Current direction and ownership
 
@@ -19,7 +19,7 @@ Ownership rule:
 First-party AI dependency rule:
 
 - use the published crates.io `talos-runtime` SDK as the default and only direct Talos dependency;
-- target the currently reviewed SDK line explicitly (`0.10.1` at ENG-029 planning time), re-verifying the approved release when ENG-014 starts;
+- the currently approved and integrated SDK line is `0.10.1`;
 - resolve through committed `Cargo.lock` and treat pre-1.0 Talos minor-version changes as explicit compatibility work;
 - do not commit a Git dependency on Talos `main` or direct dependencies on Talos implementation crates merely for convenience;
 - expose GUIYI's live capabilities as Talos `AgentTool` adapters through the public `RuntimeBuilder` surface.
@@ -27,8 +27,6 @@ First-party AI dependency rule:
 Current primary sequence:
 
 ```text
-ENG-014 Talos runtime SDK integration
-    ↓
 ENG-012 Project Graph + ENG-013 semantic Stage commands
     ↓
 ENG-020..023 tactical RPG vertical
@@ -38,7 +36,7 @@ ENG-030 Talos-driven playable-slice demo
 ENG-024 human review workbench
 ```
 
-A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
+ENG-014 established the accepted Talos Runtime SDK baseline for this sequence. A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
 
 ## Done — Direction convergence
 
@@ -184,30 +182,34 @@ A different primary sequence requires an explicit Backlog/change-control decisio
 - Reference: `docs/reference/COMMAND-SCHEMA-CONTRACT.md`.
 - Evidence: `docs/validation/ENG-010.md`; PR #35 CI run `30641388046` (run number 136) passed.
 
-## Ready — Current implementation sequence
+## Done — Iteration 003 Talos runtime baseline
 
 ### ENG-014 Talos runtime SDK integration
 
 - Type: Integration / Architecture
 - Priority: P0
-- Status: Ready
-- GitHub: [#52](https://github.com/wjhuang88/guiyi/issues/52) — Open
+- Status: Done
+- GitHub: [#52](https://github.com/wjhuang88/guiyi/issues/52) — implementation PR #53; Issue remains open until merge
 - Depends on: ENG-029 / #50 (Done).
 - Goal: integrate the published `talos-runtime` SDK through a thin outer adapter and stop growing GUIYI-owned generic Agent-loop behavior.
-- Dependency gate: start from crates.io `talos-runtime` on the reviewed release line, with no ordinary direct dependency on `talos-agent`, `talos-core`, `talos-session`, `talos-permission`, or other Talos implementation crates. Use the smallest SDK feature set required for GUIYI Tool integration.
-- Tool-adapter gate: map live GUIYI Tool descriptors into Talos `AgentTool` registrations through `RuntimeBuilder`, preserving Tool IDs and machine-readable schemas rather than hiding them behind a single catch-all wrapper.
-- Execution gate: Talos discovers GUIYI capabilities and executes a query plus a mutating command through normal GUIYI permission, working-set, schema, dry-run, transaction, diagnostic and persistence boundaries. Recoverable Tool failures remain structured and the Talos runtime can continue.
-- Migration gate: decide the compatibility/deprecation path for `AgentLoopDriver` and overlapping `AgentSession` lifecycle fields without weakening GUIYI's domain execution/security boundary.
+- Dependency result: crates.io `talos-runtime = 0.10.1` is the only direct Talos dependency, with `default-features = false`, no optional Talos features, committed lockfile resolution, and an architecture gate preventing Talos dependencies from leaking into reusable GUIYI core/toolkit crates.
+- Tool-adapter result: live GUIYI Tool descriptors become individual Talos `AgentTool`s through `RuntimeBuilder`, preserving Tool IDs, descriptions, and machine-readable schemas instead of using a catch-all wrapper.
+- Execution result: Talos executes Queries and dry-run/applied Commands through the normal GUIYI permission, working-set, access-plan, schema, transaction, diagnostic, audit, and persistence boundaries; recoverable GUIYI Tool failures remain structured and Talos continues.
+- Migration result: Talos owns first-party generic Agent/session lifecycle; `AgentLoopDriver` / `AgentHost::run` are compatibility-only with a sunset direction; Talos-facing code uses `GuiyiExecutionContext`; legacy `AgentBudget` is not duplicated as a second first-party stopping policy.
+- Direct-client result: JSONL Workbench, CLI, examples, and tests remain usable without starting Talos.
 - Architecture: `docs/decisions/ADR-0016-TALOS-AGENT-RUNTIME.md`.
+- Evidence: `docs/validation/ENG-014.md`; PR #53 CI run 181 passed the complete implementation suite before closure-status synchronization. Merge remains gated on green CI for the current PR head.
+
+## Ready — Current implementation sequence
 
 ### ENG-012 Project graph index
 
-- Status: Ready after ENG-014 baseline
+- Status: Ready
 - Goal: maintain an incremental semantic graph rather than rebuilding it for each query, and expose reusable game-world relationships/impact to Talos and other clients.
 
 ### ENG-013 Stage object move/remove commands
 
-- Status: Ready after ENG-014 baseline
+- Status: Ready
 - Goal: add high-level commands with dry-run, transaction diff, and bounds diagnostics so Talos can make semantic Stage edits without file-level mutation.
 
 ## Proposed — Synced GitHub issue intake
