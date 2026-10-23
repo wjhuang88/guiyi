@@ -1,7 +1,8 @@
 use guiyi_engine_agent_host::{AgentHost, AgentSession};
 use guiyi_engine_agent_tools::ToolCatalog;
 use guiyi_engine_command::{
-    CommandDescriptor, CommandError, CommandExecutor, CommandHandler, CommandRegistry, EngineState,
+    register_builtin_document_commands, CommandDescriptor, CommandError, CommandExecutor,
+    CommandHandler, CommandRegistry, EngineState,
 };
 use guiyi_engine_content::{ContentReference, DocumentEnvelope, DocumentHeader, DocumentStore};
 use guiyi_engine_core::{
@@ -96,6 +97,7 @@ fn state(documents: impl IntoIterator<Item = DocumentEnvelope>) -> EngineState {
 
 fn host(state: EngineState) -> AgentHost {
     let mut commands = CommandRegistry::default();
+    register_builtin_document_commands(&mut commands).unwrap();
     commands.register(RetargetReferenceCommand).unwrap();
     let mut queries = QueryRegistry::default();
     register_builtin_queries(&mut queries).unwrap();
@@ -195,6 +197,54 @@ fn applied_command_refreshes_graph_dry_run_does_not_and_state_replacement_invali
         json!(["doc.b"])
     );
     assert_eq!(impact(&mut host, &mut session, "doc.c").output, json!([]));
+}
+
+#[test]
+fn applied_create_and_delete_refresh_nodes_and_preserve_dangling_incoming_edges() {
+    let mut host = host(state([
+        document("doc.a", None),
+        document("doc.b", Some("doc.a")),
+    ]));
+    let mut session = session(PermissionSet::content_author());
+
+    let created = host.execute(
+        &mut session,
+        ToolCall {
+            id: "create-doc-new".into(),
+            tool: ToolId::from_static("document.create"),
+            input: json!({
+                "id": "doc.new",
+                "type_id": "example.document",
+                "display_name": "New document"
+            }),
+            dry_run: false,
+        },
+    );
+    assert_eq!(created.status, ToolResultStatus::Ok);
+    assert!(host
+        .project_graph_snapshot()
+        .outgoing
+        .contains_key(&DocumentId::from_static("doc.new")));
+
+    let deleted = host.execute(
+        &mut session,
+        ToolCall {
+            id: "delete-doc-a".into(),
+            tool: ToolId::from_static("document.delete"),
+            input: json!({"document_id": "doc.a"}),
+            dry_run: false,
+        },
+    );
+    assert_eq!(deleted.status, ToolResultStatus::Ok);
+
+    let graph = host.project_graph_snapshot();
+    assert!(!graph
+        .outgoing
+        .contains_key(&DocumentId::from_static("doc.a")));
+    assert_eq!(
+        graph.dependents(&DocumentId::from_static("doc.a")),
+        BTreeSet::from([DocumentId::from_static("doc.b")])
+    );
 }
 
 #[test]
