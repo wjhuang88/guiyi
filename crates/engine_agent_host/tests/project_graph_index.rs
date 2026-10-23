@@ -181,6 +181,15 @@ fn applied_command_refreshes_graph_dry_run_does_not_and_state_replacement_invali
     );
 
     host.replace_state(initial);
+
+    let mut restricted = session(PermissionSet::read_only());
+    restricted.id = AgentSessionId::from_static("session.project-graph-after-rollback");
+    restricted.working_set = vec![DocumentId::from_static("doc.a")];
+    assert_eq!(
+        impact(&mut host, &mut restricted, "doc.a").output,
+        json!([])
+    );
+
     assert_eq!(
         impact(&mut host, &mut session, "doc.a").output,
         json!(["doc.b"])
