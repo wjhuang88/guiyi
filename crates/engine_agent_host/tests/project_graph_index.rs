@@ -158,27 +158,33 @@ fn applied_command_refreshes_graph_dry_run_does_not_and_state_replacement_invali
         document("doc.c", None),
     ]);
     let mut host = host(initial.clone());
-    let mut session = session(PermissionSet::content_author());
+    let mut authoring_session = session(PermissionSet::content_author());
 
-    let before = impact(&mut host, &mut session, "doc.a");
+    let before = impact(&mut host, &mut authoring_session, "doc.a");
     assert_eq!(before.status, ToolResultStatus::Ok);
     assert_eq!(before.output, json!(["doc.b"]));
 
-    let preview = retarget(&mut host, &mut session, "doc.c", true);
+    let preview = retarget(&mut host, &mut authoring_session, "doc.c", true);
     assert_eq!(preview.status, ToolResultStatus::Ok);
     assert_eq!(preview.transaction.as_ref().unwrap()["status"], "previewed");
     assert_eq!(
-        impact(&mut host, &mut session, "doc.a").output,
+        impact(&mut host, &mut authoring_session, "doc.a").output,
         json!(["doc.b"])
     );
-    assert_eq!(impact(&mut host, &mut session, "doc.c").output, json!([]));
+    assert_eq!(
+        impact(&mut host, &mut authoring_session, "doc.c").output,
+        json!([])
+    );
 
-    let applied = retarget(&mut host, &mut session, "doc.c", false);
+    let applied = retarget(&mut host, &mut authoring_session, "doc.c", false);
     assert_eq!(applied.status, ToolResultStatus::Ok);
     assert_eq!(applied.transaction.as_ref().unwrap()["status"], "applied");
-    assert_eq!(impact(&mut host, &mut session, "doc.a").output, json!([]));
     assert_eq!(
-        impact(&mut host, &mut session, "doc.c").output,
+        impact(&mut host, &mut authoring_session, "doc.a").output,
+        json!([])
+    );
+    assert_eq!(
+        impact(&mut host, &mut authoring_session, "doc.c").output,
         json!(["doc.b"])
     );
 
@@ -193,10 +199,13 @@ fn applied_command_refreshes_graph_dry_run_does_not_and_state_replacement_invali
     );
 
     assert_eq!(
-        impact(&mut host, &mut session, "doc.a").output,
+        impact(&mut host, &mut authoring_session, "doc.a").output,
         json!(["doc.b"])
     );
-    assert_eq!(impact(&mut host, &mut session, "doc.c").output, json!([]));
+    assert_eq!(
+        impact(&mut host, &mut authoring_session, "doc.c").output,
+        json!([])
+    );
 }
 
 #[test]
