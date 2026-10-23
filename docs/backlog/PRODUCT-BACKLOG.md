@@ -212,12 +212,12 @@ ENG-014 established the accepted Talos Runtime SDK baseline and ENG-012 establis
 - Goal: maintain an incremental semantic graph rather than rebuilding it for each normal graph-backed Query, and expose reusable game-world relationships/impact to Talos and other clients.
 - Source-of-truth result: `DocumentEnvelope.references` remains authoritative; `ProjectGraphIndex` is derived in-memory cache state and is not persisted as a second project truth.
 - Query result: `project.references.find` and `project.impact.analyze` consume the maintained index on the normal `QueryExecutor` / `AgentHost` path while keeping their Tool IDs and schemas stable.
-- Mutation result: `AgentHost` builds from complete authoritative state and refreshes only `TransactionReport.document_diffs` after successful applied Commands; dry-run, rejected, and failed Commands do not refresh graph state.
-- Security result: restricted working sets neither return hidden reference sources nor traverse hidden intermediate graph nodes during impact analysis.
+- Mutation result: `AgentHost` builds from complete authoritative state and refreshes only `TransactionReport.document_diffs` after successful applied Commands; dry-run, rejected, and failed Commands do not refresh graph state. Built-in create/delete coverage proves new nodes are indexed and dangling incoming references survive target deletion.
+- Security result: restricted working sets neither return hidden reference sources nor traverse hidden intermediate graph nodes during impact analysis. After invalidation/rollback, `AgentHost` rebuilds from the complete authoritative store before filtering so a restricted caller cannot seed a partial shared graph.
 - Recovery result: state replacement and Talos persistence rollback invalidate derived graph state; direct clients have explicit rebuild/refresh/invalidate/snapshot APIs without Talos.
 - Compatibility: `QueryExecutor::execute` now takes `&mut self` because it owns derived cache lifecycle; direct `QueryHandler::execute` remains a compatibility path and `execute_indexed` has a default delegate.
 - Architecture: `docs/decisions/ADR-0011-PROJECT-GRAPH.md`; `docs/reference/PROJECT-GRAPH.md`.
-- Evidence: `docs/validation/ENG-012.md`; PR #55 CI run 195 passed the complete implementation suite before final closure synchronization. Final merge remains gated on green CI for the current PR head.
+- Evidence: `docs/validation/ENG-012.md`; PR #55 CI run 204 (`39888285027`) passed the complete implementation suite on head `aefbfb0ee27055087913abd26af0611cc02f76ac`. Final merge remains gated on green CI for the closure-synchronized current PR head.
 
 ## Ready — Current implementation sequence
 
