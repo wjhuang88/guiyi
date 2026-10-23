@@ -423,13 +423,13 @@ impl ProjectGraphIndex {
                 .map(|reference| reference.target_document.clone())
                 .collect::<BTreeSet<_>>();
             for target in targets {
-                let remove_target = if let Some(incoming) = self.incoming_references.get_mut(&target)
-                {
-                    incoming.retain(|reference| &reference.source_document != source);
-                    incoming.is_empty()
-                } else {
-                    false
-                };
+                let remove_target =
+                    if let Some(incoming) = self.incoming_references.get_mut(&target) {
+                        incoming.retain(|reference| &reference.source_document != source);
+                        incoming.is_empty()
+                    } else {
+                        false
+                    };
                 if remove_target {
                     self.incoming_references.remove(&target);
                 }
@@ -771,9 +771,7 @@ mod tests {
             .references[0]
             .target_document = DocumentId::from_static("doc.d");
         graph.refresh_document(&store, &DocumentId::from_static("doc.b"));
-        assert!(graph
-            .impact(&DocumentId::from_static("doc.a"))
-            .is_empty());
+        assert!(graph.impact(&DocumentId::from_static("doc.a")).is_empty());
         assert_eq!(
             graph.impact(&DocumentId::from_static("doc.d")),
             BTreeSet::from([
@@ -784,9 +782,7 @@ mod tests {
 
         store.remove(&DocumentId::from_static("doc.b")).unwrap();
         graph.refresh_document(&store, &DocumentId::from_static("doc.b"));
-        assert!(graph
-            .impact(&DocumentId::from_static("doc.d"))
-            .is_empty());
+        assert!(graph.impact(&DocumentId::from_static("doc.d")).is_empty());
         assert_eq!(
             graph.dependents(&DocumentId::from_static("doc.b")),
             BTreeSet::from([DocumentId::from_static("doc.c")])
@@ -855,8 +851,18 @@ mod tests {
         assert_eq!(full, json!(["doc.c", "doc.hidden"]));
 
         let mut visible = DocumentStore::default();
-        visible.upsert(store.get(&DocumentId::from_static("doc.a")).unwrap().clone());
-        visible.upsert(store.get(&DocumentId::from_static("doc.c")).unwrap().clone());
+        visible.upsert(
+            store
+                .get(&DocumentId::from_static("doc.a"))
+                .unwrap()
+                .clone(),
+        );
+        visible.upsert(
+            store
+                .get(&DocumentId::from_static("doc.c"))
+                .unwrap()
+                .clone(),
+        );
         let restricted_impact = executor
             .execute(
                 QueryRequest {

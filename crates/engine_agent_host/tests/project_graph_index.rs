@@ -165,17 +165,26 @@ fn applied_command_refreshes_graph_dry_run_does_not_and_state_replacement_invali
     let preview = retarget(&mut host, &mut session, "doc.c", true);
     assert_eq!(preview.status, ToolResultStatus::Ok);
     assert_eq!(preview.transaction.as_ref().unwrap()["status"], "previewed");
-    assert_eq!(impact(&mut host, &mut session, "doc.a").output, json!(["doc.b"]));
+    assert_eq!(
+        impact(&mut host, &mut session, "doc.a").output,
+        json!(["doc.b"])
+    );
     assert_eq!(impact(&mut host, &mut session, "doc.c").output, json!([]));
 
     let applied = retarget(&mut host, &mut session, "doc.c", false);
     assert_eq!(applied.status, ToolResultStatus::Ok);
     assert_eq!(applied.transaction.as_ref().unwrap()["status"], "applied");
     assert_eq!(impact(&mut host, &mut session, "doc.a").output, json!([]));
-    assert_eq!(impact(&mut host, &mut session, "doc.c").output, json!(["doc.b"]));
+    assert_eq!(
+        impact(&mut host, &mut session, "doc.c").output,
+        json!(["doc.b"])
+    );
 
     host.replace_state(initial);
-    assert_eq!(impact(&mut host, &mut session, "doc.a").output, json!(["doc.b"]));
+    assert_eq!(
+        impact(&mut host, &mut session, "doc.a").output,
+        json!(["doc.b"])
+    );
     assert_eq!(impact(&mut host, &mut session, "doc.c").output, json!([]));
 }
 
