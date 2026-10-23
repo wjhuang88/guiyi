@@ -2,117 +2,121 @@
 
 ## Goal
 
-Converge GUIYI's product and architecture direction on the published Talos runtime SDK and implement the first real Talos-driven GUIYI Tool vertical slice without weakening GUIYI's domain execution authority.
+Converge GUIYI's product and architecture direction on the published Talos runtime SDK, then increase the semantic game-world capabilities Talos and direct clients can safely use without weakening GUIYI's domain execution authority.
 
 ## Authorization
 
 - ENG-029 is Done and merged through PR #51 (`4dc57fe7203795e20b45042dfca22ceeb8adae0c`).
-- ENG-014 / #52 implementation acceptance is complete in PR #53; final merge remains gated on green CI for the current closure-synchronized head.
-- ENG-012 and ENG-013 are unblocked by the accepted ENG-014 integration baseline and remain the next GUIYI capability sequence.
+- ENG-014 / #52 is Done and squash-merged through PR #53 (`5ce7dae09e55e0c40c8345d67e81bd38f44b67b4`).
+- ENG-012 / #54 is the active Story on branch `feature/ENG-012-project-graph-index` through draft PR #55.
+- ENG-013 remains Ready and is not part of the ENG-012 implementation branch.
 - Proposed Stories remain non-executable.
 
-## Completed Story slice
+## Completed Story slice — ENG-014
 
 ### ENG-014 Integrate Talos runtime SDK as GUIYI's first-party Agent runtime
 
 GitHub Issue: #52
 
-Branch: `feature/ENG-014-talos-runtime-integration`
-
-Implementation PR: #53
+Merged PR: #53
 
 Architecture decision: `docs/decisions/ADR-0016-TALOS-AGENT-RUNTIME.md`
 
 Validation record: `docs/validation/ENG-014.md`
 
-## Confirmed external baseline
+ENG-014 established crates.io `talos-runtime = 0.10.1` as the only direct Talos dependency, exposed GUIYI's live Tool catalog as individual Talos `AgentTool`s, kept GUIYI authoritative for domain security/transactions/persistence, and preserved direct Talos-independent clients.
 
-ENG-014 re-verified the approved Talos release line as `0.10.1` before implementation.
+The final ENG-014 clean-head CI run 185 passed the complete repository suite before merge.
 
-The committed dependency is crates.io `talos-runtime = 0.10.1` with default features disabled and no optional Talos features enabled. `Cargo.lock` is committed. GUIYI does not directly depend on Talos implementation crates such as `talos-agent`, `talos-core`, `talos-session`, or `talos-permission`.
+## Active Story slice — ENG-012
 
-The integration uses public SDK contracts re-exported by `talos-runtime`, including `RuntimeBuilder`, `AgentTool`, `RuntimeHandle` behavior, provider traits, permission rules, Tool results, and typed session events.
+### ENG-012 Maintain an incremental semantic Project Graph index
 
-## Delivered work packages
+GitHub Issue: #54
 
-### A. Outer integration boundary
+Branch: `feature/ENG-012-project-graph-index`
 
-Delivered:
+Implementation PR: #55
 
-- added `integrations/talos_runtime` as the only GUIYI package with a direct Talos dependency;
-- enforced that boundary in `scripts/check_architecture.py`;
-- kept engine core, schema/content, command/query, validation/build/runtime, and toolkit core independent of Talos;
-- added no provider/model/planner/conversation/retry abstractions inside GUIYI.
+Architecture authority: `docs/decisions/ADR-0011-PROJECT-GRAPH.md`
 
-### B. Live Tool adaptation
+Reference: `docs/reference/PROJECT-GRAPH.md`
 
-Delivered:
+Validation record: `docs/validation/ENG-012.md`
 
-- materialized Talos `AgentTool`s from GUIYI's live `ToolCatalog`;
-- preserved Tool IDs, descriptions, and live input schemas;
-- exposed Commands individually rather than through a catch-all Tool;
-- carried GUIYI protocol `dry_run` metadata without duplicating command schema authority;
-- routed every call to the existing `AgentHost::execute` execution seam.
+### Problem
 
-### C. Real execution vertical slice
+The existing semantic graph contract was correct but normal graph-backed Queries rebuilt or scanned relationships per invocation. Iteration 003 now turns the accepted semantic-reference model into a reusable derived index without introducing a second project truth.
 
-Accepted path:
+### ENG-012 work packages
+
+#### A. Derived graph/index boundary
+
+Target:
+
+- keep `DocumentEnvelope.references` as authoritative semantic relationship data;
+- maintain `ProjectGraphIndex` in `guiyi-engine-query`;
+- preserve `ProjectGraph` as the serializable document-adjacency snapshot compatibility surface;
+- introduce no external graph database or Talos dependency in reusable engine crates.
+
+#### B. Query reuse
+
+Target:
+
+- `project.references.find` uses the maintained index on the normal `QueryExecutor` / `AgentHost` path;
+- `project.impact.analyze` uses the maintained index on that path;
+- direct Query clients can rebuild, refresh, invalidate, and snapshot the graph without Talos.
+
+#### C. Incremental mutation lifecycle
+
+Target:
 
 ```text
-Talos RuntimeBuilder
+GUIYI applied Command
   ↓
-register GUIYI AgentTools
+TransactionReport.document_diffs
   ↓
-submit objective
+refresh only changed source Document IDs
   ↓
-GUIYI Query
+ProjectGraphIndex
   ↓
-GUIYI dry-run Command
-  ↓
-GUIYI apply Command
-  ↓
-ProjectStorage / ProjectTransaction
-  ↓
-structured ToolResult
-  ↓
-Talos continues
+next relationship / impact Query
 ```
 
-Targeted integration tests cover capability discovery, Query execution, dry-run/apply transaction behavior, durable storage/audit, GUIYI permission and working-set rejection after Talos admission, and continuation after recoverable GUIYI Tool failure.
+Dry-run, rejected, and failed Commands must not change graph state. State replacement or persistence rollback invalidates the derived graph and rebuilds later from authoritative Documents.
 
-### D. Agent lifecycle migration
+#### D. Working-set isolation
 
-Decisions:
+Target:
 
-- Talos owns the canonical first-party Agent/session/turn lifecycle;
-- `AgentHost::execute` remains GUIYI's reusable authoritative execution seam;
-- `AgentLoopDriver` / `AgentHost::run` remain compatibility-only alpha APIs and are not used by the Talos path;
-- `AgentSession` remains temporarily for direct clients and as an internal compatibility seam, but Talos-facing API uses the narrower `GuiyiExecutionContext`;
-- `AgentBudget` is classified as a legacy generic action budget rather than a GUIYI domain-safety invariant; the Talos adapter does not impose it as a second stopping policy;
-- direct JSONL Workbench, CLI, examples, and tests remain usable without starting Talos.
+- initialize the maintained graph from complete authoritative `EngineState`;
+- continue using GUIYI access planning and filtered working-set project views;
+- do not return hidden source Documents;
+- do not traverse hidden intermediate graph nodes to reach otherwise visible downstream Documents.
 
-### E. Documentation and closure
+#### E. Compatibility and Talos availability
 
-Delivered:
+Target:
 
-- architecture, AI-native platform, and Agent-session references describe the implemented boundary and migration decision;
-- Product Backlog and this plan reflect the accepted ENG-014 baseline;
-- `docs/validation/ENG-014.md` records exact acceptance and CI evidence;
-- final merge/Done authority remains green CI on the current PR head after closure-status synchronization.
+- keep existing graph Query Tool IDs and schemas stable;
+- keep the live Tool catalog as the capability source consumed by the ENG-014 Talos adapter;
+- keep Workbench/CLI/tests/direct GUIYI clients Talos-independent;
+- document `QueryExecutor::execute(&mut self, ...)` as an alpha receiver-level compatibility change.
 
-## Non-goals preserved
+## Non-goals preserved for ENG-012
 
-- No ENG-012 Project Graph implementation.
 - No ENG-013 Stage move/remove implementation.
 - No ENG-020+ tactical feature implementation.
-- No visual editor/workbench expansion.
-- No generic Talos coding-tool integration.
+- No visual editor/workbench expansion or visual graph UI.
+- No persisted Project Graph as a second authoring truth.
+- No generic graph database or new external graph dependency.
+- No Project Graph ownership moved into Talos.
+- No broad object/reference-model redesign beyond the existing `ContentReference` contract.
 - No GUIYI-owned provider/model abstraction, conversation runtime, planner, memory subsystem, retry/stopping framework, or second Agent loop.
-- No direct dependency on Talos implementation crates or Talos `main`.
 
 ## Validation
 
-Required full suite:
+Required full suite for ENG-012:
 
 ```bash
 cargo fmt --all -- --check
@@ -129,19 +133,22 @@ cargo run -p guiyi-example-tactical-demo
 cargo run -p guiyi-example-mock-agent-workflow
 ```
 
-PR #53 CI run `39809155717` (run number 181) passed the complete suite on implementation head `8bddfb4235455b92249b96edd31f4574564edb95` before closure-status synchronization. The current PR head must also be green before merge; no later edit should be made solely to copy that final run number into documentation.
+The first ENG-012 implementation-head CI run 189 established that repository gates remained green but stopped at `cargo fmt --all -- --check`; all later Rust checks on that run were skipped. That run is failure evidence, not acceptance evidence. ENG-012 remains gated on a later clean current-head CI run that passes the complete suite.
 
-## Exit gate
+Local clone/Cargo execution remains unavailable in the current execution environment because outbound DNS cannot resolve `github.com`; no local gate is claimed as passed.
 
-ENG-014 acceptance is complete because:
+## ENG-012 exit gate
 
-- Issue #52 acceptance scenarios A-F are covered by executable evidence;
-- `talos-runtime` remains the only direct Talos dependency and the architecture gate enforces it;
-- Talos discovers and executes GUIYI live Tools through public SDK contracts;
-- GUIYI remains authoritative for permissions, working sets, access plans, schema validation, dry-run, transactions, persistence, diagnostics, and audit;
-- recoverable Tool failures do not terminate the Talos runtime;
-- direct clients remain Talos-independent;
-- lifecycle/budget compatibility decisions are documented without silently breaking alpha APIs;
-- validation evidence is recorded.
+ENG-012 is Done only when:
 
-Final Story closure and merge remain conditioned on green GitHub CI for the closure-synchronized PR head.
+- Issue #54 acceptance scenarios A-F have executable coverage;
+- the maintained graph is reusable rather than rebuilt for every normal graph-backed Query;
+- applied transaction diffs incrementally refresh changed source Documents;
+- dry-run/rejected/failed paths leave graph state unchanged;
+- working-set restrictions block hidden results and hidden-node traversal;
+- rollback/state replacement cannot leave a stale derived graph;
+- graph Queries remain available through the live GUIYI Tool catalog/Talos adapter and direct clients;
+- architecture/reference/backlog/validation records are synchronized;
+- current clean-head GitHub CI passes the complete repository suite.
+
+After ENG-012 closes, ENG-013 remains the next Ready capability Story before the ENG-020..023 tactical vertical sequence.
