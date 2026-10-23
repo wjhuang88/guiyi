@@ -8,7 +8,7 @@ Converge GUIYI's product and architecture direction on the published Talos runti
 
 - ENG-029 is Done and merged through PR #51 (`4dc57fe7203795e20b45042dfca22ceeb8adae0c`).
 - ENG-014 / #52 is Done and squash-merged through PR #53 (`5ce7dae09e55e0c40c8345d67e81bd38f44b67b4`).
-- ENG-012 / #54 is the active Story on branch `feature/ENG-012-project-graph-index` through draft PR #55.
+- ENG-012 / #54 implementation acceptance is complete on branch `feature/ENG-012-project-graph-index` through draft PR #55; merge remains gated on final closure-head CI.
 - ENG-013 remains Ready and is not part of the ENG-012 implementation branch.
 - Proposed Stories remain non-executable.
 
@@ -52,7 +52,7 @@ The existing semantic graph contract was correct but normal graph-backed Queries
 
 #### A. Derived graph/index boundary
 
-Target:
+Delivered:
 
 - keep `DocumentEnvelope.references` as authoritative semantic relationship data;
 - maintain `ProjectGraphIndex` in `guiyi-engine-query`;
@@ -61,7 +61,7 @@ Target:
 
 #### B. Query reuse
 
-Target:
+Delivered:
 
 - `project.references.find` uses the maintained index on the normal `QueryExecutor` / `AgentHost` path;
 - `project.impact.analyze` uses the maintained index on that path;
@@ -69,7 +69,7 @@ Target:
 
 #### C. Incremental mutation lifecycle
 
-Target:
+Delivered:
 
 ```text
 GUIYI applied Command
@@ -83,25 +83,27 @@ ProjectGraphIndex
 next relationship / impact Query
 ```
 
-Dry-run, rejected, and failed Commands must not change graph state. State replacement or persistence rollback invalidates the derived graph and rebuilds later from authoritative Documents.
+Dry-run, rejected, and failed Commands do not change graph state. State replacement or persistence rollback invalidates the derived graph. `AgentHost` rebuilds invalidated graph state from the complete authoritative `DocumentStore` before any restricted working-set view is applied, so a restricted caller cannot seed a partial shared graph.
 
 #### D. Working-set isolation
 
-Target:
+Delivered:
 
-- initialize the maintained graph from complete authoritative `EngineState`;
+- initialize/rebuild the maintained graph from complete authoritative `EngineState`;
 - continue using GUIYI access planning and filtered working-set project views;
 - do not return hidden source Documents;
-- do not traverse hidden intermediate graph nodes to reach otherwise visible downstream Documents.
+- do not traverse hidden intermediate graph nodes to reach otherwise visible downstream Documents;
+- regression coverage proves a restricted first Query after rollback cannot poison later unrestricted graph results.
 
 #### E. Compatibility and Talos availability
 
-Target:
+Delivered:
 
 - keep existing graph Query Tool IDs and schemas stable;
 - keep the live Tool catalog as the capability source consumed by the ENG-014 Talos adapter;
 - keep Workbench/CLI/tests/direct GUIYI clients Talos-independent;
-- document `QueryExecutor::execute(&mut self, ...)` as an alpha receiver-level compatibility change.
+- document `QueryExecutor::execute(&mut self, ...)` as an alpha receiver-level compatibility change;
+- Talos persistence rollback uses `AgentHost::replace_state` so document and graph recovery remain coherent.
 
 ## Non-goals preserved for ENG-012
 
@@ -133,7 +135,9 @@ cargo run -p guiyi-example-tactical-demo
 cargo run -p guiyi-example-mock-agent-workflow
 ```
 
-The first ENG-012 implementation-head CI run 189 established that repository gates remained green but stopped at `cargo fmt --all -- --check`; all later Rust checks on that run were skipped. That run is failure evidence, not acceptance evidence. ENG-012 remains gated on a later clean current-head CI run that passes the complete suite.
+PR #55 run 204 (`39888285027`) passed the complete suite on implementation head `aefbfb0ee27055087913abd26af0611cc02f76ac` after the rollback/working-set cache fix, create/delete/dangling-reference coverage, and removal of temporary CI diagnostic helpers. Earlier run 189 failed formatting and run 201 exposed a test-helper name-shadowing compile error under `--all-targets`; both are recorded as failure evidence in `docs/validation/ENG-012.md`, not as acceptance evidence.
+
+This plan/validation/backlog closure synchronization changes the branch head. ENG-012 therefore remains gated on one final current clean-head CI run before PR #55 is marked ready or merged.
 
 Local clone/Cargo execution remains unavailable in the current execution environment because outbound DNS cannot resolve `github.com`; no local gate is claimed as passed.
 
@@ -144,9 +148,10 @@ ENG-012 is Done only when:
 - Issue #54 acceptance scenarios A-F have executable coverage;
 - the maintained graph is reusable rather than rebuilt for every normal graph-backed Query;
 - applied transaction diffs incrementally refresh changed source Documents;
+- create/delete/reference-change/dangling-reference lifecycle is covered through the normal AgentHost transaction path;
 - dry-run/rejected/failed paths leave graph state unchanged;
 - working-set restrictions block hidden results and hidden-node traversal;
-- rollback/state replacement cannot leave a stale derived graph;
+- rollback/state replacement cannot leave a stale or partial derived graph;
 - graph Queries remain available through the live GUIYI Tool catalog/Talos adapter and direct clients;
 - architecture/reference/backlog/validation records are synchronized;
 - current clean-head GitHub CI passes the complete repository suite.
