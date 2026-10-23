@@ -118,6 +118,32 @@ ProjectStorage + ProjectTransaction for persisted apply
 
 `ProjectStoragePersistence` is an outer coordinator over the existing `ProjectStorage` / `ProjectTransaction` authority. It does not introduce a second persistence model. Dry-runs are never storage commits; successful applied mutations are committed through the existing project transaction journal, and persistence failure is reported as a structured Talos Tool failure after rolling the in-memory document state back.
 
+## Semantic Project Graph boundary
+
+ENG-012 implements ADR-0011 as a maintained derived index rather than a per-query rebuild. `DocumentEnvelope.references` remains the only authoring source of truth for semantic relationships; the Project Graph is recoverable cache state and is not persisted as a second project format.
+
+The normal lifecycle is:
+
+```text
+complete authoritative DocumentStore
+        ↓ build once
+ProjectGraphIndex owned by QueryExecutor
+        ↑
+        | refresh only TransactionReport.document_diffs
+        |
+successful applied Command
+```
+
+`AgentHost::new` initializes the graph from the complete authoritative `EngineState`. `project.references.find` and `project.impact.analyze` use the maintained index on the normal `QueryExecutor` / `AgentHost` path. Successful applied Commands refresh only changed source Document IDs from transaction diffs. Dry-run, rejected, and failed Commands do not refresh graph state.
+
+State replacement or persistence rollback uses `AgentHost::replace_state`, which invalidates the derived graph so the next graph access rebuilds from authoritative Documents. Direct clients can explicitly rebuild, refresh, invalidate, or snapshot the graph without Talos.
+
+A complete in-memory graph never weakens working-set security. Restricted graph Queries still receive the caller-visible project view: hidden reference sources are not returned, and impact traversal stops at hidden intermediate Documents rather than crossing them to reveal downstream nodes.
+
+`ProjectGraph` remains the serializable document-adjacency snapshot surface; `ProjectGraphIndex` owns incremental semantic-reference metadata. Query Tool IDs and schemas remain stable, so Talos discovers the same live GUIYI capabilities without owning graph semantics.
+
+See `docs/reference/PROJECT-GRAPH.md` for the detailed lifecycle, compatibility, security, and rollback contract.
+
 ## Legacy Agent-host compatibility boundary
 
 `engine_agent_host` still contains both valuable GUIYI execution safety and transitional generic loop/session concepts. ENG-014 deliberately does not make an alpha-breaking removal because the JSONL Workbench, examples, and tests still use the direct API.
@@ -136,6 +162,7 @@ This is a sunset decision, not permission to weaken GUIYI security. Permissions,
 ## Sources of truth
 
 - Authoring truth: `DocumentEnvelope` and registered document schemas.
+- Semantic relationship truth: `DocumentEnvelope.references`; `ProjectGraphIndex` is derived cache state only.
 - Build truth: deterministic `ArtifactEnvelope` output.
 - Runtime truth: short-lived ECS entities owned by a Stage instance.
 - Mutation truth: registered Commands and transaction reports.
