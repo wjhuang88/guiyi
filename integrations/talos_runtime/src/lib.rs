@@ -406,7 +406,7 @@ impl AgentTool for GuiyiAgentTool {
             };
             if let Err(error) = persistence_result {
                 if let Some(previous) = rollback_state {
-                    shared.host.state = previous;
+                    shared.host.replace_state(previous);
                 }
                 return TalosToolResult::error(
                     json!({

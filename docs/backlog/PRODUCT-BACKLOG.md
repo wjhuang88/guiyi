@@ -2,7 +2,7 @@
 
 This is the only executable requirement list.
 
-GitHub Issue state was last synchronized on 2026-10-22. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
+GitHub Issue state was last synchronized on 2026-10-23. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
 
 ## Current direction and ownership
 
@@ -27,7 +27,7 @@ First-party AI dependency rule:
 Current primary sequence:
 
 ```text
-ENG-012 Project Graph + ENG-013 semantic Stage commands
+ENG-013 semantic Stage commands
     ↓
 ENG-020..023 tactical RPG vertical
     ↓
@@ -36,7 +36,7 @@ ENG-030 Talos-driven playable-slice demo
 ENG-024 human review workbench
 ```
 
-ENG-014 established the accepted Talos Runtime SDK baseline for this sequence. A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
+ENG-014 established the accepted Talos Runtime SDK baseline and ENG-012 established the incremental semantic Project Graph baseline for this sequence. A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
 
 ## Done — Direction convergence
 
@@ -189,7 +189,7 @@ ENG-014 established the accepted Talos Runtime SDK baseline for this sequence. A
 - Type: Integration / Architecture
 - Priority: P0
 - Status: Done
-- GitHub: [#52](https://github.com/wjhuang88/guiyi/issues/52) — implementation PR #53; Issue remains open until merge
+- GitHub: [#52](https://github.com/wjhuang88/guiyi/issues/52) — completed by PR #53
 - Depends on: ENG-029 / #50 (Done).
 - Goal: integrate the published `talos-runtime` SDK through a thin outer adapter and stop growing GUIYI-owned generic Agent-loop behavior.
 - Dependency result: crates.io `talos-runtime = 0.10.1` is the only direct Talos dependency, with `default-features = false`, no optional Talos features, committed lockfile resolution, and an architecture gate preventing Talos dependencies from leaking into reusable GUIYI core/toolkit crates.
@@ -198,14 +198,28 @@ ENG-014 established the accepted Talos Runtime SDK baseline for this sequence. A
 - Migration result: Talos owns first-party generic Agent/session lifecycle; `AgentLoopDriver` / `AgentHost::run` are compatibility-only with a sunset direction; Talos-facing code uses `GuiyiExecutionContext`; legacy `AgentBudget` is not duplicated as a second first-party stopping policy.
 - Direct-client result: JSONL Workbench, CLI, examples, and tests remain usable without starting Talos.
 - Architecture: `docs/decisions/ADR-0016-TALOS-AGENT-RUNTIME.md`.
-- Evidence: `docs/validation/ENG-014.md`; PR #53 CI run 181 passed the complete implementation suite before closure-status synchronization. Merge remains gated on green CI for the current PR head.
+- Evidence: `docs/validation/ENG-014.md`; PR #53 clean-head CI run 185 passed the complete suite before squash merge `5ce7dae09e55e0c40c8345d67e81bd38f44b67b4`.
 
-## Ready — Current implementation sequence
+## Done — Iteration 003 semantic graph baseline
 
 ### ENG-012 Project graph index
 
-- Status: Ready
-- Goal: maintain an incremental semantic graph rather than rebuilding it for each query, and expose reusable game-world relationships/impact to Talos and other clients.
+- Type: Query / Architecture
+- Priority: P0
+- Status: Done
+- GitHub: [#54](https://github.com/wjhuang88/guiyi/issues/54) — implementation PR #55; final merge remains conditioned on clean-head CI for the closure-synchronized head.
+- Depends on: ENG-014 / #52 (Done).
+- Goal: maintain an incremental semantic graph rather than rebuilding it for each normal graph-backed Query, and expose reusable game-world relationships/impact to Talos and other clients.
+- Source-of-truth result: `DocumentEnvelope.references` remains authoritative; `ProjectGraphIndex` is derived in-memory cache state and is not persisted as a second project truth.
+- Query result: `project.references.find` and `project.impact.analyze` consume the maintained index on the normal `QueryExecutor` / `AgentHost` path while keeping their Tool IDs and schemas stable.
+- Mutation result: `AgentHost` builds from complete authoritative state and refreshes only `TransactionReport.document_diffs` after successful applied Commands; dry-run, rejected, and failed Commands do not refresh graph state. Built-in create/delete coverage proves new nodes are indexed and dangling incoming references survive target deletion.
+- Security result: restricted working sets neither return hidden reference sources nor traverse hidden intermediate graph nodes during impact analysis. After invalidation/rollback, `AgentHost` rebuilds from the complete authoritative store before filtering so a restricted caller cannot seed a partial shared graph.
+- Recovery result: state replacement and Talos persistence rollback invalidate derived graph state; direct clients have explicit rebuild/refresh/invalidate/snapshot APIs without Talos.
+- Compatibility: `QueryExecutor::execute` now takes `&mut self` because it owns derived cache lifecycle; direct `QueryHandler::execute` remains a compatibility path and `execute_indexed` has a default delegate.
+- Architecture: `docs/decisions/ADR-0011-PROJECT-GRAPH.md`; `docs/reference/PROJECT-GRAPH.md`.
+- Evidence: `docs/validation/ENG-012.md`; PR #55 CI run 204 (`39888285027`) passed the complete implementation suite on head `aefbfb0ee27055087913abd26af0611cc02f76ac`. Final merge remains gated on green CI for the closure-synchronized current PR head.
+
+## Ready — Current implementation sequence
 
 ### ENG-013 Stage object move/remove commands
 

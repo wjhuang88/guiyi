@@ -9,7 +9,7 @@ use guiyi_engine_command::{
 use guiyi_engine_content::DocumentStore;
 use guiyi_engine_core::{AgentSessionId, DocumentId, PermissionSet};
 use guiyi_engine_protocol::{ToolCall, ToolResult, ToolResultStatus};
-use guiyi_engine_query::{QueryContext, QueryExecutor, QueryRequest};
+use guiyi_engine_query::{ProjectGraph, QueryContext, QueryExecutor, QueryRequest};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, VecDeque};
@@ -131,25 +131,71 @@ pub struct AgentHost {
     command_executor: CommandExecutor,
     query_executor: QueryExecutor,
     catalog: ToolCatalog,
+    project_graph_needs_rebuild: bool,
 }
 
 impl AgentHost {
     pub fn new(
         state: EngineState,
         command_executor: CommandExecutor,
-        query_executor: QueryExecutor,
+        mut query_executor: QueryExecutor,
         catalog: ToolCatalog,
     ) -> Self {
+        // Build the derived graph once from the authoritative complete state so
+        // later working-set filtered Queries can safely reuse it without ever
+        // initializing the cache from a partial project view.
+        query_executor.rebuild_project_graph(&state.documents);
         Self {
             state,
             command_executor,
             query_executor,
             catalog,
+            project_graph_needs_rebuild: false,
         }
     }
 
     pub fn catalog(&self) -> &ToolCatalog {
         &self.catalog
+    }
+
+    /// Replace authoritative state and invalidate all derived Project Graph data.
+    ///
+    /// Recovery/rollback callers should use this instead of assigning `state`
+    /// directly so the next graph snapshot/query is rebuilt from complete
+    /// authoritative Documents before any working-set filtering occurs.
+    pub fn replace_state(&mut self, state: EngineState) {
+        self.state = state;
+        self.query_executor.invalidate_project_graph();
+        self.project_graph_needs_rebuild = true;
+    }
+
+    /// Explicitly invalidate the derived Project Graph after compatibility code
+    /// mutates the public alpha `state` field directly.
+    pub fn invalidate_project_graph(&mut self) {
+        self.query_executor.invalidate_project_graph();
+        self.project_graph_needs_rebuild = true;
+    }
+
+    /// Rebuild the Project Graph from current authoritative Documents.
+    pub fn rebuild_project_graph(&mut self) {
+        self.query_executor
+            .rebuild_project_graph(&self.state.documents);
+        self.project_graph_needs_rebuild = false;
+    }
+
+    /// Return a serializable snapshot of the maintained Project Graph.
+    pub fn project_graph_snapshot(&mut self) -> ProjectGraph {
+        self.ensure_project_graph();
+        self.query_executor
+            .project_graph_snapshot(&self.state.documents)
+    }
+
+    fn ensure_project_graph(&mut self) {
+        if self.project_graph_needs_rebuild {
+            self.query_executor
+                .rebuild_project_graph(&self.state.documents);
+            self.project_graph_needs_rebuild = false;
+        }
     }
 
     /// The only public tool-execution entry point.
@@ -337,26 +383,34 @@ impl AgentHost {
             allowed,
         );
         match result {
-            Ok(report) => match serde_json::to_value(&report) {
-                Ok(transaction) => ToolResult {
-                    call_id: call.id.clone(),
-                    status: ToolResultStatus::Ok,
-                    output: report.output.clone(),
-                    diagnostics: report
-                        .diagnostics
-                        .diagnostics
-                        .iter()
-                        .map(|item| serde_json::to_value(item).unwrap_or(Value::Null))
-                        .collect(),
-                    transaction: Some(transaction),
-                },
-                Err(error) => failed(
-                    call,
-                    AGENT_TOOL_FAILED,
-                    error.to_string(),
-                    json!({"tool": call.tool}),
-                ),
-            },
+            Ok(report) => {
+                if report.status == TransactionStatus::Applied {
+                    self.query_executor.refresh_project_graph(
+                        &self.state.documents,
+                        report.document_diffs.iter().map(|diff| &diff.document_id),
+                    );
+                }
+                match serde_json::to_value(&report) {
+                    Ok(transaction) => ToolResult {
+                        call_id: call.id.clone(),
+                        status: ToolResultStatus::Ok,
+                        output: report.output.clone(),
+                        diagnostics: report
+                            .diagnostics
+                            .diagnostics
+                            .iter()
+                            .map(|item| serde_json::to_value(item).unwrap_or(Value::Null))
+                            .collect(),
+                        transaction: Some(transaction),
+                    },
+                    Err(error) => failed(
+                        call,
+                        AGENT_TOOL_FAILED,
+                        error.to_string(),
+                        json!({"tool": call.tool}),
+                    ),
+                }
+            }
             Err(CommandError::ValidationFailed(bag)) => ToolResult {
                 call_id: call.id.clone(),
                 status: ToolResultStatus::Rejected,
@@ -395,11 +449,17 @@ impl AgentHost {
     }
 
     fn execute_query(
-        &self,
+        &mut self,
         session: &AgentSession,
         call: &ToolCall,
         allowed: Option<&BTreeSet<DocumentId>>,
     ) -> ToolResult {
+        // An invalidated graph must always be rebuilt from the complete
+        // authoritative store before the caller-visible store is filtered.
+        // Otherwise the first restricted query after rollback/recovery could
+        // accidentally seed a partial graph that later unrestricted callers
+        // would reuse.
+        self.ensure_project_graph();
         let visible_store = allowed.map(|allowed| filter_store(&self.state.documents, allowed));
         let store = visible_store.as_ref().unwrap_or(&self.state.documents);
         let output = self.query_executor.execute(
