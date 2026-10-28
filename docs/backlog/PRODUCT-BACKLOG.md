@@ -2,11 +2,13 @@
 
 This is the only executable requirement list.
 
-GitHub Issue state was last synchronized on 2026-10-23. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
+GitHub Issue state was last synchronized on 2026-10-28. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
 
 ## Current direction and ownership
 
 The current product proof is a real Talos-driven workflow over GUIYI's game-development capabilities.
+
+Product-surface goal: GUIYI is Agent-first rather than editor-first. The Agent interaction layer is the primary development and authoring surface and is intended to occupy the role a traditional game-engine Editor normally occupies in the development flow. Project understanding, semantic content edits, dry-run/diff review, diagnostics, validation, build, preview, and repair must be possible through machine-facing capabilities without requiring a GUI-only authoring gesture. A visual Editor is a secondary human client for review, inspection, debugging, visualization, approval, rollback, and exceptional intervention; it consumes the same Commands, Queries, transactions, diagnostics, and project truth rather than owning a second authoring model.
 
 Ownership rule:
 
@@ -207,7 +209,7 @@ ENG-014 established the accepted Talos Runtime SDK baseline and ENG-012 establis
 - Type: Query / Architecture
 - Priority: P0
 - Status: Done
-- GitHub: [#54](https://github.com/wjhuang88/guiyi/issues/54) — implementation PR #55; final merge remains conditioned on clean-head CI for the closure-synchronized head.
+- GitHub: [#54](https://github.com/wjhuang88/guiyi/issues/54) — completed by PR #55; squash merge `eed94d8d7d6a63b73c103198af1c33564ffa6bfe`.
 - Depends on: ENG-014 / #52 (Done).
 - Goal: maintain an incremental semantic graph rather than rebuilding it for each normal graph-backed Query, and expose reusable game-world relationships/impact to Talos and other clients.
 - Source-of-truth result: `DocumentEnvelope.references` remains authoritative; `ProjectGraphIndex` is derived in-memory cache state and is not persisted as a second project truth.
@@ -217,14 +219,23 @@ ENG-014 established the accepted Talos Runtime SDK baseline and ENG-012 establis
 - Recovery result: state replacement and Talos persistence rollback invalidate derived graph state; direct clients have explicit rebuild/refresh/invalidate/snapshot APIs without Talos.
 - Compatibility: `QueryExecutor::execute` now takes `&mut self` because it owns derived cache lifecycle; direct `QueryHandler::execute` remains a compatibility path and `execute_indexed` has a default delegate.
 - Architecture: `docs/decisions/ADR-0011-PROJECT-GRAPH.md`; `docs/reference/PROJECT-GRAPH.md`.
-- Evidence: `docs/validation/ENG-012.md`; PR #55 CI run 204 (`39888285027`) passed the complete implementation suite on head `aefbfb0ee27055087913abd26af0611cc02f76ac`. Final merge remains gated on green CI for the closure-synchronized current PR head.
+- Evidence: `docs/validation/ENG-012.md`; final clean-head PR #55 CI run 207 (`39888595677`) passed the complete suite before squash merge `eed94d8d7d6a63b73c103198af1c33564ffa6bfe`.
 
-## Ready — Current implementation sequence
+## In Progress — Current implementation sequence
 
 ### ENG-013 Stage object move/remove commands
 
-- Status: Ready
-- Goal: add high-level commands with dry-run, transaction diff, and bounds diagnostics so Talos can make semantic Stage edits without file-level mutation.
+- Type: Tactical Toolkit / Command
+- Priority: P0
+- Status: In Progress
+- GitHub: [#57](https://github.com/wjhuang88/guiyi/issues/57) — implementation PR #58.
+- Depends on: ENG-014 / #52 and ENG-012 / #54 (Done).
+- Ownership: GUIYI tactical-RPG toolkit; no Talos-specific mutation path and no engine-core dependency on toolkit code.
+- Goal: add high-level `stage.move_object` and `stage.remove_object` Commands with dry-run, transaction diff, structured bounds/missing-object diagnostics, permission/working-set enforcement, and normal semantic-reference/Project-Graph refresh so Agent clients can make common Stage edits without file-level or GUI-only mutation.
+- Agent-first result: a normal Stage move/remove authoring task is a discoverable typed capability rather than an Editor-only gesture; a future visual Editor invokes the same authoritative Commands.
+- Compatibility: additive Tool IDs only; no Stage document or persistence-format migration.
+- Reference: `docs/reference/STAGE-MODEL.md`.
+- Evidence: `docs/validation/ENG-013.md`; final completion remains gated on current-head complete CI and merge of PR #58.
 
 ## Proposed — Synced GitHub issue intake
 
