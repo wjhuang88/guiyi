@@ -2,6 +2,9 @@
 
 //! High-level tactical RPG commands and queries for AI agents and human clients.
 
+mod stage_object_commands;
+
+use crate::stage_object_commands::{MoveStageObjectCommand, RemoveStageObjectCommand};
 use guiyi_engine_command::{
     CommandDescriptor, CommandError, CommandHandler, CommandRegistry, EngineState,
 };
@@ -457,6 +460,8 @@ pub fn register_tactical_commands(registry: &mut CommandRegistry) -> Result<(), 
     registry.register(PlaceActorCommand)?;
     registry.register(CreateSpawnCommand)?;
     registry.register(CreateTriggerCommand)?;
+    registry.register(MoveStageObjectCommand)?;
+    registry.register(RemoveStageObjectCommand)?;
     registry.register(ConnectStageCommand)?;
     Ok(())
 }

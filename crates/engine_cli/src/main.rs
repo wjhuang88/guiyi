@@ -437,8 +437,8 @@ mod tests {
 
         assert_eq!(
             actual.len(),
-            8,
-            "expected exactly 8 command schemas in the catalog"
+            10,
+            "expected exactly 10 command schemas in the catalog"
         );
 
         for (id, expected_schema) in &expected {

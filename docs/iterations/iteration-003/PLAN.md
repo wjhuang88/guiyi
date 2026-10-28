@@ -2,123 +2,118 @@
 
 ## Goal
 
-Converge GUIYI's product and architecture direction on the published Talos runtime SDK, then increase the semantic game-world capabilities Talos and direct clients can safely use without weakening GUIYI's domain execution authority.
+Converge GUIYI on the published Talos runtime SDK, then increase the semantic game-development capabilities that Talos and direct clients can safely use without weakening GUIYI's domain execution authority.
+
+At the product-surface level, this iteration advances an Agent-first development flow: the Agent interaction layer should perform the normal semantic authoring, validation, build, preview, and repair work that a traditional engine Editor would otherwise mediate. Human UI remains a secondary client of the same machine-facing platform.
 
 ## Authorization
 
 - ENG-029 is Done and merged through PR #51 (`4dc57fe7203795e20b45042dfca22ceeb8adae0c`).
 - ENG-014 / #52 is Done and squash-merged through PR #53 (`5ce7dae09e55e0c40c8345d67e81bd38f44b67b4`).
-- ENG-012 / #54 implementation acceptance is complete on branch `feature/ENG-012-project-graph-index` through draft PR #55; merge remains gated on final closure-head CI.
-- ENG-013 remains Ready and is not part of the ENG-012 implementation branch.
+- ENG-012 / #54 is Done and squash-merged through PR #55 (`eed94d8d7d6a63b73c103198af1c33564ffa6bfe`). Final clean-head CI run 207 passed before merge.
+- ENG-013 / #57 implementation acceptance is complete on branch `feature/ENG-013-stage-object-move-remove` through draft PR #58; merge remains gated on final closure-head CI.
+- ENG-020..023 remain outside the ENG-013 patch and become the next primary capability sequence after ENG-013 closes.
 - Proposed Stories remain non-executable.
 
-## Completed Story slice — ENG-014
+## Completed baseline — ENG-014
 
-### ENG-014 Integrate Talos runtime SDK as GUIYI's first-party Agent runtime
+ENG-014 established crates.io `talos-runtime = 0.10.1` as the only direct Talos dependency, exposed live GUIYI Tool descriptors as individual Talos `AgentTool`s, kept GUIYI authoritative for domain security/transactions/persistence, and preserved direct Talos-independent clients.
 
-GitHub Issue: #52
+Architecture: `docs/decisions/ADR-0016-TALOS-AGENT-RUNTIME.md`.
 
-Merged PR: #53
+Validation: `docs/validation/ENG-014.md`; clean-head run 185 passed before merge.
 
-Architecture decision: `docs/decisions/ADR-0016-TALOS-AGENT-RUNTIME.md`
+## Completed baseline — ENG-012
 
-Validation record: `docs/validation/ENG-014.md`
+ENG-012 established `ProjectGraphIndex` as a reusable incremental derived semantic-reference index while keeping `DocumentEnvelope.references` authoritative.
 
-ENG-014 established crates.io `talos-runtime = 0.10.1` as the only direct Talos dependency, exposed GUIYI's live Tool catalog as individual Talos `AgentTool`s, kept GUIYI authoritative for domain security/transactions/persistence, and preserved direct Talos-independent clients.
+Delivered guarantees include:
 
-The final ENG-014 clean-head CI run 185 passed the complete repository suite before merge.
+- `project.references.find` and `project.impact.analyze` use the maintained index on the normal executor/host path;
+- applied transaction diffs refresh changed source Documents only;
+- dry-run/rejected/failed Commands do not mutate graph state;
+- working-set restrictions block hidden results and hidden-node traversal;
+- state replacement/persistence rollback invalidates derived graph state;
+- direct clients can rebuild/refresh/invalidate/snapshot without Talos.
 
-## Active Story slice — ENG-012
+Architecture/reference: `docs/decisions/ADR-0011-PROJECT-GRAPH.md`, `docs/reference/PROJECT-GRAPH.md`.
 
-### ENG-012 Maintain an incremental semantic Project Graph index
+Validation: `docs/validation/ENG-012.md`; final clean-head run 207 passed before PR #55 squash-merged as `eed94d8d7d6a63b73c103198af1c33564ffa6bfe`.
 
-GitHub Issue: #54
+## Closing Story slice — ENG-013
 
-Branch: `feature/ENG-012-project-graph-index`
+### ENG-013 Add semantic Stage object move/remove Commands
 
-Implementation PR: #55
+GitHub Issue: #57
 
-Architecture authority: `docs/decisions/ADR-0011-PROJECT-GRAPH.md`
+Branch: `feature/ENG-013-stage-object-move-remove`
 
-Reference: `docs/reference/PROJECT-GRAPH.md`
+Draft PR: #58
 
-Validation record: `docs/validation/ENG-012.md`
+Validation record: `docs/validation/ENG-013.md`
+
+Architecture authorities:
+
+- `docs/decisions/ADR-0007-TYPED-COMMANDS.md`
+- `docs/decisions/ADR-0008-TRANSACTIONS.md`
+- `docs/decisions/ADR-0010-DIAGNOSTICS.md`
+
+Reference: `docs/reference/STAGE-MODEL.md`.
 
 ### Problem
 
-The existing semantic graph contract was correct but normal graph-backed Queries rebuilt or scanned relationships per invocation. Iteration 003 now turns the accepted semantic-reference model into a reusable derived index without introducing a second project truth.
+The tactical toolkit could create Stages and place Actors, spawn points, triggers, and connections, but lacked semantic move/remove operations for existing stable Stage objects. That gap pushed a normal authoring action toward lower-level document mutation rather than the Agent-first semantic Tool surface.
 
-### ENG-012 work packages
+### Delivered work packages
 
-#### A. Derived graph/index boundary
+#### A. Semantic Commands
 
-Delivered:
+Implemented and registered:
 
-- keep `DocumentEnvelope.references` as authoritative semantic relationship data;
-- maintain `ProjectGraphIndex` in `guiyi-engine-query`;
-- preserve `ProjectGraph` as the serializable document-adjacency snapshot compatibility surface;
-- introduce no external graph database or Talos dependency in reusable engine crates.
+- `stage.move_object(stage_id, object_id, q, r)`;
+- `stage.remove_object(stage_id, object_id)`.
 
-#### B. Query reuse
+Both commands use the normal schema, permission, document-access, dry-run, transaction, diff, audit, persistence, and AgentHost path. No private Editor or Talos-specific mutation route was introduced.
 
-Delivered:
+#### B. Shared Stage validation
 
-- `project.references.find` uses the maintained index on the normal `QueryExecutor` / `AgentHost` path;
-- `project.impact.analyze` uses the maintained index on that path;
-- direct Query clients can rebuild, refresh, invalidate, and snapshot the graph without Talos.
+Candidate mutations reuse `validate_stage`.
 
-#### C. Incremental mutation lifecycle
+- invalid moves reuse `STAGE_OBJECT_OUT_OF_BOUNDS`;
+- unknown stable object IDs use `STAGE_OBJECT_NOT_FOUND` with Stage/object location;
+- non-blocking candidate diagnostics such as `STAGE_NO_SPAWN_POINT` remain in transaction reports.
 
-Delivered:
+#### C. Stable identity and semantic references
 
-```text
-GUIYI applied Command
-  ↓
-TransactionReport.document_diffs
-  ↓
-refresh only changed source Document IDs
-  ↓
-ProjectGraphIndex
-  ↓
-next relationship / impact Query
-```
+Moving an object changes only its coordinate while preserving stable ID, object kind, properties, and references.
 
-Dry-run, rejected, and failed Commands do not change graph state. State replacement or persistence rollback invalidates the derived graph. `AgentHost` rebuilds invalidated graph state from the complete authoritative `DocumentStore` before any restricted working-set view is applied, so a restricted caller cannot seed a partial shared graph.
+Removing an Actor regenerates the Stage envelope without that object's `actor_definition` reference. The normal ENG-012 applied-transaction refresh updates Project Graph reference results; there is no second graph mutation path.
 
-#### D. Working-set isolation
+#### D. Security and capability discovery
 
-Delivered:
+The two new Commands are live schema-bearing catalog capabilities, so the ENG-014 Talos adapter discovers them automatically. `AgentHost` still owns GUIYI permission and working-set enforcement, and direct non-Talos clients remain supported.
 
-- initialize/rebuild the maintained graph from complete authoritative `EngineState`;
-- continue using GUIYI access planning and filtered working-set project views;
-- do not return hidden source Documents;
-- do not traverse hidden intermediate graph nodes to reach otherwise visible downstream Documents;
-- regression coverage proves a restricted first Query after rollback cannot poison later unrestricted graph results.
+The CLI public command-schema golden was intentionally expanded from 8 to 10 Commands, proving the new capabilities are part of machine-facing discovery rather than hidden toolkit helpers.
 
-#### E. Compatibility and Talos availability
+#### E. Agent-first development surface
 
-Delivered:
+ENG-013 is a semantic capability-density Story. A normal “move/remove a Stage object” development task is now possible through discoverable typed Tools rather than an editor-only gesture or direct file patch. This is the expected pattern for later tactical capabilities: semantic Tool coverage precedes optional visual affordances.
 
-- keep existing graph Query Tool IDs and schemas stable;
-- keep the live Tool catalog as the capability source consumed by the ENG-014 Talos adapter;
-- keep Workbench/CLI/tests/direct GUIYI clients Talos-independent;
-- document `QueryExecutor::execute(&mut self, ...)` as an alpha receiver-level compatibility change;
-- Talos persistence rollback uses `AgentHost::replace_state` so document and graph recovery remain coherent.
+The broader product rule was synchronized into `docs/reference/AI-NATIVE-PLATFORM.md`, `docs/sop/DIRECTION-GOVERNANCE.md`, and the Product Backlog: the Agent interaction layer is the primary development surface, while a future visual Editor remains a secondary client of the same authoritative APIs.
 
-## Non-goals preserved for ENG-012
+## Non-goals preserved
 
-- No ENG-013 Stage move/remove implementation.
-- No ENG-020+ tactical feature implementation.
-- No visual editor/workbench expansion or visual graph UI.
-- No persisted Project Graph as a second authoring truth.
-- No generic graph database or new external graph dependency.
-- No Project Graph ownership moved into Talos.
-- No broad object/reference-model redesign beyond the existing `ContentReference` contract.
-- No GUIYI-owned provider/model abstraction, conversation runtime, planner, memory subsystem, retry/stopping framework, or second Agent loop.
+- No Stage connection edit/remove command.
+- No object rename or batch move/remove.
+- No occupancy, collision, pathfinding, reachability, encounter, dialogue, or ENG-020+ tactical rules.
+- No visual Editor authoring path.
+- No generic document-patch replacement for semantic commands.
+- No Talos provider/planner/session/runtime change.
+- No second persisted Project Graph truth.
 
 ## Validation
 
-Required full suite for ENG-012:
+Required full suite:
 
 ```bash
 cargo fmt --all -- --check
@@ -135,25 +130,30 @@ cargo run -p guiyi-example-tactical-demo
 cargo run -p guiyi-example-mock-agent-workflow
 ```
 
-PR #55 run 204 (`39888285027`) passed the complete suite on implementation head `aefbfb0ee27055087913abd26af0611cc02f76ac` after the rollback/working-set cache fix, create/delete/dangling-reference coverage, and removal of temporary CI diagnostic helpers. Earlier run 189 failed formatting and run 201 exposed a test-helper name-shadowing compile error under `--all-targets`; both are recorded as failure evidence in `docs/validation/ENG-012.md`, not as acceptance evidence.
+Validation history:
 
-This plan/validation/backlog closure synchronization changes the branch head. ENG-012 therefore remains gated on one final current clean-head CI run before PR #55 is marked ready or merged.
+- run 210 exposed an internal-module qualification failure in `static_rust_check.py` and rustfmt drift;
+- run 214 passed repository gates, fmt, check, and strict Clippy, then correctly failed the CLI capability golden because the live catalog grew from 8 to 10 command schemas;
+- implementation-head run 228 (`40723376393`) on `10fb887f0c82566863931c14fe222eba1d033147` passed the complete suite, including all workspace tests, doc, repository gates, and all three configured examples.
 
-Local clone/Cargo execution remains unavailable in the current execution environment because outbound DNS cannot resolve `github.com`; no local gate is claimed as passed.
+Closure documentation changes the branch head. PR #58 therefore remains draft and merge-gated until one final current clean-head CI run passes the same complete suite.
 
-## ENG-012 exit gate
+Local Cargo execution is unavailable in the current execution environment; no local gate is claimed as passed.
 
-ENG-012 is Done only when:
+## ENG-013 exit gate
 
-- Issue #54 acceptance scenarios A-F have executable coverage;
-- the maintained graph is reusable rather than rebuilt for every normal graph-backed Query;
-- applied transaction diffs incrementally refresh changed source Documents;
-- create/delete/reference-change/dangling-reference lifecycle is covered through the normal AgentHost transaction path;
-- dry-run/rejected/failed paths leave graph state unchanged;
-- working-set restrictions block hidden results and hidden-node traversal;
-- rollback/state replacement cannot leave a stale or partial derived graph;
-- graph Queries remain available through the live GUIYI Tool catalog/Talos adapter and direct clients;
-- architecture/reference/backlog/validation records are synchronized;
-- current clean-head GitHub CI passes the complete repository suite.
+Implementation acceptance is satisfied for:
 
-After ENG-012 closes, ENG-013 remains the next Ready capability Story before the ENG-020..023 tactical vertical sequence.
+- move apply preserving object identity/non-position fields and producing an applied diff;
+- move dry-run producing preview evidence without authoritative mutation;
+- structured out-of-bounds rejection;
+- remove apply deleting the stable object and reporting candidate warnings;
+- atomic `STAGE_OBJECT_NOT_FOUND` failure;
+- Actor removal updating semantic reference/Project Graph query results through the normal AgentHost transaction path;
+- authoritative permission and working-set denial;
+- live schema-bearing capability discovery through the normal catalog and direct clients;
+- Agent-first/reference/backlog/validation documentation synchronization.
+
+The remaining merge gate is one complete green CI run on the final closure-synchronized head. No repository edit should be made solely to copy that final run number after it succeeds.
+
+After ENG-013 closes, the primary implementation sequence continues with ENG-020..023 tactical-RPG vertical capabilities, then ENG-030 Talos-driven playable-slice proof, then the human review workbench.
