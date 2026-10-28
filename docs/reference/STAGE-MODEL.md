@@ -25,7 +25,7 @@ Both Commands:
 
 Out-of-bounds move candidates reuse the existing `STAGE_OBJECT_OUT_OF_BOUNDS` diagnostic, including Stage ID, object ID, and the position field location. Non-blocking diagnostics created by a legal removal, such as `STAGE_NO_SPAWN_POINT` after deleting the last spawn point, remain in the transaction report for Agent repair/planning.
 
-ENG-013 deliberately does not define batch movement/removal, connection editing, occupancy/collision, pathfinding, or game-specific tactical rules.
+ENG-013 deliberately does not define batch movement/removal, connection editing, occupancy/collision, pathfinding, or game-specific tactical rules. Executable acceptance and rollback evidence is recorded in `docs/validation/ENG-013.md`.
 
 ## Build
 
