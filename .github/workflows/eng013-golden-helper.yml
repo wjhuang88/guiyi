@@ -1,0 +1,49 @@
+name: ENG-013 CLI golden helper
+
+on:
+  push:
+    branches:
+      - feature/ENG-013-stage-object-move-remove
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feature/ENG-013-stage-object-move-remove
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update expected command count
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("crates/engine_cli/src/main.rs")
+          text = path.read_text()
+          old = '''        assert_eq!(
+              actual.len(),
+              8,
+              "expected exactly 8 command schemas in the catalog"
+          );'''
+          new = '''        assert_eq!(
+              actual.len(),
+              10,
+              "expected exactly 10 command schemas in the catalog"
+          );'''
+          if old not in text:
+              raise SystemExit("expected CLI golden assertion not found")
+          path.write_text(text.replace(old, new))
+          PY
+      - name: Commit update
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/engine_cli/src/main.rs
+          git commit -m "test(cli): expect ENG-013 command schemas"
+          git push
