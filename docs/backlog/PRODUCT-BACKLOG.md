@@ -29,8 +29,6 @@ First-party AI dependency rule:
 Current primary sequence:
 
 ```text
-ENG-013 semantic Stage commands
-    ↓
 ENG-020..023 tactical RPG vertical
     ↓
 ENG-030 Talos-driven playable-slice demo
@@ -38,7 +36,7 @@ ENG-030 Talos-driven playable-slice demo
 ENG-024 human review workbench
 ```
 
-ENG-014 established the accepted Talos Runtime SDK baseline and ENG-012 established the incremental semantic Project Graph baseline for this sequence. A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
+ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established the incremental semantic Project Graph baseline, and ENG-013 established semantic Stage object move/remove authoring for the Agent-first development surface. A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
 
 ## Done — Direction convergence
 
@@ -221,21 +219,21 @@ ENG-014 established the accepted Talos Runtime SDK baseline and ENG-012 establis
 - Architecture: `docs/decisions/ADR-0011-PROJECT-GRAPH.md`; `docs/reference/PROJECT-GRAPH.md`.
 - Evidence: `docs/validation/ENG-012.md`; final clean-head PR #55 CI run 207 (`39888595677`) passed the complete suite before squash merge `eed94d8d7d6a63b73c103198af1c33564ffa6bfe`.
 
-## In Progress — Current implementation sequence
+## Done — Iteration 003 semantic Stage editing baseline
 
 ### ENG-013 Stage object move/remove commands
 
 - Type: Tactical Toolkit / Command
 - Priority: P0
-- Status: In Progress
-- GitHub: [#57](https://github.com/wjhuang88/guiyi/issues/57) — implementation PR #58.
+- Status: Done
+- GitHub: [#57](https://github.com/wjhuang88/guiyi/issues/57) — implementation PR #58; merge remains gated on final clean-head CI.
 - Depends on: ENG-014 / #52 and ENG-012 / #54 (Done).
 - Ownership: GUIYI tactical-RPG toolkit; no Talos-specific mutation path and no engine-core dependency on toolkit code.
-- Goal: add high-level `stage.move_object` and `stage.remove_object` Commands with dry-run, transaction diff, structured bounds/missing-object diagnostics, permission/working-set enforcement, and normal semantic-reference/Project-Graph refresh so Agent clients can make common Stage edits without file-level or GUI-only mutation.
+- Goal/result: `stage.move_object` and `stage.remove_object` are live schema-bearing semantic Commands with normal dry-run, transaction diff, structured bounds/missing-object diagnostics, permission/working-set enforcement, audit behavior, and semantic-reference/Project-Graph refresh.
 - Agent-first result: a normal Stage move/remove authoring task is a discoverable typed capability rather than an Editor-only gesture; a future visual Editor invokes the same authoritative Commands.
 - Compatibility: additive Tool IDs only; no Stage document or persistence-format migration.
 - Reference: `docs/reference/STAGE-MODEL.md`.
-- Evidence: `docs/validation/ENG-013.md`; final completion remains gated on current-head complete CI and merge of PR #58.
+- Evidence: `docs/validation/ENG-013.md`; implementation-head CI run 228 (`40723376393`) passed the complete repository suite on `10fb887f0c82566863931c14fe222eba1d033147`. Final merge remains gated on green CI for the closure-synchronized current PR head.
 
 ## Proposed — Synced GitHub issue intake
 
