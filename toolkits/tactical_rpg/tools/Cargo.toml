@@ -16,5 +16,10 @@ tactical-rpg-validation = { path = "../validation" }
 serde.workspace = true
 serde_json.workspace = true
 
+[dev-dependencies]
+guiyi-engine-agent-host = { path = "../../../crates/engine_agent_host" }
+guiyi-engine-agent-tools = { path = "../../../crates/engine_agent_tools" }
+guiyi-engine-protocol = { path = "../../../crates/engine_protocol" }
+
 [lints]
 workspace = true
