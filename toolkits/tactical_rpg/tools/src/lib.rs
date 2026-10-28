@@ -4,6 +4,7 @@
 
 mod stage_object_commands;
 
+use crate::stage_object_commands::{MoveStageObjectCommand, RemoveStageObjectCommand};
 use guiyi_engine_command::{
     CommandDescriptor, CommandError, CommandHandler, CommandRegistry, EngineState,
 };
@@ -16,7 +17,6 @@ use guiyi_engine_schema::{FieldSchema, SchemaNode};
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use stage_object_commands::{MoveStageObjectCommand, RemoveStageObjectCommand};
 use tactical_rpg_content::{
     HexCoord, StageConnection, StageDocument, StageObject, StageObjectKind, STAGE_DOCUMENT_TYPE,
 };
