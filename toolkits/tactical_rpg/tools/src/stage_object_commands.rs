@@ -1,7 +1,7 @@
-use guiyi_engine_command::{
-    CommandDescriptor, CommandError, CommandHandler, EngineState,
+use guiyi_engine_command::{CommandDescriptor, CommandError, CommandHandler, EngineState};
+use guiyi_engine_core::{
+    DocumentAccessPlan, DocumentId, ObjectId, Permission, PermissionSet, ToolId,
 };
-use guiyi_engine_core::{DocumentAccessPlan, DocumentId, ObjectId, Permission, PermissionSet, ToolId};
 use guiyi_engine_schema::{FieldSchema, SchemaNode};
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag, DiagnosticLocation, Severity};
 use serde::Deserialize;
@@ -82,10 +82,7 @@ impl CommandHandler for MoveStageObjectCommand {
             .iter_mut()
             .find(|object| object.id == input.object_id)
             .ok_or_else(|| {
-                CommandError::InvalidInput(format!(
-                    "Stage object not found: {}",
-                    input.object_id
-                ))
+                CommandError::InvalidInput(format!("Stage object not found: {}", input.object_id))
             })?;
         let previous = object.position;
         let next = HexCoord::new(input.q, input.r);
@@ -167,10 +164,7 @@ impl CommandHandler for RemoveStageObjectCommand {
             .iter()
             .position(|object| object.id == input.object_id)
             .ok_or_else(|| {
-                CommandError::InvalidInput(format!(
-                    "Stage object not found: {}",
-                    input.object_id
-                ))
+                CommandError::InvalidInput(format!("Stage object not found: {}", input.object_id))
             })?;
         stage.objects.remove(index);
         let remaining_objects = stage.objects.len();

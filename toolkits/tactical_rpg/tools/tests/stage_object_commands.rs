@@ -130,7 +130,10 @@ fn move_dry_run_then_apply_preserves_identity_and_reports_diff_and_audit() {
     assert_eq!(preview.output["to"], json!({"q": 3, "r": 1}));
     assert_eq!(read_stage(&state).objects[1].position, HexCoord::new(2, 2));
     assert_eq!(executor.audit_log().len(), 1);
-    assert_eq!(executor.audit_log()[0].report.status, TransactionStatus::Previewed);
+    assert_eq!(
+        executor.audit_log()[0].report.status,
+        TransactionStatus::Previewed
+    );
 
     let mut apply = request();
     apply.dry_run = false;
@@ -284,7 +287,10 @@ fn live_command_descriptors_advertise_move_and_remove_schemas() {
     let mut registry = CommandRegistry::default();
     register_tactical_commands(&mut registry).unwrap();
     for (tool, required) in [
-        ("stage.move_object", ["stage_id", "object_id", "q", "r"].as_slice()),
+        (
+            "stage.move_object",
+            ["stage_id", "object_id", "q", "r"].as_slice(),
+        ),
         ("stage.remove_object", ["stage_id", "object_id"].as_slice()),
     ] {
         let descriptor = registry
