@@ -6,6 +6,32 @@ AI-native means that GUIYI is designed around machine-consumable game-developmen
 
 GUIYI is not itself the first-party general Agent runtime. Talos owns that role. GUIYI provides the structured world, Tools, safety boundaries, diagnostics, and deterministic execution evidence that Talos consumes.
 
+## Agent-first development surface
+
+The primary GUIYI development surface is the Agent interaction layer, not a traditional editor-centric workflow. At the product level, the Talos + GUIYI Tool path is intended to occupy the development role that a conventional game-engine Editor normally occupies:
+
+```text
+understand project
+    ↓
+query semantic state
+    ↓
+make typed game-content changes
+    ↓
+inspect dry-run diff + diagnostics
+    ↓
+apply transaction
+    ↓
+validate / build / preview
+    ↓
+repair or continue iteration
+```
+
+A normal game-development task is therefore not considered fully machine-native when it can only be completed through an editor-only button, mouse gesture, hidden UI state, or direct source-file mutation. The preferred fix is to expose or refine the relevant semantic Command, Query, diagnostic, build/preview operation, or toolkit intent Tool.
+
+A visual GUIYI Editor may exist, but its architectural role is secondary: review, visualization, inspection, debugging, approval, rollback, and exceptional human intervention. It consumes the same project models, Commands, Queries, diagnostics, transactions, build pipeline, and preview/runtime boundaries as the Agent path. It does not own a separate mutation model or a second authoring truth.
+
+This does not mean every traditional editor affordance must have a one-to-one Tool. GUIYI should prefer semantic, intent-level capabilities over exposing raw GUI-equivalent primitives.
+
 ## Canonical first-party Agent loop
 
 Talos runs the first-party reasoning loop:
@@ -87,3 +113,5 @@ See [Agent session execution boundary](AGENT-SESSIONS.md) for the implemented mi
 ENG-014 establishes the real Talos Runtime SDK baseline: Talos discovers schema-bearing GUIYI Tools, executes Queries, dry-runs and applies Commands through GUIYI's authoritative boundary, receives structured recoverable failures, and leaves durable transaction/audit evidence while direct clients remain independent.
 
 The broader target proof is a real Talos-driven workflow that creates or edits a tactical-RPG slice, responds to structured diagnostics, repairs invalid content, builds and previews the result, and leaves a reviewable transaction trail. That product-level proof remains owned by later Stories such as ENG-030; mock/scripted providers in ENG-014 are integration acceptance evidence, not the final product demo.
+
+ENG-012 and ENG-013 intentionally increase semantic capability density on this path: project relationships become queryable as maintained semantic state, and common Stage-object edits become typed transactional operations. These are examples of replacing editor-only authoring gestures with discoverable game-semantic capabilities rather than reproducing GUI mechanics one click at a time.
