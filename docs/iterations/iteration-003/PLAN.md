@@ -11,8 +11,8 @@ At the product-surface level, this iteration advances an Agent-first development
 - ENG-029 is Done and merged through PR #51 (`4dc57fe7203795e20b45042dfca22ceeb8adae0c`).
 - ENG-014 / #52 is Done and squash-merged through PR #53 (`5ce7dae09e55e0c40c8345d67e81bd38f44b67b4`).
 - ENG-012 / #54 is Done and squash-merged through PR #55 (`eed94d8d7d6a63b73c103198af1c33564ffa6bfe`). Final clean-head CI run 207 passed before merge.
-- ENG-013 / #57 is the active Ready/In-Progress capability Story on branch `feature/ENG-013-stage-object-move-remove` through draft PR #58.
-- ENG-020..023 remain outside the ENG-013 patch and follow after ENG-013 closes.
+- ENG-013 / #57 implementation acceptance is complete on branch `feature/ENG-013-stage-object-move-remove` through draft PR #58; merge remains gated on final closure-head CI.
+- ENG-020..023 remain outside the ENG-013 patch and become the next primary capability sequence after ENG-013 closes.
 - Proposed Stories remain non-executable.
 
 ## Completed baseline — ENG-014
@@ -40,7 +40,7 @@ Architecture/reference: `docs/decisions/ADR-0011-PROJECT-GRAPH.md`, `docs/refere
 
 Validation: `docs/validation/ENG-012.md`; final clean-head run 207 passed before PR #55 squash-merged as `eed94d8d7d6a63b73c103198af1c33564ffa6bfe`.
 
-## Active Story slice — ENG-013
+## Closing Story slice — ENG-013
 
 ### ENG-013 Add semantic Stage object move/remove Commands
 
@@ -49,6 +49,8 @@ GitHub Issue: #57
 Branch: `feature/ENG-013-stage-object-move-remove`
 
 Draft PR: #58
+
+Validation record: `docs/validation/ENG-013.md`
 
 Architecture authorities:
 
@@ -60,18 +62,18 @@ Reference: `docs/reference/STAGE-MODEL.md`.
 
 ### Problem
 
-The tactical toolkit can create Stages and place Actors, spawn points, triggers, and connections, but it lacked semantic move/remove operations for existing stable Stage objects. That gap forced a normal authoring action toward lower-level document mutation rather than the Agent-first semantic Tool surface.
+The tactical toolkit could create Stages and place Actors, spawn points, triggers, and connections, but lacked semantic move/remove operations for existing stable Stage objects. That gap pushed a normal authoring action toward lower-level document mutation rather than the Agent-first semantic Tool surface.
 
-### ENG-013 work packages
+### Delivered work packages
 
 #### A. Semantic Commands
 
-Implement and register:
+Implemented and registered:
 
 - `stage.move_object(stage_id, object_id, q, r)`;
 - `stage.remove_object(stage_id, object_id)`.
 
-Both commands use the normal schema, permission, document-access, dry-run, transaction, diff, audit, persistence, and AgentHost path. No private editor or Talos-specific mutation route is introduced.
+Both commands use the normal schema, permission, document-access, dry-run, transaction, diff, audit, persistence, and AgentHost path. No private Editor or Talos-specific mutation route was introduced.
 
 #### B. Shared Stage validation
 
@@ -91,11 +93,15 @@ Removing an Actor regenerates the Stage envelope without that object's `actor_de
 
 The two new Commands are live schema-bearing catalog capabilities, so the ENG-014 Talos adapter discovers them automatically. `AgentHost` still owns GUIYI permission and working-set enforcement, and direct non-Talos clients remain supported.
 
+The CLI public command-schema golden was intentionally expanded from 8 to 10 Commands, proving the new capabilities are part of machine-facing discovery rather than hidden toolkit helpers.
+
 #### E. Agent-first development surface
 
-ENG-013 is intentionally a semantic capability-density Story. A normal “move/remove a Stage object” development task must be possible through discoverable typed Tools rather than an editor-only gesture or direct file patch. This is the model for later tactical capabilities: semantic Tool coverage precedes optional visual affordances.
+ENG-013 is a semantic capability-density Story. A normal “move/remove a Stage object” development task is now possible through discoverable typed Tools rather than an editor-only gesture or direct file patch. This is the expected pattern for later tactical capabilities: semantic Tool coverage precedes optional visual affordances.
 
-## Non-goals
+The broader product rule was synchronized into `docs/reference/AI-NATIVE-PLATFORM.md`, `docs/sop/DIRECTION-GOVERNANCE.md`, and the Product Backlog: the Agent interaction layer is the primary development surface, while a future visual Editor remains a secondary client of the same authoritative APIs.
+
+## Non-goals preserved
 
 - No Stage connection edit/remove command.
 - No object rename or batch move/remove.
@@ -107,7 +113,7 @@ ENG-013 is intentionally a semantic capability-density Story. A normal “move/r
 
 ## Validation
 
-ENG-013 requires:
+Required full suite:
 
 ```bash
 cargo fmt --all -- --check
@@ -124,28 +130,30 @@ cargo run -p guiyi-example-tactical-demo
 cargo run -p guiyi-example-mock-agent-workflow
 ```
 
-Intermediate failures are evidence, not acceptance:
+Validation history:
 
 - run 210 exposed an internal-module qualification failure in `static_rust_check.py` and rustfmt drift;
-- run 214 passed repository gates, fmt, check, and strict Clippy, then correctly failed the CLI capability golden because the live catalog grew from 8 to 10 command schemas.
+- run 214 passed repository gates, fmt, check, and strict Clippy, then correctly failed the CLI capability golden because the live catalog grew from 8 to 10 command schemas;
+- implementation-head run 228 (`40723376393`) on `10fb887f0c82566863931c14fe222eba1d033147` passed the complete suite, including all workspace tests, doc, repository gates, and all three configured examples.
 
-The CLI golden is being synchronized to the intentional public capability expansion. ENG-013 remains In Progress until implementation/docs are synchronized and one final current clean-head CI run passes the complete suite.
+Closure documentation changes the branch head. PR #58 therefore remains draft and merge-gated until one final current clean-head CI run passes the same complete suite.
 
 Local Cargo execution is unavailable in the current execution environment; no local gate is claimed as passed.
 
 ## ENG-013 exit gate
 
-ENG-013 is Done only when:
+Implementation acceptance is satisfied for:
 
-- move apply preserves object identity/non-position fields and produces an applied diff;
-- move dry-run produces preview evidence without authoritative mutation;
-- out-of-bounds move is rejected with structured bounds diagnostics;
-- remove apply deletes the stable object and reports candidate warnings;
-- missing object move/remove returns `STAGE_OBJECT_NOT_FOUND` atomically;
-- Actor removal updates semantic reference/Project Graph query results through the normal AgentHost transaction path;
-- permission and working-set denial remain authoritative;
-- both Commands are discoverable with machine-readable schemas through the live catalog/Talos adapter and direct clients;
-- Stage/reference/backlog/validation documentation is synchronized, including the Agent-first development-surface rule;
-- current clean-head GitHub CI passes the complete repository suite.
+- move apply preserving object identity/non-position fields and producing an applied diff;
+- move dry-run producing preview evidence without authoritative mutation;
+- structured out-of-bounds rejection;
+- remove apply deleting the stable object and reporting candidate warnings;
+- atomic `STAGE_OBJECT_NOT_FOUND` failure;
+- Actor removal updating semantic reference/Project Graph query results through the normal AgentHost transaction path;
+- authoritative permission and working-set denial;
+- live schema-bearing capability discovery through the normal catalog and direct clients;
+- Agent-first/reference/backlog/validation documentation synchronization.
+
+The remaining merge gate is one complete green CI run on the final closure-synchronized head. No repository edit should be made solely to copy that final run number after it succeeds.
 
 After ENG-013 closes, the primary implementation sequence continues with ENG-020..023 tactical-RPG vertical capabilities, then ENG-030 Talos-driven playable-slice proof, then the human review workbench.
