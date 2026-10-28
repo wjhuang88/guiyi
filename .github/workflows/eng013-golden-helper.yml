@@ -21,21 +21,17 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
+
           path = Path("crates/engine_cli/src/main.rs")
           text = path.read_text()
-          old = '''        assert_eq!(
-              actual.len(),
-              8,
-              "expected exactly 8 command schemas in the catalog"
-          );'''
-          new = '''        assert_eq!(
-              actual.len(),
-              10,
-              "expected exactly 10 command schemas in the catalog"
-          );'''
-          if old not in text:
-              raise SystemExit("expected CLI golden assertion not found")
-          path.write_text(text.replace(old, new))
+          pattern = re.compile(
+              r'(actual\.len\(\),\s*)8(,\s*"expected exactly )8( command schemas in the catalog")'
+          )
+          updated, count = pattern.subn(r'\g<1>10\g<2>10\g<3>', text, count=1)
+          if count != 1:
+              raise SystemExit(f"expected one CLI golden assertion, found {count}")
+          path.write_text(updated)
           PY
       - name: Commit update
         run: |
