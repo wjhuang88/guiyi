@@ -8,6 +8,8 @@ The current product proof is:
 
 > A real Talos session can discover GUIYI capabilities, understand a project semantically, make typed transactional game-content changes, repair structured diagnostics, validate, build, preview, and leave a reviewable audit trail for a playable tactical-RPG slice.
 
+At the product-surface level, GUIYI is **Agent-first rather than editor-first**. The Agent interaction layer is intended to occupy the primary development and authoring role that a traditional game-engine Editor normally occupies: project understanding, semantic content changes, validation, build, preview, diagnostics, and iteration must all be possible through machine-facing capabilities without requiring a GUI Editor. A visual Editor may exist, but it is a secondary human client for review, inspection, debugging, approval, visualization, and exceptional manual intervention. It must consume the same authoritative Commands, Queries, diagnostics, transactions, and project models rather than becoming a second authoring system.
+
 Near-term work should remove a concrete blocker to this proof, close a P0/P1 safety/reliability gap that would invalidate it, or provide a required compatibility/migration foundation.
 
 ## Mandatory ownership test
@@ -77,6 +79,8 @@ intent-level toolkit Tool
 
 High-level Tools must still delegate through GUIYI validation, transaction, permission and audit boundaries.
 
+The Agent-first development-surface goal makes missing semantic Tool coverage a product capability gap, not merely a UX inconvenience. When a normal development task would traditionally require an Editor-only gesture, prefer adding or refining the corresponding typed Command, Query, diagnostic, preview, or intent-level Tool rather than teaching an Agent to automate GUI input.
+
 ## Sequence control
 
 The current default sequence is:
@@ -127,7 +131,9 @@ Do not solve an ownership mistake by adding a convenience abstraction in the wro
 
 ## Human UI gate
 
-Before the Talos-driven production demo is credible, human-client work should be limited to functionality required for review, debugging, inspection, or approval of the machine-facing workflow. A GUI-only authoring capability is not an acceptable shortcut around missing Commands, Queries, diagnostics, or Tool schemas.
+Before the Talos-driven production demo is credible, human-client work should be limited to functionality required for review, debugging, inspection, visualization, approval, rollback, or exceptional intervention in the machine-facing workflow. A GUI-only authoring capability is not an acceptable shortcut around missing Commands, Queries, diagnostics, or Tool schemas.
+
+A future GUI Editor must remain a client of the same machine-facing authoring platform. It may make those capabilities easier for humans to inspect or invoke, but it must not own hidden mutation semantics, editor-only project state, or a second source of authoring truth.
 
 ## Completion review
 
@@ -136,6 +142,7 @@ At Story completion, ask:
 - Did this change strengthen the Talos → GUIYI → Bevy path?
 - Did GUIYI accidentally acquire generic Agent-runtime responsibility?
 - Is every new public capability discoverable and callable headlessly?
+- Could the normal development task be completed by the Agent interaction layer without requiring a GUI-only authoring gesture?
 - Is the authoritative state still owned by the correct layer?
 - Did any dependency or API choice create a second source of truth?
 
