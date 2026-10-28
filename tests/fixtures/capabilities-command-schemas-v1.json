@@ -220,6 +220,35 @@
     "type": "object",
     "x-schema-version": 1
   },
+  "stage.move_object": {
+    "additionalProperties": true,
+    "properties": {
+      "object_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "q": {
+        "type": "integer",
+        "x-schema-version": 1
+      },
+      "r": {
+        "type": "integer",
+        "x-schema-version": 1
+      },
+      "stage_id": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "stage_id",
+      "object_id",
+      "q",
+      "r"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
   "stage.place_actor": {
     "additionalProperties": true,
     "properties": {
@@ -254,6 +283,25 @@
       "definition",
       "q",
       "r"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
+  "stage.remove_object": {
+    "additionalProperties": true,
+    "properties": {
+      "object_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "stage_id": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "stage_id",
+      "object_id"
     ],
     "type": "object",
     "x-schema-version": 1
