@@ -128,7 +128,8 @@ impl CommandHandler for AddEncounterParticipantCommand {
     }
 
     fn validate(&self, input: &Value, state: &EngineState) -> DiagnosticBag {
-        let Ok(input) = serde_json::from_value::<AddEncounterParticipantInput>(input.clone()) else {
+        let Ok(input) = serde_json::from_value::<AddEncounterParticipantInput>(input.clone())
+        else {
             return DiagnosticBag::default();
         };
         let Ok(envelope) = state.documents.get(&input.encounter_id) else {
