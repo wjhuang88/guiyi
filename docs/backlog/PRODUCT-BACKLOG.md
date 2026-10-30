@@ -2,7 +2,7 @@
 
 This is the only executable requirement list.
 
-GitHub Issue state was last synchronized on 2026-10-30. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
+GitHub Issue state was last synchronized on 2026-10-31. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
 
 ## Current direction and ownership
 
@@ -242,7 +242,7 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 - Type: Tactical Toolkit / Validation / Tools
 - Priority: P0
 - Status: Done
-- GitHub: [#59](https://github.com/wjhuang88/guiyi/issues/59) — implementation PR #61; merge remains gated on final clean-head CI.
+- GitHub: [#59](https://github.com/wjhuang88/guiyi/issues/59) — completed by PR #61; squash merge `80eaee3338e5a772b1b56a2b44e97f8eef73afb4`.
 - Depends on: ENG-014 / #52, ENG-012 / #54, and ENG-013 / #57 (Done).
 - Primary ownership: GUIYI tactical-RPG toolkit (`content`, `validation`, `tools`); no engine-core or Talos-runtime ownership change.
 - Result: `StageDocument` owns defaulted blocked-cell navigation authoring data; tactical content provides deterministic Hex/Square BFS; shared validation reports blocked-cell/spawn/unreachable diagnostics; `stage.set_navigation_blocked` and `stage.reachability` are live schema-bearing capabilities.
@@ -252,7 +252,25 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 - Compatibility: additive Tool IDs only; command capability catalog grows from 10 to 11; no Talos SDK/version/feature or external dependency change.
 - Non-goals preserved: runtime movement AI, terrain costs, dynamic occupancy/collision, LOS/cover/turn rules, navmesh generation, ENG-021/022/023, visual navigation UI, generic engine-core pathfinding.
 - Reference: `docs/reference/STAGE-MODEL.md`.
-- Evidence: `docs/validation/ENG-020.md`; full integration CI run 243 (`41056886141`) passed on `4f5bc5ef9552fce17484ae8efc83dd699eb51f7b`. Final merge remains gated on green CI for the closure-synchronized clean head.
+- Evidence: `docs/validation/ENG-020.md`; final clean-head CI run 248 (`41057321015`) passed on `70aabd59b0bfe8da138e148ab9ccbcb4600e03f7` before squash merge `80eaee3338e5a772b1b56a2b44e97f8eef73afb4`.
+
+## Ready — Gate 3 encounter vertical
+
+### ENG-021 Encounter document, compiler, and semantic authoring commands
+
+- Type: Tactical Toolkit / Content / Compiler / Validation / Tools
+- Priority: P0
+- Status: Ready
+- GitHub: [#62](https://github.com/wjhuang88/guiyi/issues/62) — Open
+- Depends on: ENG-014 / #52, ENG-012 / #54, ENG-013 / #57, and ENG-020 / #59 (Done).
+- Primary ownership: GUIYI tactical-RPG toolkit (`content`, `validation`, `tools`), with CLI/example registration only to make the new document type validate/build through existing engine infrastructure.
+- North-star contribution: make Encounter composition — Stage binding, stable participants, actor definitions, spawn points, and sides — a typed machine-facing authoring capability rather than an Editor-only table or raw document patch.
+- Scope: additive `EncounterDocument` / `EncounterParticipant`, authoritative semantic references, deterministic `EncounterCompiler`, structured Encounter validation, and `encounter.create`, `encounter.add_participant`, `encounter.remove_participant` Commands.
+- Machine-facing gate: live schema-bearing Command discovery through the normal GUIYI catalog and ENG-014 Talos adapter; existing built-in document/Project Graph Queries remain the read-side inspection surface.
+- Dependency direction: toolkit -> engine only; no engine-core Encounter abstraction, Talos SDK/version/feature change, or new external dependency.
+- Migration: new document/artifact types and Tool IDs are additive; existing projects require no migration; Project Graph remains derived from `DocumentEnvelope.references`.
+- Non-goals: runtime initiative/turn scheduling/combat resolution/AI/damage/victory/rewards, conditions/effects/dialogue (ENG-022), intent-level stage playability (ENG-023), party/inventory/quest systems, visual Encounter UI.
+- Validation/rollback: Issue #62 is the implementation contract; full repository gates and final clean-head CI are required before Done/merge; rollback remains local to additive toolkit/CLI/example/docs changes.
 
 ## Proposed — Synced GitHub issue intake
 
@@ -304,7 +322,6 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 
 ## Proposed — Product direction
 
-- ENG-021 Encounter document and compiler.
 - ENG-022 Dialogue graph and condition/effect registry.
 - ENG-023 Intent-level `tactical.make_stage_playable` Tool.
 - ENG-024 Human transaction-review and spatial-inspection workbench.
