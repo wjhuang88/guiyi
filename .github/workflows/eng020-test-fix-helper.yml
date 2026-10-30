@@ -1,0 +1,47 @@
+name: ENG-020 test fix helper
+
+on:
+  push:
+    branches:
+      - feature/ENG-020-navigation-reachability
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feature/ENG-020-navigation-reachability
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Fix catalog API and format
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("toolkits/tactical_rpg/tools/tests/navigation.rs")
+          text = path.read_text()
+          old = '''        let descriptor = catalog
+            .descriptors()
+            .iter()
+            .find(|descriptor| descriptor.id.as_str() == tool)
+            .unwrap();'''
+          new = '''        let descriptor = catalog
+            .list()
+            .find(|descriptor| descriptor.id.as_str() == tool)
+            .unwrap();'''
+          if text.count(old) != 1:
+              raise SystemExit(f"catalog test pattern count={text.count(old)}")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          cargo fmt --all
+      - name: Commit fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add toolkits/tactical_rpg/tools/tests/navigation.rs
+          git commit -m "test(tactical): fix ENG-020 integration coverage"
+          git push
