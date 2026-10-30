@@ -10,5 +10,8 @@ guiyi-engine-content = { path = "../../../crates/engine_content" }
 serde.workspace = true
 serde_json.workspace = true
 
+[dev-dependencies]
+guiyi-engine-build = { path = "../../../crates/engine_build" }
+
 [lints]
 workspace = true
