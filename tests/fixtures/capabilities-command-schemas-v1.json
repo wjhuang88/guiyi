@@ -75,6 +75,88 @@
     "type": "object",
     "x-schema-version": 1
   },
+  "encounter.add_participant": {
+    "additionalProperties": true,
+    "properties": {
+      "actor_definition": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "encounter_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "participant_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "side": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "spawn_point": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "stage_id": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "encounter_id",
+      "stage_id",
+      "participant_id",
+      "actor_definition",
+      "spawn_point",
+      "side"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
+  "encounter.create": {
+    "additionalProperties": true,
+    "properties": {
+      "encounter_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "name": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "stage_id": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "encounter_id",
+      "name",
+      "stage_id"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
+  "encounter.remove_participant": {
+    "additionalProperties": true,
+    "properties": {
+      "encounter_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "participant_id": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "encounter_id",
+      "participant_id"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
   "stage.connect": {
     "additionalProperties": true,
     "properties": {
