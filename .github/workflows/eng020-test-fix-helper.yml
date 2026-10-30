@@ -24,18 +24,10 @@ jobs:
           from pathlib import Path
           path = Path("toolkits/tactical_rpg/tools/tests/navigation.rs")
           text = path.read_text()
-          old = '''        let descriptor = catalog
-            .descriptors()
-            .iter()
-            .find(|descriptor| descriptor.id.as_str() == tool)
-            .unwrap();'''
-          new = '''        let descriptor = catalog
-            .list()
-            .find(|descriptor| descriptor.id.as_str() == tool)
-            .unwrap();'''
+          old = ".descriptors()\n            .iter()"
           if text.count(old) != 1:
-              raise SystemExit(f"catalog test pattern count={text.count(old)}")
-          path.write_text(text.replace(old, new, 1))
+              raise SystemExit(f"catalog API pattern count={text.count(old)}")
+          path.write_text(text.replace(old, ".list()", 1))
           PY
           cargo fmt --all
       - name: Commit fixes
