@@ -136,7 +136,7 @@ Validation history:
 
 - run 210 exposed an internal-module qualification failure in `static_rust_check.py` and rustfmt drift;
 - run 214 passed repository gates, fmt, check, and strict Clippy, then correctly failed the CLI capability golden because the live catalog grew from 8 to 10 command schemas;
-- implementation-head run 228 (`40723376393`) on `10fb887f0c825b8fd13a9b2c929de6a24b1e04652` passed the complete suite;
+- implementation-head run 228 (`40723376393`) on `10fb887f0c82566863931c14fe222eba1d033147` passed the complete suite;
 - final clean-head run 234 (`40724726043`) on `5f7408fa55e7aad30824ed4bbae6d2e9faa230b9` passed the complete suite before PR #58 squash-merged as `cb6c2a5016d04fd59e97926ae62b416bff6b41a0`.
 
 Local Cargo execution is unavailable in the current execution environment; no local gate is claimed as passed.
