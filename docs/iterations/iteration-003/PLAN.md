@@ -11,9 +11,10 @@ At the product-surface level, this iteration advances an Agent-first development
 - ENG-029 is Done and merged through PR #51 (`4dc57fe7203795e20b45042dfca22ceeb8adae0c`).
 - ENG-014 / #52 is Done and squash-merged through PR #53 (`5ce7dae09e55e0c40c8345d67e81bd38f44b67b4`).
 - ENG-012 / #54 is Done and squash-merged through PR #55 (`eed94d8d7d6a63b73c103198af1c33564ffa6bfe`). Final clean-head CI run 207 passed before merge.
-- ENG-013 / #57 implementation acceptance is complete on branch `feature/ENG-013-stage-object-move-remove` through draft PR #58; merge remains gated on final closure-head CI.
-- ENG-020..023 remain outside the ENG-013 patch and become the next primary capability sequence after ENG-013 closes.
-- Proposed Stories remain non-executable.
+- ENG-013 / #57 is Done and squash-merged through PR #58 (`cb6c2a5016d04fd59e97926ae62b416bff6b41a0`). Final clean-head CI run 234 passed before merge.
+- ENG-020 / #59 has passed the Direction Governance Ready checklist and is the next authorized Gate-3 tactical capability Story.
+- ENG-021..023 remain Proposed and non-executable until separately promoted.
+- Other Proposed Stories remain non-executable.
 
 ## Completed baseline — ENG-014
 
@@ -40,7 +41,7 @@ Architecture/reference: `docs/decisions/ADR-0011-PROJECT-GRAPH.md`, `docs/refere
 
 Validation: `docs/validation/ENG-012.md`; final clean-head run 207 passed before PR #55 squash-merged as `eed94d8d7d6a63b73c103198af1c33564ffa6bfe`.
 
-## Closing Story slice — ENG-013
+## Completed Story slice — ENG-013
 
 ### ENG-013 Add semantic Stage object move/remove Commands
 
@@ -48,7 +49,7 @@ GitHub Issue: #57
 
 Branch: `feature/ENG-013-stage-object-move-remove`
 
-Draft PR: #58
+Merged PR: #58
 
 Validation record: `docs/validation/ENG-013.md`
 
@@ -134,9 +135,8 @@ Validation history:
 
 - run 210 exposed an internal-module qualification failure in `static_rust_check.py` and rustfmt drift;
 - run 214 passed repository gates, fmt, check, and strict Clippy, then correctly failed the CLI capability golden because the live catalog grew from 8 to 10 command schemas;
-- implementation-head run 228 (`40723376393`) on `10fb887f0c82566863931c14fe222eba1d033147` passed the complete suite, including all workspace tests, doc, repository gates, and all three configured examples.
-
-Closure documentation changes the branch head. PR #58 therefore remains draft and merge-gated until one final current clean-head CI run passes the same complete suite.
+- implementation-head run 228 (`40723376393`) on `10fb887f0c82566863931c14fe222eba1d033147` passed the complete suite;
+- final clean-head run 234 (`40724726043`) on `5f7408fa55e7aad30824ed4bbae6d2e9faa230b9` passed the complete suite before PR #58 squash-merged as `cb6c2a5016d04fd59e97926ae62b416bff6b41a0`.
 
 Local Cargo execution is unavailable in the current execution environment; no local gate is claimed as passed.
 
@@ -154,6 +154,20 @@ Implementation acceptance is satisfied for:
 - live schema-bearing capability discovery through the normal catalog and direct clients;
 - Agent-first/reference/backlog/validation documentation synchronization.
 
-The remaining merge gate is one complete green CI run on the final closure-synchronized head. No repository edit should be made solely to copy that final run number after it succeeds.
+ENG-013 is fully closed.
 
-After ENG-013 closes, the primary implementation sequence continues with ENG-020..023 tactical-RPG vertical capabilities, then ENG-030 Talos-driven playable-slice proof, then the human review workbench.
+## Ready Story slice — ENG-020
+
+### ENG-020 Add tactical navigation map and reachability validation
+
+GitHub Issue: #59
+
+Primary owner: GUIYI tactical-RPG toolkit.
+
+ENG-020 is the first Gate-3 tactical vertical Story. It adds backward-compatible Stage blocked-cell authoring data, deterministic Hex/Square reachability, structured navigation diagnostics, the mutating `stage.set_navigation_blocked` Command, and the read-only `stage.reachability` Query. These capabilities must remain headless and live-catalog discoverable so Agent clients can perform the navigation authoring/inspection work a traditional Editor would otherwise mediate.
+
+The Story explicitly excludes runtime movement AI, terrain costs, dynamic occupancy/collision, LOS/cover/turn rules, navmesh generation, visual navigation UI, generic engine-core pathfinding, and ENG-021/022/023 scope. No Talos SDK change or new external dependency is expected. Existing Stage payloads remain readable through defaulted navigation data.
+
+Issue #59 is the implementation contract and requires the complete repository suite plus final clean-head CI before Done/merge.
+
+After ENG-020 closes, ENG-021 is the preferred next Gate-3 capability candidate, but remains Proposed until separately promoted.
