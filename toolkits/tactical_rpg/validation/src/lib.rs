@@ -1,6 +1,9 @@
 #![forbid(unsafe_code)]
 
-//! Tactical Stage validation with machine-readable error codes.
+//! Tactical Stage and Encounter validation with machine-readable error codes.
+
+mod encounter;
+pub use self::encounter::*;
 
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag, DiagnosticLocation};
 use std::collections::BTreeSet;
