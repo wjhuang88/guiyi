@@ -168,32 +168,32 @@ fn create_encounter_dry_run_and_apply_preserve_warning_and_reviewability() {
 
 #[test]
 fn add_participant_updates_document_references_and_rejects_invalid_candidates_atomically() {
-    let mut executor = executor();
-    let mut state = state(true, false);
-    let applied = executor
+    let mut command_executor = executor();
+    let mut engine_state = state(true, false);
+    let applied = command_executor
         .execute(
             add_request(SPAWN_ID, STAGE_ID, false),
             &context(),
-            &mut state,
+            &mut engine_state,
         )
         .unwrap();
     assert_eq!(applied.status, TransactionStatus::Applied);
     assert_eq!(applied.document_diffs.len(), 1);
-    let encounter = read_encounter(&state);
+    let encounter = read_encounter(&engine_state);
     assert_eq!(encounter.participants.len(), 1);
-    let envelope = state
+    let envelope = engine_state
         .documents
         .get(&DocumentId::from_static(ENCOUNTER_ID))
         .unwrap();
     assert_eq!(envelope.references.len(), 3);
 
     let mut duplicate_executor = executor();
-    let before = state.clone();
+    let before = engine_state.clone();
     let duplicate = duplicate_executor
         .execute(
             add_request(SPAWN_ID, STAGE_ID, false),
             &context(),
-            &mut state,
+            &mut engine_state,
         )
         .unwrap_err();
     let CommandError::ValidationFailed(bag) = duplicate else {
@@ -203,7 +203,7 @@ fn add_participant_updates_document_references_and_rejects_invalid_candidates_at
         .diagnostics
         .iter()
         .any(|item| item.code == ENCOUNTER_DUPLICATE_PARTICIPANT_ID));
-    assert_eq!(state, before);
+    assert_eq!(engine_state, before);
 
     let mut missing_executor = executor();
     let mut missing_state = state(true, false);
