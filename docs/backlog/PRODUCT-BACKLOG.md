@@ -29,14 +29,14 @@ First-party AI dependency rule:
 Current primary sequence:
 
 ```text
-ENG-021..023 tactical RPG vertical
+ENG-022..023 tactical RPG vertical
     ↓
 ENG-030 Talos-driven playable-slice demo
     ↓
 ENG-024 human review workbench
 ```
 
-ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established the incremental semantic Project Graph baseline, ENG-013 established semantic Stage object move/remove authoring, and ENG-020 established deterministic Stage navigation/reachability for the Agent-first development surface. A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
+ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established the incremental semantic Project Graph baseline, ENG-013 established semantic Stage object move/remove authoring, ENG-020 established deterministic Stage navigation/reachability, and ENG-021 establishes Agent-first Encounter composition through additive content, compilation, validation, semantic references, and typed Commands. A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
 
 ## Done — Direction convergence
 
@@ -254,23 +254,25 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 - Reference: `docs/reference/STAGE-MODEL.md`.
 - Evidence: `docs/validation/ENG-020.md`; final clean-head CI run 248 (`41057321015`) passed on `70aabd59b0bfe8da138e148ab9ccbcb4600e03f7` before squash merge `80eaee3338e5a772b1b56a2b44e97f8eef73afb4`.
 
-## Ready — Gate 3 encounter vertical
+## Done — Gate 3 Encounter baseline
 
 ### ENG-021 Encounter document, compiler, and semantic authoring commands
 
 - Type: Tactical Toolkit / Content / Compiler / Validation / Tools
 - Priority: P0
-- Status: Ready
-- GitHub: [#62](https://github.com/wjhuang88/guiyi/issues/62) — Open
+- Status: Done
+- GitHub: [#62](https://github.com/wjhuang88/guiyi/issues/62) — implementation PR #64; merge remains gated on final clean-head CI.
 - Depends on: ENG-014 / #52, ENG-012 / #54, ENG-013 / #57, and ENG-020 / #59 (Done).
-- Primary ownership: GUIYI tactical-RPG toolkit (`content`, `validation`, `tools`), with CLI/example registration only to make the new document type validate/build through existing engine infrastructure.
-- North-star contribution: make Encounter composition — Stage binding, stable participants, actor definitions, spawn points, and sides — a typed machine-facing authoring capability rather than an Editor-only table or raw document patch.
-- Scope: additive `EncounterDocument` / `EncounterParticipant`, authoritative semantic references, deterministic `EncounterCompiler`, structured Encounter validation, and `encounter.create`, `encounter.add_participant`, `encounter.remove_participant` Commands.
-- Machine-facing gate: live schema-bearing Command discovery through the normal GUIYI catalog and ENG-014 Talos adapter; existing built-in document/Project Graph Queries remain the read-side inspection surface.
-- Dependency direction: toolkit -> engine only; no engine-core Encounter abstraction, Talos SDK/version/feature change, or new external dependency.
-- Migration: new document/artifact types and Tool IDs are additive; existing projects require no migration; Project Graph remains derived from `DocumentEnvelope.references`.
-- Non-goals: runtime initiative/turn scheduling/combat resolution/AI/damage/victory/rewards, conditions/effects/dialogue (ENG-022), intent-level stage playability (ENG-023), party/inventory/quest systems, visual Encounter UI.
-- Validation/rollback: Issue #62 is the implementation contract; full repository gates and final clean-head CI are required before Done/merge; rollback remains local to additive toolkit/CLI/example/docs changes.
+- Primary ownership: GUIYI tactical-RPG toolkit (`content`, `validation`, `tools`), with CLI/example registration only where required by existing build/validation infrastructure.
+- Result: additive `EncounterDocument` / `EncounterParticipant` authoring content, deterministic `EncounterCompiler`, structured local/project-aware validation, and semantic Stage/actor/spawn references through authoritative `DocumentEnvelope.references`.
+- Agent-first result: Encounter composition is available through live `encounter.create`, `encounter.add_participant`, and `encounter.remove_participant` Commands; built-in document and Project Graph Queries remain the canonical read side, so no Editor-only table or second read model is required.
+- Security/result: `encounter.add_participant` explicitly declares Encounter, Stage, and actor-definition access; supplied `stage_id` must match persisted Encounter Stage, allowing AgentHost working-set enforcement to cover every document read without creating a second Stage truth.
+- Build/result: CLI and tactical demo register Stage + Encounter compilers and mark actor definitions authoring-only; strict build compiles valid Stage+Encounter content and reuses the generic unresolved-reference gate for missing documents.
+- Graph/result: participant add/remove regenerates Encounter references and normal ENG-012 applied-transaction refresh updates `project.references.find` without a second graph mutation path.
+- Compatibility: additive document/artifact types and Tool IDs only; command capability catalog grows from 11 to 14; no existing Stage schema/Tool migration, Talos SDK/version/feature change, external dependency, or new workspace dependency edge.
+- Non-goals preserved: runtime initiative/turn scheduling/combat resolution/AI/damage/victory/rewards, conditions/effects/dialogue (ENG-022), intent-level stage playability (ENG-023), party/inventory/quest systems, visual Encounter UI, generic engine-core Encounter abstraction.
+- Reference: `docs/reference/ENCOUNTER-MODEL.md`.
+- Evidence: `docs/validation/ENG-021.md`; implementation-head CI run 265 (`41091412663`) passed the complete suite on `9553ad90038d825f610cadf6b047e9da96d841a8`. Merge remains gated on final closure-synchronized clean-head CI.
 
 ## Proposed — Synced GitHub issue intake
 
