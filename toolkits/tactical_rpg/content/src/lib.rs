@@ -2,6 +2,9 @@
 
 //! Tactical RPG authoring types and Stage compiler.
 
+mod encounter;
+pub use self::encounter::*;
+
 use guiyi_engine_content::{
     ArtifactEnvelope, CompileContext, ContentError, ContentReference, DocumentCompiler,
     DocumentEnvelope, DocumentHeader, RuntimeObjectDescriptor, StageArtifactPayload,

@@ -2,9 +2,13 @@
 
 //! High-level tactical RPG commands and queries for AI agents and human clients.
 
+mod encounter;
 mod navigation;
 mod stage_object_commands;
 
+use crate::encounter::{
+    AddEncounterParticipantCommand, CreateEncounterCommand, RemoveEncounterParticipantCommand,
+};
 use crate::navigation::{ReachabilityQuery, SetNavigationBlockedCommand};
 use crate::stage_object_commands::{MoveStageObjectCommand, RemoveStageObjectCommand};
 use guiyi_engine_command::{
@@ -20,7 +24,8 @@ use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tactical_rpg_content::{
-    HexCoord, StageConnection, StageDocument, StageObject, StageObjectKind, STAGE_DOCUMENT_TYPE,
+    HexCoord, StageConnection, StageDocument, StageObject, StageObjectKind,
+    ENCOUNTER_DOCUMENT_TYPE, STAGE_DOCUMENT_TYPE,
 };
 use tactical_rpg_validation::validate_stage;
 
@@ -466,6 +471,9 @@ pub fn register_tactical_commands(registry: &mut CommandRegistry) -> Result<(), 
     registry.register(RemoveStageObjectCommand)?;
     registry.register(SetNavigationBlockedCommand)?;
     registry.register(ConnectStageCommand)?;
+    registry.register(CreateEncounterCommand)?;
+    registry.register(AddEncounterParticipantCommand)?;
+    registry.register(RemoveEncounterParticipantCommand)?;
     Ok(())
 }
 
@@ -477,7 +485,7 @@ pub fn register_tactical_queries(registry: &mut QueryRegistry) -> Result<(), Que
 }
 
 pub fn is_tactical_document(type_id: &str) -> bool {
-    type_id == STAGE_DOCUMENT_TYPE
+    matches!(type_id, STAGE_DOCUMENT_TYPE | ENCOUNTER_DOCUMENT_TYPE)
 }
 
 #[cfg(test)]

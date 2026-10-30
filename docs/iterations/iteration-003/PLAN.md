@@ -12,8 +12,9 @@ At the product-surface level, this iteration advances an Agent-first development
 - ENG-014 / #52 is Done and squash-merged through PR #53 (`5ce7dae09e55e0c40c8345d67e81bd38f44b67b4`).
 - ENG-012 / #54 is Done and squash-merged through PR #55 (`eed94d8d7d6a63b73c103198af1c33564ffa6bfe`). Final clean-head CI run 207 passed before merge.
 - ENG-013 / #57 is Done and squash-merged through PR #58 (`cb6c2a5016d04fd59e97926ae62b416bff6b41a0`). Final clean-head CI run 234 passed before merge.
-- ENG-020 / #59 implementation acceptance is complete on `feature/ENG-020-navigation-reachability` through draft PR #61; merge remains gated on final closure-head CI.
-- ENG-021..023 remain Proposed and non-executable until separately promoted.
+- ENG-020 / #59 is Done and squash-merged through PR #61 (`80eaee3338e5a772b1b56a2b44e97f8eef73afb4`). Final clean-head CI run 248 passed before merge.
+- ENG-021 / #62 implementation acceptance is complete on `feature/ENG-021-encounter-document-compiler` through draft PR #64; merge remains gated on final closure-head CI.
+- ENG-022..023 remain Proposed and non-executable until separately promoted.
 - Other Proposed Stories remain non-executable.
 
 ## Completed baseline — ENG-014
@@ -156,7 +157,7 @@ Implementation acceptance is satisfied for:
 
 ENG-013 is fully closed.
 
-## Closing Story slice — ENG-020
+## Completed Story slice — ENG-020
 
 ### ENG-020 Add tactical navigation map and reachability validation
 
@@ -164,29 +165,78 @@ GitHub Issue: #59
 
 Primary owner: GUIYI tactical-RPG toolkit.
 
-ENG-020 is the first Gate-3 tactical vertical Story. It adds backward-compatible Stage blocked-cell authoring data, deterministic Hex/Square reachability, structured navigation diagnostics, the mutating `stage.set_navigation_blocked` Command, and the read-only `stage.reachability` Query. These capabilities must remain headless and live-catalog discoverable so Agent clients can perform the navigation authoring/inspection work a traditional Editor would otherwise mediate.
+ENG-020 established backward-compatible Stage blocked-cell authoring data, deterministic Hex/Square reachability, structured navigation diagnostics, `stage.set_navigation_blocked`, and `stage.reachability` as machine-facing Agent-first capabilities.
 
-The Story explicitly excludes runtime movement AI, terrain costs, dynamic occupancy/collision, LOS/cover/turn rules, navmesh generation, visual navigation UI, generic engine-core pathfinding, and ENG-021/022/023 scope. No Talos SDK change or new external dependency is expected. Existing Stage payloads remain readable through defaulted navigation data.
+Delivered guarantees include:
 
-Issue #59 is the implementation contract. The implementation now satisfies its content, validation, Command, Query, security, compatibility, and live-catalog scenarios.
+- defaulted `StageNavigation.blocked` data and Stage artifact metadata preservation;
+- deterministic tactical-content BFS for HexAxial/Square only;
+- stable navigation diagnostics including bounds, duplicate blocked cells, blocked spawns, and unreachable objects;
+- normal schema/permission/access/dry-run/transaction/diff/audit/persistence behavior for navigation mutation;
+- structured reachability Query results;
+- AgentHost permission/working-set enforcement and live catalog discovery;
+- command capability golden growth from 10 to 11 Commands.
 
-### Delivered ENG-020 work packages
+Final clean-head run 248 (`41057321015`) on `70aabd59b0bfe8da138e148ab9ccbcb4600e03f7` passed the complete suite before PR #61 squash-merged as `80eaee3338e5a772b1b56a2b44e97f8eef73afb4`. Full evidence, compatibility, risks, and rollback are recorded in `docs/validation/ENG-020.md`.
 
-- defaulted `StageNavigation.blocked` data keeps legacy Stage payloads readable and is preserved in Stage artifact metadata;
-- deterministic BFS lives in tactical content for HexAxial/Square only, with fixed neighbor order, blocked/out-of-bounds exclusion, and explicit free-space unsupported behavior;
-- `validate_stage` reports `STAGE_NAV_BLOCKED_CELL_OUT_OF_BOUNDS`, `STAGE_NAV_DUPLICATE_BLOCKED_CELL`, `STAGE_NAV_SPAWN_BLOCKED`, `STAGE_OBJECT_UNREACHABLE`, and unsupported-coordinate-space diagnostics;
-- `stage.set_navigation_blocked` uses the normal schema/permission/access/dry-run/transaction/diff/audit/persistence path and rejects candidates that break reachability;
-- `stage.reachability` returns deterministic shortest path/distance, disconnected results, and structured missing-object/unsupported diagnostics;
-- AgentHost integration proves permission and working-set authority; live Tool catalog coverage proves both capabilities are machine-discoverable and therefore flow through the existing Talos adapter;
-- command capability golden grows from 10 to 11 Commands; no new external dependency or Talos change was introduced.
+## Closing Story slice — ENG-021
 
-### ENG-020 validation history
+### ENG-021 Add Encounter document, compiler, and semantic authoring commands
 
-- governance run 236 passed before Ready promotion merged;
-- core implementation run 238 (`41056355806`) passed the complete suite;
-- run 239 (`41056626414`) stopped at rustfmt after integration tests were added and is repair evidence only;
-- full integration run 243 (`41056886141`) on `4f5bc5ef9552fce17484ae8efc83dd699eb51f7b` passed fmt, check, strict Clippy, all workspace tests, doc, repository gates, and all three examples.
+GitHub Issue: #62
 
-Closure documentation changes the head. ENG-020 remains merge-gated until one final complete clean-head CI run succeeds after all temporary helpers are removed. Full evidence, compatibility, risks, and rollback are recorded in `docs/validation/ENG-020.md`.
+Branch: `feature/ENG-021-encounter-document-compiler`
 
-After ENG-020 closes, ENG-021 is the preferred next Gate-3 capability candidate, but remains Proposed until separately promoted.
+Implementation PR: #64
+
+Validation record: `docs/validation/ENG-021.md`
+
+Primary owner: GUIYI tactical-RPG toolkit.
+
+ENG-021 makes Encounter composition a typed machine-facing development capability. It adds additive Encounter authoring/artifact types, deterministic compilation, project-aware validation, semantic Stage/actor/spawn references, and three schema-bearing authoring Commands without introducing a visual-Editor-only path or runtime combat system.
+
+### Delivered ENG-021 work packages
+
+#### A. Encounter content and compiler
+
+- `EncounterDocument` owns one Stage and ordered stable participants;
+- each participant owns stable ID, actor-definition ID, spawn-point ID, and side;
+- `EncounterDocument::to_envelope` emits deterministic `encounter_stage`, `encounter_actor_definition`, and `encounter_spawn_point` references;
+- `EncounterCompiler` produces `tactical.encounter.artifact` through the normal source-hash/integrity path and rejects invalid local authoring structure.
+
+#### B. Shared validation
+
+Local and project-aware validators emit stable Encounter diagnostics for empty names, incremental zero-participant state, duplicate participant IDs, empty side, missing/wrong Stage, missing spawn, and invalid spawn kind. Generic unresolved document references remain owned by the existing strict reference/build gates.
+
+#### C. Semantic Commands
+
+Implemented and registered:
+
+- `encounter.create(encounter_id, name, stage_id)`;
+- `encounter.add_participant(encounter_id, stage_id, participant_id, actor_definition, spawn_point, side)`;
+- `encounter.remove_participant(encounter_id, participant_id)`.
+
+All use the normal schema, permission, document-access, dry-run, transaction, diff, audit, persistence, and AgentHost path. `add_participant` includes `stage_id` as an access-plan assertion that must match persisted Encounter Stage, ensuring working-set checks cover every document read without creating a second Stage truth.
+
+#### D. Project Graph and security
+
+Encounter participant mutations regenerate authoritative `DocumentEnvelope.references`; the normal ENG-012 applied-transaction refresh makes Project Graph Queries observe add/remove relationships. Read-only callers are rejected, and excluding the Stage from the working set rejects participant addition even when Encounter and actor-definition documents are visible.
+
+#### E. Build / CLI / executable example
+
+CLI validation reuses project-aware Encounter validation. CLI and tactical-demo builds register Stage + Encounter compilers while marking actor definitions authoring-only. Strict build coverage proves valid Stage+Encounter composition produces both artifacts, while missing actor definitions reuse `BUILD_UNRESOLVED_REFERENCE` and produce no partial artifacts. The tactical demo creates Encounter content through semantic Commands and compiles it in the normal executable path.
+
+#### F. Capability discovery / Agent-first surface
+
+The three new Commands are live schema-bearing catalog capabilities, so the existing ENG-014 Talos adapter discovers them automatically. The command-schema golden grows from 11 to 14 Commands. Existing document and Project Graph Queries remain the read side rather than introducing a redundant Encounter projection.
+
+### ENG-021 validation history
+
+- governance run 250 (`41088787964`) passed the complete suite before Ready promotion PR #63 merged as `1335f3eee36835bfd02048a24d7b35785f913f79`;
+- early runs 252 / 258 stopped at rustfmt while the implementation was still being assembled and are formatting repair evidence only;
+- run 264 (`41091020910`) passed repository gates, fmt, and workspace check, then strict Clippy rejected test-local helper shadowing; production code compiled and the test names were repaired without suppressing lints;
+- implementation-head run 265 (`41091412663`) on exact head `9553ad90038d825f610cadf6b047e9da96d841a8` passed fmt, check, strict Clippy, all workspace tests, doc, repository gates, and all three examples.
+
+Closure synchronization changes the branch head. ENG-021 remains merge-gated until one final complete clean-head CI run succeeds. Full evidence, compatibility, risks, and rollback are recorded in `docs/validation/ENG-021.md`.
+
+After ENG-021 closes, ENG-022 is the preferred next Gate-3 capability candidate, but remains Proposed until separately promoted. ENG-023 also remains Proposed and non-executable.

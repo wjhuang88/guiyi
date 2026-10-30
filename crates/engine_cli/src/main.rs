@@ -2,21 +2,24 @@
 
 use clap::{Parser, Subcommand};
 use guiyi_engine_agent_tools::ToolCatalog;
-use guiyi_engine_build::BuildPipeline;
+use guiyi_engine_build::{BuildPipeline, BuildProfile};
 use guiyi_engine_command::{register_builtin_document_commands, CommandRegistry};
 use guiyi_engine_content::{
     CompileContext, CompilerRegistry, ContentReference, DocumentEnvelope, DocumentStore,
     ProjectManifest, ProjectPath, ProjectStorage, ProjectTransaction,
 };
-use guiyi_engine_core::{AgentSessionId, EngineVersion, ProjectId};
+use guiyi_engine_core::{AgentSessionId, EngineTypeId, EngineVersion, ProjectId};
 use guiyi_engine_query::{register_builtin_queries, QueryRegistry};
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use tactical_rpg_content::{StageCompiler, StageDocument, STAGE_DOCUMENT_TYPE};
+use tactical_rpg_content::{
+    EncounterCompiler, EncounterDocument, StageCompiler, StageDocument, ACTOR_DEFINITION_TYPE,
+    ENCOUNTER_DOCUMENT_TYPE, STAGE_DOCUMENT_TYPE,
+};
 use tactical_rpg_tools::{register_tactical_commands, register_tactical_queries};
-use tactical_rpg_validation::validate_stage;
+use tactical_rpg_validation::{validate_encounter_project, validate_stage};
 
 #[derive(Debug, Parser)]
 #[command(name = "guiyi-engine-cli")]
@@ -262,7 +265,12 @@ fn compile_project(root: &Path, out: &Path, as_json: bool) -> Result<(), String>
     compilers
         .register(StageCompiler)
         .map_err(|error| error.to_string())?;
-    let report = BuildPipeline::new(compilers).build(
+    compilers
+        .register(EncounterCompiler)
+        .map_err(|error| error.to_string())?;
+    let profile = BuildProfile::default()
+        .with_authoring_only_type(EngineTypeId::from_static(ACTOR_DEFINITION_TYPE));
+    let report = BuildPipeline::with_profile(compilers, profile).build(
         &store,
         &CompileContext {
             project_root: storage.root().to_path_buf(),
@@ -339,6 +347,16 @@ fn validate_store(store: &DocumentStore) -> DiagnosticBag {
                 Ok(stage) => diagnostics.extend(validate_stage(&stage)),
                 Err(error) => diagnostics.push(
                     Diagnostic::error("STAGE_PARSE_FAILED", error.to_string())
+                        .at_document(document.header.id.clone()),
+                ),
+            }
+        } else if document.header.type_id.as_str() == ENCOUNTER_DOCUMENT_TYPE {
+            match EncounterDocument::from_envelope(document) {
+                Ok(encounter) => {
+                    diagnostics.extend(validate_encounter_project(&encounter, store));
+                }
+                Err(error) => diagnostics.push(
+                    Diagnostic::error("ENCOUNTER_PARSE_FAILED", error.to_string())
                         .at_document(document.header.id.clone()),
                 ),
             }
@@ -437,8 +455,8 @@ mod tests {
 
         assert_eq!(
             actual.len(),
-            11,
-            "expected exactly 11 command schemas in the catalog"
+            14,
+            "expected exactly 14 command schemas in the catalog"
         );
 
         for (id, expected_schema) in &expected {
