@@ -9,10 +9,8 @@ use guiyi_engine_content::{CompileContext, CompilerRegistry, DocumentEnvelope, D
 use guiyi_engine_core::{DocumentId, EngineTypeId, PermissionSet, ToolId};
 use guiyi_engine_runtime::StageRuntimeManager;
 use serde_json::json;
-use tactical_rpg_content::StageCompiler;
+use tactical_rpg_content::{EncounterCompiler, StageCompiler, ACTOR_DEFINITION_TYPE};
 use tactical_rpg_tools::register_tactical_commands;
-
-const ACTOR_DEFINITION_TYPE: &str = "tactical.actor.definition";
 
 fn main() {
     let mut commands = CommandRegistry::default();
@@ -23,6 +21,20 @@ fn main() {
         permissions: PermissionSet::content_author(),
     };
     let mut state = EngineState::default();
+    state
+        .documents
+        .insert(DocumentEnvelope {
+            header: DocumentHeader {
+                id: DocumentId::from_static("actor.guard.basic"),
+                type_id: EngineTypeId::from_static(ACTOR_DEFINITION_TYPE),
+                schema_version: 1,
+                display_name: "Basic Guard".into(),
+            },
+            references: Vec::new(),
+            payload: json!({"health": 10, "movement": 4}),
+        })
+        .unwrap();
+
     for (tool, input) in [
         (
             "stage.create",
@@ -35,6 +47,21 @@ fn main() {
         (
             "stage.place_actor",
             json!({"stage_id": "stage.demo", "object_id": "actor.guard", "definition": "actor.guard.basic", "q": 4, "r": 3}),
+        ),
+        (
+            "encounter.create",
+            json!({"encounter_id": "encounter.demo", "name": "Demo Encounter", "stage_id": "stage.demo"}),
+        ),
+        (
+            "encounter.add_participant",
+            json!({
+                "encounter_id": "encounter.demo",
+                "stage_id": "stage.demo",
+                "participant_id": "participant.guard",
+                "actor_definition": "actor.guard.basic",
+                "spawn_point": "spawn.player",
+                "side": "enemy"
+            }),
         ),
     ] {
         executor
@@ -50,22 +77,9 @@ fn main() {
             .unwrap();
     }
 
-    state
-        .documents
-        .insert(DocumentEnvelope {
-            header: DocumentHeader {
-                id: DocumentId::from_static("actor.guard.basic"),
-                type_id: EngineTypeId::from_static(ACTOR_DEFINITION_TYPE),
-                schema_version: 1,
-                display_name: "Basic Guard".into(),
-            },
-            references: Vec::new(),
-            payload: json!({"health": 10, "movement": 4}),
-        })
-        .unwrap();
-
     let mut compilers = CompilerRegistry::default();
     compilers.register(StageCompiler).unwrap();
+    compilers.register(EncounterCompiler).unwrap();
     let profile = BuildProfile::default()
         .with_authoring_only_type(EngineTypeId::from_static(ACTOR_DEFINITION_TYPE));
     let report = BuildPipeline::with_profile(compilers, profile).build(
@@ -76,14 +90,19 @@ fn main() {
         },
     );
     assert!(report.succeeded(), "diagnostics: {:?}", report.diagnostics);
-    assert_eq!(report.artifacts.len(), 1);
+    assert_eq!(report.artifacts.len(), 2);
     assert_eq!(report.skipped_documents.len(), 1);
 
+    let stage_artifact = report
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.source_document.as_str() == "stage.demo")
+        .unwrap();
     let mut world = World::new();
     let mut runtime = StageRuntimeManager::default();
-    let instance = runtime.load(&mut world, &report.artifacts[0]).unwrap();
+    let instance = runtime.load(&mut world, stage_artifact).unwrap();
     println!(
-        "stage instance {} loaded with {} entities",
+        "stage instance {} loaded with {} entities; Encounter compiled",
         instance,
         world.entities().len()
     );
