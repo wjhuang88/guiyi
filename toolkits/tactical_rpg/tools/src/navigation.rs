@@ -36,7 +36,8 @@ impl CommandHandler for SetNavigationBlockedCommand {
         CommandDescriptor {
             id: ToolId::from_static("stage.set_navigation_blocked"),
             title: "Set Stage navigation blocked cell".into(),
-            description: "Block or unblock one grid cell in Stage navigation authoring data.".into(),
+            description: "Block or unblock one grid cell in Stage navigation authoring data."
+                .into(),
             input_schema: Value::Null,
             output_schema: json!({"type": "object"}),
             required_permissions: PermissionSet::new([Permission::EditContent]),
@@ -130,8 +131,8 @@ impl QueryHandler for ReachabilityQuery {
         QueryDescriptor {
             id: ToolId::from_static("stage.reachability"),
             title: "Stage object reachability".into(),
-            description: "Return deterministic shortest-path reachability between two Stage objects."
-                .into(),
+            description:
+                "Return deterministic shortest-path reachability between two Stage objects.".into(),
             input_schema: json!({
                 "type": "object",
                 "required": ["stage_id", "from_object_id", "to_object_id"],
@@ -230,7 +231,10 @@ fn stage_for_validation(state: &EngineState, stage_id: &DocumentId) -> Option<St
 }
 
 fn grid_navigation_supported(space: &CoordinateSpace) -> bool {
-    matches!(space, CoordinateSpace::HexAxial { .. } | CoordinateSpace::Square { .. })
+    matches!(
+        space,
+        CoordinateSpace::HexAxial { .. } | CoordinateSpace::Square { .. }
+    )
 }
 
 fn set_blocked(stage: &mut StageDocument, cell: HexCoord, blocked: bool) -> bool {
@@ -247,7 +251,10 @@ fn set_blocked(stage: &mut StageDocument, cell: HexCoord, blocked: bool) -> bool
         }
     } else {
         let before = stage.navigation.blocked.len();
-        stage.navigation.blocked.retain(|position| *position != cell);
+        stage
+            .navigation
+            .blocked
+            .retain(|position| *position != cell);
         if stage.navigation.blocked.len() == before {
             false
         } else {
@@ -260,7 +267,11 @@ fn set_blocked(stage: &mut StageDocument, cell: HexCoord, blocked: bool) -> bool
     }
 }
 
-fn query_diagnostic_result(status: &str, input: &ReachabilityInput, diagnostic: Diagnostic) -> Value {
+fn query_diagnostic_result(
+    status: &str,
+    input: &ReachabilityInput,
+    diagnostic: Diagnostic,
+) -> Value {
     json!({
         "status": status,
         "stage_id": input.stage_id,
@@ -307,7 +318,10 @@ fn blocked_cell_out_of_bounds(stage_id: &DocumentId, cell: HexCoord) -> Diagnost
     Diagnostic {
         code: STAGE_NAV_BLOCKED_CELL_OUT_OF_BOUNDS.into(),
         severity: Severity::Error,
-        message: format!("navigation blocked cell ({}, {}) is outside Stage bounds", cell.q, cell.r),
+        message: format!(
+            "navigation blocked cell ({}, {}) is outside Stage bounds",
+            cell.q, cell.r
+        ),
         location: Some(DiagnosticLocation {
             document: Some(stage_id.clone()),
             object: None,

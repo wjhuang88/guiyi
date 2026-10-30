@@ -241,7 +241,7 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 
 - Type: Tactical Toolkit / Validation / Tools
 - Priority: P0
-- Status: Ready
+- Status: In Progress
 - GitHub: [#59](https://github.com/wjhuang88/guiyi/issues/59).
 - Depends on: ENG-014 / #52, ENG-012 / #54, and ENG-013 / #57 (Done).
 - Primary ownership: GUIYI tactical-RPG toolkit (`content`, `validation`, `tools`); no engine-core or Talos-runtime ownership change.

@@ -12,7 +12,7 @@ At the product-surface level, this iteration advances an Agent-first development
 - ENG-014 / #52 is Done and squash-merged through PR #53 (`5ce7dae09e55e0c40c8345d67e81bd38f44b67b4`).
 - ENG-012 / #54 is Done and squash-merged through PR #55 (`eed94d8d7d6a63b73c103198af1c33564ffa6bfe`). Final clean-head CI run 207 passed before merge.
 - ENG-013 / #57 is Done and squash-merged through PR #58 (`cb6c2a5016d04fd59e97926ae62b416bff6b41a0`). Final clean-head CI run 234 passed before merge.
-- ENG-020 / #59 has passed the Direction Governance Ready checklist and is the next authorized Gate-3 tactical capability Story.
+- ENG-020 / #59 is In Progress on `feature/ENG-020-navigation-reachability` as the authorized Gate-3 tactical capability Story.
 - ENG-021..023 remain Proposed and non-executable until separately promoted.
 - Other Proposed Stories remain non-executable.
 
@@ -156,7 +156,7 @@ Implementation acceptance is satisfied for:
 
 ENG-013 is fully closed.
 
-## Ready Story slice — ENG-020
+## Active Story slice — ENG-020
 
 ### ENG-020 Add tactical navigation map and reachability validation
 

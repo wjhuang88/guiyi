@@ -305,5 +305,34 @@
     ],
     "type": "object",
     "x-schema-version": 1
+  },
+  "stage.set_navigation_blocked": {
+    "additionalProperties": true,
+    "properties": {
+      "blocked": {
+        "type": "boolean",
+        "x-schema-version": 1
+      },
+      "q": {
+        "type": "integer",
+        "x-schema-version": 1
+      },
+      "r": {
+        "type": "integer",
+        "x-schema-version": 1
+      },
+      "stage_id": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "stage_id",
+      "q",
+      "r",
+      "blocked"
+    ],
+    "type": "object",
+    "x-schema-version": 1
   }
 }

@@ -4,12 +4,15 @@
 
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag, DiagnosticLocation};
 use std::collections::BTreeSet;
-use tactical_rpg_content::{CoordinateSpace, StageDocument, StageObjectKind};
+use tactical_rpg_content::{
+    shortest_path, stage_position_in_bounds, CoordinateSpace, StageDocument, StageObjectKind,
+};
 
 pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
     let mut bag = DiagnosticBag::default();
     let mut ids = BTreeSet::new();
     let mut spawn_count = 0;
+    let mut navigation_has_blocking_errors = false;
 
     if matches!(
         &stage.coordinate_space,
@@ -27,6 +30,62 @@ pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
         );
     }
 
+    let grid_navigation = matches!(
+        &stage.coordinate_space,
+        CoordinateSpace::HexAxial { .. } | CoordinateSpace::Square { .. }
+    );
+    if !grid_navigation && !stage.navigation.blocked.is_empty() {
+        navigation_has_blocking_errors = true;
+        bag.push(
+            Diagnostic::error(
+                "STAGE_NAV_UNSUPPORTED_COORDINATE_SPACE",
+                "blocked-cell navigation is only supported for HexAxial and Square Stages",
+            )
+            .at_document(stage.id.clone()),
+        );
+    }
+
+    let mut blocked = BTreeSet::new();
+    for (index, position) in stage.navigation.blocked.iter().enumerate() {
+        let key = (position.q, position.r);
+        if !blocked.insert(key) {
+            bag.push(Diagnostic {
+                code: "STAGE_NAV_DUPLICATE_BLOCKED_CELL".into(),
+                severity: guiyi_engine_validation::Severity::Warning,
+                message: format!(
+                    "navigation blocked cell ({}, {}) is duplicated",
+                    position.q, position.r
+                ),
+                location: Some(DiagnosticLocation {
+                    document: Some(stage.id.clone()),
+                    object: None,
+                    field_path: Some(format!("/navigation/blocked/{index}")),
+                }),
+                suggested_tools: vec!["stage.set_navigation_blocked".into()],
+                auto_fixable: false,
+            });
+        }
+        if grid_navigation && !stage_position_in_bounds(&stage.coordinate_space, *position) {
+            navigation_has_blocking_errors = true;
+            bag.push(Diagnostic {
+                code: "STAGE_NAV_BLOCKED_CELL_OUT_OF_BOUNDS".into(),
+                severity: guiyi_engine_validation::Severity::Error,
+                message: format!(
+                    "navigation blocked cell ({}, {}) is outside Stage bounds",
+                    position.q, position.r
+                ),
+                location: Some(DiagnosticLocation {
+                    document: Some(stage.id.clone()),
+                    object: None,
+                    field_path: Some(format!("/navigation/blocked/{index}")),
+                }),
+                suggested_tools: vec!["stage.set_navigation_blocked".into()],
+                auto_fixable: false,
+            });
+        }
+    }
+
+    let mut spawn_positions = Vec::new();
     for object in &stage.objects {
         if !ids.insert(object.id.clone()) {
             bag.push(Diagnostic {
@@ -44,8 +103,24 @@ pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
         }
         if matches!(&object.object, StageObjectKind::SpawnPoint { .. }) {
             spawn_count += 1;
+            spawn_positions.push(object.position);
+            if blocked.contains(&(object.position.q, object.position.r)) {
+                navigation_has_blocking_errors = true;
+                bag.push(Diagnostic {
+                    code: "STAGE_NAV_SPAWN_BLOCKED".into(),
+                    severity: guiyi_engine_validation::Severity::Error,
+                    message: format!("spawn point {} is on a blocked navigation cell", object.id),
+                    location: Some(DiagnosticLocation {
+                        document: Some(stage.id.clone()),
+                        object: Some(object.id.clone()),
+                        field_path: Some("position".into()),
+                    }),
+                    suggested_tools: vec!["stage.set_navigation_blocked".into()],
+                    auto_fixable: false,
+                });
+            }
         }
-        if !position_in_bounds(stage, object.position.q, object.position.r) {
+        if !stage_position_in_bounds(&stage.coordinate_space, object.position) {
             bag.push(Diagnostic {
                 code: "STAGE_OBJECT_OUT_OF_BOUNDS".into(),
                 severity: guiyi_engine_validation::Severity::Error,
@@ -71,6 +146,48 @@ pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
         );
     }
 
+    if grid_navigation
+        && !navigation_has_blocking_errors
+        && !spawn_positions.is_empty()
+        && !bag.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "STAGE_DIMENSIONS_INVALID"
+                || diagnostic.code == "STAGE_OBJECT_OUT_OF_BOUNDS"
+        })
+    {
+        for object in &stage.objects {
+            if matches!(&object.object, StageObjectKind::SpawnPoint { .. }) {
+                continue;
+            }
+            let reachable = spawn_positions.iter().any(|spawn| {
+                shortest_path(stage, *spawn, object.position)
+                    .ok()
+                    .flatten()
+                    .is_some()
+            });
+            if !reachable {
+                bag.push(Diagnostic {
+                    code: "STAGE_OBJECT_UNREACHABLE".into(),
+                    severity: guiyi_engine_validation::Severity::Error,
+                    message: format!(
+                        "object {} is unreachable from every Stage spawn point",
+                        object.id
+                    ),
+                    location: Some(DiagnosticLocation {
+                        document: Some(stage.id.clone()),
+                        object: Some(object.id.clone()),
+                        field_path: Some("position".into()),
+                    }),
+                    suggested_tools: vec![
+                        "stage.set_navigation_blocked".into(),
+                        "stage.reachability".into(),
+                        "stage.move_object".into(),
+                    ],
+                    auto_fixable: false,
+                });
+            }
+        }
+    }
+
     for connection in &stage.connections {
         if connection.to_stage == stage.id {
             bag.push(
@@ -84,15 +201,6 @@ pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
     }
 
     bag
-}
-
-fn position_in_bounds(stage: &StageDocument, x: i32, y: i32) -> bool {
-    match &stage.coordinate_space {
-        CoordinateSpace::HexAxial { width, height } | CoordinateSpace::Square { width, height } => {
-            x >= 0 && y >= 0 && x < *width as i32 && y < *height as i32
-        }
-        CoordinateSpace::Free2d | CoordinateSpace::Free3d => true,
-    }
 }
 
 #[cfg(test)]

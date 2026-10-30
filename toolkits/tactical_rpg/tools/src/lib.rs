@@ -2,8 +2,10 @@
 
 //! High-level tactical RPG commands and queries for AI agents and human clients.
 
+mod navigation;
 mod stage_object_commands;
 
+use crate::navigation::{ReachabilityQuery, SetNavigationBlockedCommand};
 use crate::stage_object_commands::{MoveStageObjectCommand, RemoveStageObjectCommand};
 use guiyi_engine_command::{
     CommandDescriptor, CommandError, CommandHandler, CommandRegistry, EngineState,
@@ -462,6 +464,7 @@ pub fn register_tactical_commands(registry: &mut CommandRegistry) -> Result<(), 
     registry.register(CreateTriggerCommand)?;
     registry.register(MoveStageObjectCommand)?;
     registry.register(RemoveStageObjectCommand)?;
+    registry.register(SetNavigationBlockedCommand)?;
     registry.register(ConnectStageCommand)?;
     Ok(())
 }
@@ -469,6 +472,7 @@ pub fn register_tactical_commands(registry: &mut CommandRegistry) -> Result<(), 
 pub fn register_tactical_queries(registry: &mut QueryRegistry) -> Result<(), QueryError> {
     registry.register(ValidateStageQuery)?;
     registry.register(StageSummaryQuery)?;
+    registry.register(ReachabilityQuery)?;
     Ok(())
 }
 

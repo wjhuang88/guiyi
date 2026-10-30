@@ -1,6 +1,8 @@
 use guiyi_engine_core::{DocumentId, ObjectId};
 use serde_json::json;
-use tactical_rpg_content::{HexCoord, StageDocument, StageNavigation, StageObject, StageObjectKind};
+use tactical_rpg_content::{
+    HexCoord, StageDocument, StageNavigation, StageObject, StageObjectKind,
+};
 use tactical_rpg_validation::validate_stage;
 
 fn stage_with_spawn_and_marker(width: u32, height: u32) -> StageDocument {
