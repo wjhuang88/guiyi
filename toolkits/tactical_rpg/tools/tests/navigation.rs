@@ -8,7 +8,7 @@ use guiyi_engine_command::{
 };
 use guiyi_engine_core::{AgentSessionId, DocumentId, ObjectId, PermissionSet, ToolId};
 use guiyi_engine_protocol::{ToolCall, ToolResultStatus};
-use guiyi_engine_query::{QueryExecutor, QueryRegistry, QueryRequest, QueryContext};
+use guiyi_engine_query::{QueryContext, QueryExecutor, QueryRegistry, QueryRequest};
 use serde_json::{json, Value};
 use tactical_rpg_content::{
     CoordinateSpace, HexCoord, StageDocument, StageNavigation, StageObject, StageObjectKind,
@@ -47,7 +47,10 @@ fn stage(width: u32, height: u32) -> StageDocument {
 
 fn state_with(stage: StageDocument) -> EngineState {
     let mut state = EngineState::default();
-    state.documents.insert(stage.to_envelope().unwrap()).unwrap();
+    state
+        .documents
+        .insert(stage.to_envelope().unwrap())
+        .unwrap();
     state
 }
 
@@ -332,7 +335,10 @@ fn agent_host_enforces_navigation_permissions_and_working_set() {
         },
     );
     assert_eq!(command_denied.status, ToolResultStatus::Rejected);
-    assert_eq!(command_denied.output["error"]["code"], AGENT_PERMISSION_DENIED);
+    assert_eq!(
+        command_denied.output["error"]["code"],
+        AGENT_PERMISSION_DENIED
+    );
     assert_eq!(host.state, before);
 
     let query_denied = host.execute(
@@ -345,7 +351,10 @@ fn agent_host_enforces_navigation_permissions_and_working_set() {
         },
     );
     assert_eq!(query_denied.status, ToolResultStatus::Rejected);
-    assert_eq!(query_denied.output["error"]["code"], AGENT_PERMISSION_DENIED);
+    assert_eq!(
+        query_denied.output["error"]["code"],
+        AGENT_PERMISSION_DENIED
+    );
 
     let mut restricted = session("session.eng020.scope", PermissionSet::content_author());
     restricted.working_set = vec![DocumentId::from_static("stage.other")];
@@ -373,8 +382,7 @@ fn live_catalog_exposes_navigation_command_and_query_schemas() {
 
     for tool in ["stage.set_navigation_blocked", "stage.reachability"] {
         let descriptor = catalog
-            .descriptors()
-            .iter()
+            .list()
             .find(|descriptor| descriptor.id.as_str() == tool)
             .unwrap();
         assert!(descriptor.input_schema.is_object());
