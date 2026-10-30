@@ -1,5 +1,7 @@
 use guiyi_engine_command::{CommandDescriptor, CommandError, CommandHandler, EngineState};
-use guiyi_engine_core::{DocumentAccessPlan, DocumentId, ObjectId, Permission, PermissionSet, ToolId};
+use guiyi_engine_core::{
+    DocumentAccessPlan, DocumentId, ObjectId, Permission, PermissionSet, ToolId,
+};
 use guiyi_engine_schema::{FieldSchema, SchemaNode};
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag, DiagnosticLocation, Severity};
 use serde::Deserialize;
@@ -67,11 +69,8 @@ impl CommandHandler for CreateEncounterCommand {
 
     fn apply(&self, input: &Value, state: &mut EngineState) -> Result<Value, CommandError> {
         let input: CreateEncounterInput = serde_json::from_value(input.clone())?;
-        let encounter = EncounterDocument::new(
-            input.encounter_id.clone(),
-            input.name,
-            input.stage_id,
-        );
+        let encounter =
+            EncounterDocument::new(input.encounter_id.clone(), input.name, input.stage_id);
         state.documents.insert(encounter.to_envelope()?)?;
         Ok(json!({"encounter_id": input.encounter_id}))
     }
@@ -94,7 +93,9 @@ impl CommandHandler for AddEncounterParticipantCommand {
         CommandDescriptor {
             id: ToolId::from_static("encounter.add_participant"),
             title: "Add Encounter participant".into(),
-            description: "Add a stable participant bound to an actor definition and Stage spawn point.".into(),
+            description:
+                "Add a stable participant bound to an actor definition and Stage spawn point."
+                    .into(),
             input_schema: Value::Null,
             output_schema: json!({"type": "object"}),
             required_permissions: PermissionSet::new([Permission::EditContent]),
