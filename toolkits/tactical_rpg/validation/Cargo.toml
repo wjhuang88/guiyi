@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+guiyi-engine-content = { path = "../../../crates/engine_content" }
 guiyi-engine-validation = { path = "../../../crates/engine_validation" }
 tactical-rpg-content = { path = "../content" }
 
