@@ -12,7 +12,7 @@ At the product-surface level, this iteration advances an Agent-first development
 - ENG-014 / #52 is Done and squash-merged through PR #53 (`5ce7dae09e55e0c40c8345d67e81bd38f44b67b4`).
 - ENG-012 / #54 is Done and squash-merged through PR #55 (`eed94d8d7d6a63b73c103198af1c33564ffa6bfe`). Final clean-head CI run 207 passed before merge.
 - ENG-013 / #57 is Done and squash-merged through PR #58 (`cb6c2a5016d04fd59e97926ae62b416bff6b41a0`). Final clean-head CI run 234 passed before merge.
-- ENG-020 / #59 has passed the Direction Governance Ready checklist and is the next authorized Gate-3 tactical capability Story.
+- ENG-020 / #59 implementation acceptance is complete on `feature/ENG-020-navigation-reachability` through draft PR #61; merge remains gated on final closure-head CI.
 - ENG-021..023 remain Proposed and non-executable until separately promoted.
 - Other Proposed Stories remain non-executable.
 
@@ -156,7 +156,7 @@ Implementation acceptance is satisfied for:
 
 ENG-013 is fully closed.
 
-## Ready Story slice — ENG-020
+## Closing Story slice — ENG-020
 
 ### ENG-020 Add tactical navigation map and reachability validation
 
@@ -168,6 +168,25 @@ ENG-020 is the first Gate-3 tactical vertical Story. It adds backward-compatible
 
 The Story explicitly excludes runtime movement AI, terrain costs, dynamic occupancy/collision, LOS/cover/turn rules, navmesh generation, visual navigation UI, generic engine-core pathfinding, and ENG-021/022/023 scope. No Talos SDK change or new external dependency is expected. Existing Stage payloads remain readable through defaulted navigation data.
 
-Issue #59 is the implementation contract and requires the complete repository suite plus final clean-head CI before Done/merge.
+Issue #59 is the implementation contract. The implementation now satisfies its content, validation, Command, Query, security, compatibility, and live-catalog scenarios.
+
+### Delivered ENG-020 work packages
+
+- defaulted `StageNavigation.blocked` data keeps legacy Stage payloads readable and is preserved in Stage artifact metadata;
+- deterministic BFS lives in tactical content for HexAxial/Square only, with fixed neighbor order, blocked/out-of-bounds exclusion, and explicit free-space unsupported behavior;
+- `validate_stage` reports `STAGE_NAV_BLOCKED_CELL_OUT_OF_BOUNDS`, `STAGE_NAV_DUPLICATE_BLOCKED_CELL`, `STAGE_NAV_SPAWN_BLOCKED`, `STAGE_OBJECT_UNREACHABLE`, and unsupported-coordinate-space diagnostics;
+- `stage.set_navigation_blocked` uses the normal schema/permission/access/dry-run/transaction/diff/audit/persistence path and rejects candidates that break reachability;
+- `stage.reachability` returns deterministic shortest path/distance, disconnected results, and structured missing-object/unsupported diagnostics;
+- AgentHost integration proves permission and working-set authority; live Tool catalog coverage proves both capabilities are machine-discoverable and therefore flow through the existing Talos adapter;
+- command capability golden grows from 10 to 11 Commands; no new external dependency or Talos change was introduced.
+
+### ENG-020 validation history
+
+- governance run 236 passed before Ready promotion merged;
+- core implementation run 238 (`41056355806`) passed the complete suite;
+- run 239 (`41056626414`) stopped at rustfmt after integration tests were added and is repair evidence only;
+- full integration run 243 (`41056886141`) on `4f5bc5ef9552fce17484ae8efc83dd699eb51f7b` passed fmt, check, strict Clippy, all workspace tests, doc, repository gates, and all three examples.
+
+Closure documentation changes the head. ENG-020 remains merge-gated until one final complete clean-head CI run succeeds after all temporary helpers are removed. Full evidence, compatibility, risks, and rollback are recorded in `docs/validation/ENG-020.md`.
 
 After ENG-020 closes, ENG-021 is the preferred next Gate-3 capability candidate, but remains Proposed until separately promoted.

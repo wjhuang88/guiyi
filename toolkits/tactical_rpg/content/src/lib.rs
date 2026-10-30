@@ -9,7 +9,7 @@ use guiyi_engine_content::{
 use guiyi_engine_core::{ArtifactId, DocumentId, EngineTypeId, ObjectId};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub const STAGE_DOCUMENT_TYPE: &str = "tactical.stage.document";
 pub const STAGE_ARTIFACT_TYPE: &str = "tactical.stage.artifact";
@@ -45,6 +45,38 @@ pub enum CoordinateSpace {
     Free2d,
     Free3d,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct StageNavigation {
+    #[serde(default)]
+    pub blocked: Vec<HexCoord>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NavigationError {
+    UnsupportedCoordinateSpace,
+    EndpointOutOfBounds { position: HexCoord },
+}
+
+impl std::fmt::Display for NavigationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedCoordinateSpace => {
+                write!(
+                    formatter,
+                    "grid navigation is unsupported for this coordinate space"
+                )
+            }
+            Self::EndpointOutOfBounds { position } => write!(
+                formatter,
+                "navigation endpoint ({}, {}) is outside Stage bounds",
+                position.q, position.r
+            ),
+        }
+    }
+}
+
+impl std::error::Error for NavigationError {}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -100,6 +132,8 @@ pub struct StageDocument {
     pub name: String,
     pub coordinate_space: CoordinateSpace,
     #[serde(default)]
+    pub navigation: StageNavigation,
+    #[serde(default)]
     pub layers: Vec<String>,
     #[serde(default)]
     pub objects: Vec<StageObject>,
@@ -113,6 +147,7 @@ impl StageDocument {
             id,
             name: name.into(),
             coordinate_space: CoordinateSpace::HexAxial { width, height },
+            navigation: StageNavigation::default(),
             layers: vec!["gameplay".into()],
             objects: Vec::new(),
             connections: Vec::new(),
@@ -240,6 +275,7 @@ impl DocumentCompiler for StageCompiler {
                 metadata: json!({
                     "name": stage.name,
                     "coordinate_space": stage.coordinate_space,
+                    "navigation": stage.navigation,
                     "connections": stage.connections,
                 }),
             })?,
@@ -247,7 +283,88 @@ impl DocumentCompiler for StageCompiler {
     }
 }
 
-fn stage_position_in_bounds(space: &CoordinateSpace, position: HexCoord) -> bool {
+pub fn shortest_path(
+    stage: &StageDocument,
+    start: HexCoord,
+    goal: HexCoord,
+) -> Result<Option<Vec<HexCoord>>, NavigationError> {
+    if !matches!(
+        &stage.coordinate_space,
+        CoordinateSpace::HexAxial { .. } | CoordinateSpace::Square { .. }
+    ) {
+        return Err(NavigationError::UnsupportedCoordinateSpace);
+    }
+    if !stage_position_in_bounds(&stage.coordinate_space, start) {
+        return Err(NavigationError::EndpointOutOfBounds { position: start });
+    }
+    if !stage_position_in_bounds(&stage.coordinate_space, goal) {
+        return Err(NavigationError::EndpointOutOfBounds { position: goal });
+    }
+
+    let blocked = stage
+        .navigation
+        .blocked
+        .iter()
+        .map(|position| (position.q, position.r))
+        .collect::<BTreeSet<_>>();
+    let start_key = (start.q, start.r);
+    let goal_key = (goal.q, goal.r);
+    if blocked.contains(&start_key) || blocked.contains(&goal_key) {
+        return Ok(None);
+    }
+
+    let mut visited = BTreeSet::from([start_key]);
+    let mut came_from = BTreeMap::<(i32, i32), (i32, i32)>::new();
+    let mut queue = VecDeque::from([start_key]);
+
+    while let Some(current) = queue.pop_front() {
+        if current == goal_key {
+            let mut path = vec![goal_key];
+            let mut cursor = goal_key;
+            while cursor != start_key {
+                cursor = came_from[&cursor];
+                path.push(cursor);
+            }
+            path.reverse();
+            return Ok(Some(
+                path.into_iter().map(|(q, r)| HexCoord::new(q, r)).collect(),
+            ));
+        }
+
+        let position = HexCoord::new(current.0, current.1);
+        for neighbor in navigation_neighbors(&stage.coordinate_space, position)? {
+            let key = (neighbor.q, neighbor.r);
+            if blocked.contains(&key) || !visited.insert(key) {
+                continue;
+            }
+            came_from.insert(key, current);
+            queue.push_back(key);
+        }
+    }
+
+    Ok(None)
+}
+
+fn navigation_neighbors(
+    space: &CoordinateSpace,
+    position: HexCoord,
+) -> Result<Vec<HexCoord>, NavigationError> {
+    let deltas: &[(i32, i32)] = match space {
+        CoordinateSpace::HexAxial { .. } => &[(1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1)],
+        CoordinateSpace::Square { .. } => &[(1, 0), (0, 1), (-1, 0), (0, -1)],
+        CoordinateSpace::Free2d | CoordinateSpace::Free3d => {
+            return Err(NavigationError::UnsupportedCoordinateSpace)
+        }
+    };
+
+    Ok(deltas
+        .iter()
+        .map(|(dq, dr)| HexCoord::new(position.q + dq, position.r + dr))
+        .filter(|neighbor| stage_position_in_bounds(space, *neighbor))
+        .collect())
+}
+
+pub fn stage_position_in_bounds(space: &CoordinateSpace, position: HexCoord) -> bool {
     match space {
         CoordinateSpace::HexAxial { width, height } | CoordinateSpace::Square { width, height } => {
             position.q >= 0

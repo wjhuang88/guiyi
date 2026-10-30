@@ -29,14 +29,14 @@ First-party AI dependency rule:
 Current primary sequence:
 
 ```text
-ENG-020..023 tactical RPG vertical
+ENG-021..023 tactical RPG vertical
     ↓
 ENG-030 Talos-driven playable-slice demo
     ↓
 ENG-024 human review workbench
 ```
 
-ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established the incremental semantic Project Graph baseline, and ENG-013 established semantic Stage object move/remove authoring for the Agent-first development surface. A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
+ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established the incremental semantic Project Graph baseline, ENG-013 established semantic Stage object move/remove authoring, and ENG-020 established deterministic Stage navigation/reachability for the Agent-first development surface. A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
 
 ## Done — Direction convergence
 
@@ -235,23 +235,24 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 - Reference: `docs/reference/STAGE-MODEL.md`.
 - Evidence: `docs/validation/ENG-013.md`; final clean-head CI run 234 (`40724726043`) passed the complete suite on `5f7408fa55e7aad30824ed4bbae6d2e9faa230b9` before squash merge `cb6c2a5016d04fd59e97926ae62b416bff6b41a0`.
 
-## Ready — Gate 3 tactical RPG vertical
+## Done — Gate 3 navigation baseline
 
 ### ENG-020 Navigation and reachability validation
 
 - Type: Tactical Toolkit / Validation / Tools
 - Priority: P0
-- Status: Ready
-- GitHub: [#59](https://github.com/wjhuang88/guiyi/issues/59).
+- Status: Done
+- GitHub: [#59](https://github.com/wjhuang88/guiyi/issues/59) — implementation PR #61; merge remains gated on final clean-head CI.
 - Depends on: ENG-014 / #52, ENG-012 / #54, and ENG-013 / #57 (Done).
 - Primary ownership: GUIYI tactical-RPG toolkit (`content`, `validation`, `tools`); no engine-core or Talos-runtime ownership change.
-- North-star contribution: make Stage traversability inspectable, diagnosable, and repairable through machine-facing semantic capabilities so the Agent development surface does not depend on Editor-only navigation painting or inspection.
-- Scope: backward-compatible blocked-cell authoring data, deterministic Hex/Square reachability, structured navigation diagnostics, `stage.set_navigation_blocked`, and `stage.reachability`.
-- Machine-facing gate: live schema-bearing Command/Query discovery through the normal GUIYI catalog and ENG-014 Talos adapter, while direct clients remain Talos-independent.
-- Dependency direction: toolkit -> engine only; no new external dependency or Talos SDK/version/feature change.
-- Migration: existing Stage payloads remain readable through defaulted navigation data; no second navigation file or persisted graph truth.
-- Non-goals: runtime movement AI, terrain costs, dynamic occupancy/collision, LOS/cover/turn rules, navmesh generation, ENG-021/022/023, visual navigation UI, generic engine-core pathfinding.
-- Validation/rollback: Issue #59 is the implementation contract; full repository gates and clean-head CI are required, and rollback remains local to additive toolkit model/validation/tools/docs.
+- Result: `StageDocument` owns defaulted blocked-cell navigation authoring data; tactical content provides deterministic Hex/Square BFS; shared validation reports blocked-cell/spawn/unreachable diagnostics; `stage.set_navigation_blocked` and `stage.reachability` are live schema-bearing capabilities.
+- Agent-first result: navigation painting, traversability inspection, diagnostics, and repair are machine-facing semantic capabilities rather than Editor-only gestures. A future visual navigation client must use the same authoritative APIs.
+- Security/result: normal GUIYI permission and working-set checks remain authoritative through AgentHost; direct clients remain Talos-independent and the ENG-014 adapter discovers the live Tools automatically.
+- Migration: pre-ENG-020 Stage payloads remain readable through defaulted navigation data; no second navigation file or persisted graph truth.
+- Compatibility: additive Tool IDs only; command capability catalog grows from 10 to 11; no Talos SDK/version/feature or external dependency change.
+- Non-goals preserved: runtime movement AI, terrain costs, dynamic occupancy/collision, LOS/cover/turn rules, navmesh generation, ENG-021/022/023, visual navigation UI, generic engine-core pathfinding.
+- Reference: `docs/reference/STAGE-MODEL.md`.
+- Evidence: `docs/validation/ENG-020.md`; full integration CI run 243 (`41056886141`) passed on `4f5bc5ef9552fce17484ae8efc83dd699eb51f7b`. Final merge remains gated on green CI for the closure-synchronized clean head.
 
 ## Proposed — Synced GitHub issue intake
 
