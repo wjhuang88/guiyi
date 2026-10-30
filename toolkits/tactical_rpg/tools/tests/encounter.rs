@@ -73,7 +73,10 @@ fn encounter(with_participant: bool) -> EncounterDocument {
 
 fn state(with_encounter: bool, with_participant: bool) -> EngineState {
     let mut state = EngineState::default();
-    state.documents.insert(stage().to_envelope().unwrap()).unwrap();
+    state
+        .documents
+        .insert(stage().to_envelope().unwrap())
+        .unwrap();
     state.documents.insert(actor_definition()).unwrap();
     if with_encounter {
         state
@@ -168,7 +171,11 @@ fn add_participant_updates_document_references_and_rejects_invalid_candidates_at
     let mut executor = executor();
     let mut state = state(true, false);
     let applied = executor
-        .execute(add_request(SPAWN_ID, STAGE_ID, false), &context(), &mut state)
+        .execute(
+            add_request(SPAWN_ID, STAGE_ID, false),
+            &context(),
+            &mut state,
+        )
         .unwrap();
     assert_eq!(applied.status, TransactionStatus::Applied);
     assert_eq!(applied.document_diffs.len(), 1);
@@ -183,7 +190,11 @@ fn add_participant_updates_document_references_and_rejects_invalid_candidates_at
     let mut duplicate_executor = executor();
     let before = state.clone();
     let duplicate = duplicate_executor
-        .execute(add_request(SPAWN_ID, STAGE_ID, false), &context(), &mut state)
+        .execute(
+            add_request(SPAWN_ID, STAGE_ID, false),
+            &context(),
+            &mut state,
+        )
         .unwrap_err();
     let CommandError::ValidationFailed(bag) = duplicate else {
         panic!("expected duplicate participant validation failure");
