@@ -113,7 +113,14 @@ fn dialogue_commands_preserve_dry_run_atomicity_and_stable_graph_identity() {
     let dialogue = read_dialogue(&state);
     assert_eq!(dialogue.nodes[0].id.as_str(), "node.entry");
     assert_eq!(dialogue.nodes[0].choices[0].id.as_str(), "choice.pass");
-    assert_eq!(dialogue.nodes[0].choices[0].target.as_ref().unwrap().as_str(), "node.exit");
+    assert_eq!(
+        dialogue.nodes[0].choices[0]
+            .target
+            .as_ref()
+            .unwrap()
+            .as_str(),
+        "node.exit"
+    );
     assert_eq!(executor.audit_log().len(), 4);
 }
 
@@ -286,7 +293,9 @@ fn rule_catalog_is_read_only_deterministic_and_live_discoverable() {
         "dialogue.add_choice",
         "tactical.rules.catalog",
     ] {
-        assert!(catalog.list().any(|descriptor| descriptor.id.as_str() == tool));
+        assert!(catalog
+            .list()
+            .any(|descriptor| descriptor.id.as_str() == tool));
     }
 }
 
