@@ -15,11 +15,12 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use tactical_rpg_content::{
-    EncounterCompiler, EncounterDocument, StageCompiler, StageDocument, ACTOR_DEFINITION_TYPE,
-    ENCOUNTER_DOCUMENT_TYPE, STAGE_DOCUMENT_TYPE,
+    DialogueCompiler, DialogueDocument, EncounterCompiler, EncounterDocument, StageCompiler,
+    StageDocument, ACTOR_DEFINITION_TYPE, DIALOGUE_DOCUMENT_TYPE, ENCOUNTER_DOCUMENT_TYPE,
+    STAGE_DOCUMENT_TYPE,
 };
 use tactical_rpg_tools::{register_tactical_commands, register_tactical_queries};
-use tactical_rpg_validation::{validate_encounter_project, validate_stage};
+use tactical_rpg_validation::{validate_dialogue, validate_encounter_project, validate_stage};
 
 #[derive(Debug, Parser)]
 #[command(name = "guiyi-engine-cli")]
@@ -268,6 +269,9 @@ fn compile_project(root: &Path, out: &Path, as_json: bool) -> Result<(), String>
     compilers
         .register(EncounterCompiler)
         .map_err(|error| error.to_string())?;
+    compilers
+        .register(DialogueCompiler)
+        .map_err(|error| error.to_string())?;
     let profile = BuildProfile::default()
         .with_authoring_only_type(EngineTypeId::from_static(ACTOR_DEFINITION_TYPE));
     let report = BuildPipeline::with_profile(compilers, profile).build(
@@ -357,6 +361,14 @@ fn validate_store(store: &DocumentStore) -> DiagnosticBag {
                 }
                 Err(error) => diagnostics.push(
                     Diagnostic::error("ENCOUNTER_PARSE_FAILED", error.to_string())
+                        .at_document(document.header.id.clone()),
+                ),
+            }
+        } else if document.header.type_id.as_str() == DIALOGUE_DOCUMENT_TYPE {
+            match DialogueDocument::from_envelope(document) {
+                Ok(dialogue) => diagnostics.extend(validate_dialogue(&dialogue)),
+                Err(error) => diagnostics.push(
+                    Diagnostic::error("DIALOGUE_PARSE_FAILED", error.to_string())
                         .at_document(document.header.id.clone()),
                 ),
             }
@@ -455,8 +467,8 @@ mod tests {
 
         assert_eq!(
             actual.len(),
-            14,
-            "expected exactly 14 command schemas in the catalog"
+            17,
+            "expected exactly 17 command schemas in the catalog"
         );
 
         for (id, expected_schema) in &expected {
