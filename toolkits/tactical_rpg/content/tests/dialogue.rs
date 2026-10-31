@@ -88,10 +88,7 @@ fn built_in_rule_registry_is_deterministic_and_schema_validated() {
         .register_condition(TacticalRuleDescriptor::new(
             "always",
             "duplicate",
-            SchemaNode::object(vec![FieldSchema::required(
-                "type",
-                SchemaNode::string(),
-            )]),
+            SchemaNode::object(vec![FieldSchema::required("type", SchemaNode::string())]),
         ))
         .unwrap_err();
     assert!(matches!(duplicate, RuleRegistryError::Duplicate { .. }));
@@ -100,10 +97,7 @@ fn built_in_rule_registry_is_deterministic_and_schema_validated() {
         .register_effect(TacticalRuleDescriptor::new(
             "always",
             "same id in distinct effect namespace",
-            SchemaNode::object(vec![FieldSchema::required(
-                "type",
-                SchemaNode::string(),
-            )]),
+            SchemaNode::object(vec![FieldSchema::required("type", SchemaNode::string())]),
         ))
         .unwrap();
 }
@@ -114,7 +108,10 @@ fn dialogue_round_trip_and_compiler_preserve_stable_graph_order_and_integrity() 
     let envelope = dialogue.to_envelope().unwrap();
     assert_eq!(envelope.header.type_id.as_str(), DIALOGUE_DOCUMENT_TYPE);
     assert!(envelope.references.is_empty());
-    assert_eq!(DialogueDocument::from_envelope(&envelope).unwrap(), dialogue);
+    assert_eq!(
+        DialogueDocument::from_envelope(&envelope).unwrap(),
+        dialogue
+    );
 
     let artifact = DialogueCompiler.compile(&envelope, &context()).unwrap();
     assert_eq!(artifact.artifact_type.as_str(), DIALOGUE_ARTIFACT_TYPE);
