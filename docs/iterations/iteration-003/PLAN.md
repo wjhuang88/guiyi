@@ -13,8 +13,9 @@ At the product-surface level, this iteration advances an Agent-first development
 - ENG-012 / #54 is Done and squash-merged through PR #55 (`eed94d8d7d6a63b73c103198af1c33564ffa6bfe`). Final clean-head CI run 207 passed before merge.
 - ENG-013 / #57 is Done and squash-merged through PR #58 (`cb6c2a5016d04fd59e97926ae62b416bff6b41a0`). Final clean-head CI run 234 passed before merge.
 - ENG-020 / #59 is Done and squash-merged through PR #61 (`80eaee3338e5a772b1b56a2b44e97f8eef73afb4`). Final clean-head CI run 248 passed before merge.
-- ENG-021 / #62 implementation acceptance is complete on `feature/ENG-021-encounter-document-compiler` through draft PR #64; merge remains gated on final closure-head CI.
-- ENG-022..023 remain Proposed and non-executable until separately promoted.
+- ENG-021 / #62 is Done and squash-merged through PR #64 (`1387415f7145e56632bfbca2d3562d48236bf589`). Final clean-head CI run 269 passed before merge.
+- ENG-022 / #65 is Ready under the Product Backlog after its explicit implementation contract and ownership/non-goal/compatibility gates were defined; implementation starts only after the Ready-promotion PR merges.
+- ENG-023 remains Proposed and non-executable until separately promoted.
 - Other Proposed Stories remain non-executable.
 
 ## Completed baseline — ENG-014
@@ -179,7 +180,7 @@ Delivered guarantees include:
 
 Final clean-head run 248 (`41057321015`) on `70aabd59b0bfe8da138e148ab9ccbcb4600e03f7` passed the complete suite before PR #61 squash-merged as `80eaee3338e5a772b1b56a2b44e97f8eef73afb4`. Full evidence, compatibility, risks, and rollback are recorded in `docs/validation/ENG-020.md`.
 
-## Closing Story slice — ENG-021
+## Completed Story slice — ENG-021
 
 ### ENG-021 Add Encounter document, compiler, and semantic authoring commands
 
@@ -187,7 +188,7 @@ GitHub Issue: #62
 
 Branch: `feature/ENG-021-encounter-document-compiler`
 
-Implementation PR: #64
+Merged PR: #64
 
 Validation record: `docs/validation/ENG-021.md`
 
@@ -235,8 +236,29 @@ The three new Commands are live schema-bearing catalog capabilities, so the exis
 - governance run 250 (`41088787964`) passed the complete suite before Ready promotion PR #63 merged as `1335f3eee36835bfd02048a24d7b35785f913f79`;
 - early runs 252 / 258 stopped at rustfmt while the implementation was still being assembled and are formatting repair evidence only;
 - run 264 (`41091020910`) passed repository gates, fmt, and workspace check, then strict Clippy rejected test-local helper shadowing; production code compiled and the test names were repaired without suppressing lints;
-- implementation-head run 265 (`41091412663`) on exact head `9553ad90038d825f610cadf6b047e9da96d841a8` passed fmt, check, strict Clippy, all workspace tests, doc, repository gates, and all three examples.
+- implementation-head run 265 (`41091412663`) on exact head `9553ad90038d825f610cadf6b047e9da96d841a8` passed fmt, check, strict Clippy, all workspace tests, doc, repository gates, and all three examples;
+- final clean-head run 269 (`41092509962`) on exact head `5cfded23c7003e92ef7eb6741c0036e46cac220d` passed the complete suite before PR #64 squash-merged as `1387415f7145e56632bfbca2d3562d48236bf589`.
 
-Closure synchronization changes the branch head. ENG-021 remains merge-gated until one final complete clean-head CI run succeeds. Full evidence, compatibility, risks, and rollback are recorded in `docs/validation/ENG-021.md`.
+ENG-021 is fully closed. Full evidence, compatibility, risks, and rollback are recorded in `docs/validation/ENG-021.md`.
 
-After ENG-021 closes, ENG-022 is the preferred next Gate-3 capability candidate, but remains Proposed until separately promoted. ENG-023 also remains Proposed and non-executable.
+## Ready Story slice — ENG-022
+
+### ENG-022 Add Dialogue graph and condition/effect registry
+
+GitHub Issue: #65
+
+Primary owner: GUIYI tactical-RPG toolkit.
+
+ENG-022 is the next Gate-3 capability. It closes the existing mismatch where Stage triggers already store `conditions` / `effects` and `stage.create_trigger` describes them as registry-defined, but no registry/schema validation exists. It also adds a Dialogue graph that reuses the same rule invocation vocabulary rather than creating a Dialogue-only condition/effect format.
+
+The implementation contract in #65 requires:
+
+- a deterministic schema-bearing tactical rule registry with minimum built-ins `always` (condition) and the already-used `emit_signal` (effect);
+- registry-backed Stage trigger diagnostics while preserving the existing Trigger JSON shape and `stage.create_trigger` Tool contract;
+- additive `DialogueDocument`, stable node/choice IDs, deterministic graph validation, and `DialogueCompiler`;
+- semantic `dialogue.create`, `dialogue.add_node`, and `dialogue.add_choice` Commands using normal GUIYI transaction/security boundaries;
+- read-only `tactical.rules.catalog` so Agents discover condition/effect schemas from the live capability surface;
+- CLI/build/example integration for Stage + Encounter + Dialogue without Talos-specific code;
+- no runtime Dialogue VM, runtime condition/effect execution, world-state/quest/save semantics, visual graph authoring, or generic engine-core plugin registry.
+
+ENG-022 remains implementation-gated until this Ready-promotion change passes the complete repository suite and merges. ENG-023 remains Proposed and non-executable.
