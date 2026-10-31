@@ -30,11 +30,7 @@ pub struct TacticalRuleDescriptor {
 }
 
 impl TacticalRuleDescriptor {
-    pub fn new(
-        id: impl Into<String>,
-        description: impl Into<String>,
-        schema: SchemaNode,
-    ) -> Self {
+    pub fn new(id: impl Into<String>, description: impl Into<String>, schema: SchemaNode) -> Self {
         Self {
             id: id.into(),
             description: description.into(),
@@ -75,7 +71,9 @@ impl std::error::Error for RuleRegistryError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuleInvocationError {
-    TypeInvalid { detail: String },
+    TypeInvalid {
+        detail: String,
+    },
     Unknown {
         kind: TacticalRuleKind,
         rule_type: String,
@@ -90,9 +88,15 @@ pub enum RuleInvocationError {
 impl std::fmt::Display for RuleInvocationError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::TypeInvalid { detail } => write!(formatter, "invalid tactical rule type: {detail}"),
+            Self::TypeInvalid { detail } => {
+                write!(formatter, "invalid tactical rule type: {detail}")
+            }
             Self::Unknown { kind, rule_type } => {
-                write!(formatter, "unknown {} rule type: {rule_type}", kind.as_str())
+                write!(
+                    formatter,
+                    "unknown {} rule type: {rule_type}",
+                    kind.as_str()
+                )
             }
             Self::SchemaInvalid {
                 kind,
@@ -164,11 +168,7 @@ impl TacticalRuleRegistry {
         self.effects.values()
     }
 
-    pub fn descriptor(
-        &self,
-        kind: TacticalRuleKind,
-        id: &str,
-    ) -> Option<&TacticalRuleDescriptor> {
+    pub fn descriptor(&self, kind: TacticalRuleKind, id: &str) -> Option<&TacticalRuleDescriptor> {
         match kind {
             TacticalRuleKind::Condition => self.conditions.get(id),
             TacticalRuleKind::Effect => self.effects.get(id),
@@ -180,9 +180,11 @@ impl TacticalRuleRegistry {
         kind: TacticalRuleKind,
         value: &Value,
     ) -> Result<(), RuleInvocationError> {
-        let object = value.as_object().ok_or_else(|| RuleInvocationError::TypeInvalid {
-            detail: "rule invocation must be an object".into(),
-        })?;
+        let object = value
+            .as_object()
+            .ok_or_else(|| RuleInvocationError::TypeInvalid {
+                detail: "rule invocation must be an object".into(),
+            })?;
         let rule_type = object
             .get("type")
             .and_then(Value::as_str)
@@ -190,12 +192,12 @@ impl TacticalRuleRegistry {
             .ok_or_else(|| RuleInvocationError::TypeInvalid {
                 detail: "rule invocation requires a non-empty string `type`".into(),
             })?;
-        let descriptor = self
-            .descriptor(kind, rule_type)
-            .ok_or_else(|| RuleInvocationError::Unknown {
-                kind,
-                rule_type: rule_type.into(),
-            })?;
+        let descriptor =
+            self.descriptor(kind, rule_type)
+                .ok_or_else(|| RuleInvocationError::Unknown {
+                    kind,
+                    rule_type: rule_type.into(),
+                })?;
         let diagnostics = descriptor.schema.validate_value(value);
         if diagnostics.has_errors() {
             let detail = diagnostics
