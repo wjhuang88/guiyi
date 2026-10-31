@@ -1,3 +1,9 @@
+mod dialogue;
+mod rules;
+
+pub use self::dialogue::*;
+pub use self::rules::*;
+
 use guiyi_engine_content::{
     ArtifactEnvelope, CompileContext, ContentError, ContentReference, DocumentCompiler,
     DocumentEnvelope, DocumentHeader,
