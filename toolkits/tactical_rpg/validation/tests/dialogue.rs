@@ -65,7 +65,14 @@ fn stage_trigger_reports_type_unknown_and_schema_rule_failures() {
             .find(|diagnostic| diagnostic.code == code)
             .unwrap();
         assert_eq!(
-            diagnostic.location.as_ref().unwrap().object.as_ref().unwrap().as_str(),
+            diagnostic
+                .location
+                .as_ref()
+                .unwrap()
+                .object
+                .as_ref()
+                .unwrap()
+                .as_str(),
             "trigger.demo"
         );
         assert!(diagnostic
