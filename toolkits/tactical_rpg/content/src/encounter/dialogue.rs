@@ -1,6 +1,7 @@
 use super::{default_tactical_rule_registry, TacticalRuleKind};
 use guiyi_engine_content::{
-    ArtifactEnvelope, CompileContext, ContentError, DocumentCompiler, DocumentEnvelope, DocumentHeader,
+    ArtifactEnvelope, CompileContext, ContentError, DocumentCompiler, DocumentEnvelope,
+    DocumentHeader,
 };
 use guiyi_engine_core::{ArtifactId, DocumentId, EngineTypeId, ObjectId};
 use serde::{Deserialize, Serialize};
