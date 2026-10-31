@@ -6,12 +6,10 @@ license.workspace = true
 
 [dependencies]
 guiyi-engine-content = { path = "../../../crates/engine_content" }
+guiyi-engine-core = { path = "../../../crates/engine_core" }
 guiyi-engine-validation = { path = "../../../crates/engine_validation" }
+serde_json.workspace = true
 tactical-rpg-content = { path = "../content" }
 
 [lints]
 workspace = true
-
-[dev-dependencies]
-guiyi-engine-core = { path = "../../../crates/engine_core" }
-serde_json.workspace = true
