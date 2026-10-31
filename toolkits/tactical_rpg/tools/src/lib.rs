@@ -26,8 +26,8 @@ use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tactical_rpg_content::{
-    HexCoord, StageConnection, StageDocument, StageObject, StageObjectKind,
-    DIALOGUE_DOCUMENT_TYPE, ENCOUNTER_DOCUMENT_TYPE, STAGE_DOCUMENT_TYPE,
+    HexCoord, StageConnection, StageDocument, StageObject, StageObjectKind, DIALOGUE_DOCUMENT_TYPE,
+    ENCOUNTER_DOCUMENT_TYPE, STAGE_DOCUMENT_TYPE,
 };
 use tactical_rpg_validation::validate_stage;
 
