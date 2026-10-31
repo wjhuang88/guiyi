@@ -2192,6 +2192,7 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "guiyi-engine-content",
  "guiyi-engine-core",
+ "guiyi-engine-schema",
  "serde",
  "serde_json",
 ]
@@ -2211,9 +2212,12 @@ dependencies = [
 name = "tactical-rpg-tools"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "guiyi-engine-agent-host",
+ "guiyi-engine-agent-tools",
  "guiyi-engine-command",
  "guiyi-engine-content",
  "guiyi-engine-core",
+ "guiyi-engine-protocol",
  "guiyi-engine-query",
  "guiyi-engine-schema",
  "guiyi-engine-validation",
@@ -2227,6 +2231,7 @@ dependencies = [
 name = "tactical-rpg-validation"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "guiyi-engine-content",
  "guiyi-engine-core",
  "guiyi-engine-validation",
  "serde_json",

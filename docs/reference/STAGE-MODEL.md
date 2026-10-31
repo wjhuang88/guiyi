@@ -66,6 +66,14 @@ Reachability validation intentionally does not define movement cost, terrain typ
 
 Executable acceptance and rollback evidence is recorded in `docs/validation/ENG-020.md`.
 
+### Shared tactical rule validation
+
+ENG-022 fulfills the pre-existing `stage.create_trigger` promise that Trigger conditions/effects are registry-defined. Trigger authoring keeps the same persisted JSON invocation shape: each condition/effect is an object with a string `type` and descriptor-specific fields. `validate_stage` validates those invocations through the same default tactical rule registry used by Dialogue.
+
+The minimum registry keeps the existing sample effect `{ "type": "emit_signal", "signal": "..." }` valid and adds condition `{ "type": "always" }`. Malformed type values report `TACTICAL_RULE_TYPE_INVALID`, unknown registered types report `TACTICAL_RULE_UNKNOWN`, and descriptor-schema mismatches report `TACTICAL_RULE_SCHEMA_INVALID`, with Stage/trigger/field-path context. This is an intentional validation tightening for previously unchecked invalid payloads; Stage serialization and the `stage.create_trigger` Tool schema do not change.
+
+Agents discover the rule vocabulary through the read-only `tactical.rules.catalog` Query rather than duplicated prompt text. A visual trigger editor, if added later, must consume the same catalog and semantic Command path. Full shared-rule and Dialogue semantics are documented in `docs/reference/DIALOGUE-MODEL.md`.
+
 ## Build
 
 `StageCompiler` resolves the Stage into a generic `StageArtifactPayload` containing runtime object descriptors. Invalid authoring content must be rejected before runtime. Navigation authoring data is preserved in Stage artifact metadata so runtime/tooling consumers can inspect the same authored blocked cells without creating a second source of truth.

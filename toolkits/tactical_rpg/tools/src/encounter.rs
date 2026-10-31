@@ -1,3 +1,7 @@
+mod dialogue;
+
+pub use self::dialogue::*;
+
 use guiyi_engine_command::{CommandDescriptor, CommandError, CommandHandler, EngineState};
 use guiyi_engine_core::{
     DocumentAccessPlan, DocumentId, ObjectId, Permission, PermissionSet, ToolId,

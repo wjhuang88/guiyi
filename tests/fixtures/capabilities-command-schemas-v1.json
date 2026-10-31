@@ -1,4 +1,120 @@
 {
+  "dialogue.add_choice": {
+    "additionalProperties": true,
+    "properties": {
+      "choice_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "conditions": {
+        "default": [],
+        "items": {
+          "x-schema-version": 1
+        },
+        "type": "array",
+        "x-schema-version": 1
+      },
+      "dialogue_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "effects": {
+        "default": [],
+        "items": {
+          "x-schema-version": 1
+        },
+        "type": "array",
+        "x-schema-version": 1
+      },
+      "from_node_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "target_node_id": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "x-schema-version": 1
+      },
+      "text": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "dialogue_id",
+      "from_node_id",
+      "choice_id",
+      "text",
+      "target_node_id"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
+  "dialogue.add_node": {
+    "additionalProperties": true,
+    "properties": {
+      "dialogue_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "node_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "speaker": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "text": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "dialogue_id",
+      "node_id",
+      "speaker",
+      "text"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
+  "dialogue.create": {
+    "additionalProperties": true,
+    "properties": {
+      "dialogue_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "entry_node_id": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "name": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "speaker": {
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "text": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "dialogue_id",
+      "name",
+      "entry_node_id",
+      "speaker",
+      "text"
+    ],
+    "type": "object",
+    "x-schema-version": 1
+  },
   "document.create": {
     "additionalProperties": true,
     "properties": {

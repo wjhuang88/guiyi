@@ -14,7 +14,7 @@ At the product-surface level, this iteration advances an Agent-first development
 - ENG-013 / #57 is Done and squash-merged through PR #58 (`cb6c2a5016d04fd59e97926ae62b416bff6b41a0`). Final clean-head CI run 234 passed before merge.
 - ENG-020 / #59 is Done and squash-merged through PR #61 (`80eaee3338e5a772b1b56a2b44e97f8eef73afb4`). Final clean-head CI run 248 passed before merge.
 - ENG-021 / #62 is Done and squash-merged through PR #64 (`1387415f7145e56632bfbca2d3562d48236bf589`). Final clean-head CI run 269 passed before merge.
-- ENG-022 / #65 is Ready under the Product Backlog after its explicit implementation contract and ownership/non-goal/compatibility gates were defined; implementation starts only after the Ready-promotion PR merges.
+- ENG-022 / #65 implementation acceptance is complete in PR #68; implementation-head CI run 290 passed the complete suite. Final merge remains gated on closure synchronization and a clean-head complete-suite CI run.
 - ENG-023 remains Proposed and non-executable until separately promoted.
 - Other Proposed Stories remain non-executable.
 
@@ -241,24 +241,67 @@ The three new Commands are live schema-bearing catalog capabilities, so the exis
 
 ENG-021 is fully closed. Full evidence, compatibility, risks, and rollback are recorded in `docs/validation/ENG-021.md`.
 
-## Ready Story slice — ENG-022
+## Completed Story slice — ENG-022
 
 ### ENG-022 Add Dialogue graph and condition/effect registry
 
 GitHub Issue: #65
 
+Branch: `feature/ENG-022-dialogue-rule-registry`
+
+Implementation PR: #68
+
+Validation record: `docs/validation/ENG-022.md`
+
 Primary owner: GUIYI tactical-RPG toolkit.
 
-ENG-022 is the next Gate-3 capability. It closes the existing mismatch where Stage triggers already store `conditions` / `effects` and `stage.create_trigger` describes them as registry-defined, but no registry/schema validation exists. It also adds a Dialogue graph that reuses the same rule invocation vocabulary rather than creating a Dialogue-only condition/effect format.
+ENG-022 closes the previously unimplemented “registry-defined conditions/effects” contract already exposed by Stage Triggers, and adds an Agent-first Dialogue graph that reuses the same rule vocabulary rather than introducing an Editor-only graph or second persisted rule format.
 
-The implementation contract in #65 requires:
+### Delivered ENG-022 work packages
 
-- a deterministic schema-bearing tactical rule registry with minimum built-ins `always` (condition) and the already-used `emit_signal` (effect);
-- registry-backed Stage trigger diagnostics while preserving the existing Trigger JSON shape and `stage.create_trigger` Tool contract;
-- additive `DialogueDocument`, stable node/choice IDs, deterministic graph validation, and `DialogueCompiler`;
-- semantic `dialogue.create`, `dialogue.add_node`, and `dialogue.add_choice` Commands using normal GUIYI transaction/security boundaries;
-- read-only `tactical.rules.catalog` so Agents discover condition/effect schemas from the live capability surface;
-- CLI/build/example integration for Stage + Encounter + Dialogue without Talos-specific code;
-- no runtime Dialogue VM, runtime condition/effect execution, world-state/quest/save semantics, visual graph authoring, or generic engine-core plugin registry.
+#### A. Shared tactical rule registry
 
-ENG-022 remains implementation-gated until this Ready-promotion change passes the complete repository suite and merges. ENG-023 remains Proposed and non-executable.
+A deterministic tactical registry now has distinct condition/effect namespaces and schema-bearing descriptors backed by the existing GUIYI `SchemaNode` dialect. Built-ins are `always` and the existing sample-compatible `emit_signal`. Duplicate registration is rejected; malformed, unknown, and schema-invalid invocations map to stable `TACTICAL_RULE_*` diagnostics.
+
+#### B. Stage Trigger validation
+
+`validate_stage` now validates Trigger conditions/effects through the same default registry used by Dialogue. Stage serialization and `stage.create_trigger` input remain unchanged; valid historical `emit_signal` content continues to pass, while previously unchecked invalid rule payloads are intentionally rejected.
+
+#### C. Dialogue content, validation, and compiler
+
+Additive `tactical.dialogue.document` and `tactical.dialogue.artifact` types preserve stable node/choice `ObjectId`s and authored ordering. `validate_dialogue` reports stable name/entry/duplicate/text/target/rule diagnostics plus non-blocking unreachable-node warnings. `DialogueCompiler` rejects blocking local failures and emits deterministic self-contained artifact payloads through the standard source-hash/integrity path.
+
+#### D. Semantic Commands and rule discovery
+
+Implemented and registered:
+
+- `dialogue.create`;
+- `dialogue.add_node`;
+- `dialogue.add_choice`;
+- read-only `tactical.rules.catalog`.
+
+The Commands use normal GUIYI schema, permission, document-access, dry-run, transaction, diff, audit, persistence, validation, and working-set boundaries. The catalog has no document access/mutation and returns deterministic IDs/descriptions/machine-readable schemas. Live catalog registration makes all four capabilities automatically visible to the existing ENG-014 Talos adapter without Talos-specific code.
+
+#### E. Build, CLI, golden, and executable example
+
+CLI validation recognizes Dialogue content; Stage, Encounter, and Dialogue compilers are registered together in strict build while actor definitions remain authoring-only. Tests prove valid projects produce all three artifacts and blocking Dialogue/rule failures produce no partial artifacts. The command-schema golden grows from 14 to 17 Commands. The tactical demo authors Dialogue only through semantic Commands and compiles it through the same build path.
+
+#### F. Reproducibility and dependency direction
+
+The tactical content crate adds only an internal path dependency on `guiyi-engine-schema`; no external dependency or Talos SDK/version/feature change occurs. `Cargo.lock` is synchronized for that workspace dependency edge. Dependency direction remains toolkit -> reusable engine crates.
+
+### ENG-022 validation history
+
+- Ready-promotion PR #67 passed complete CI run 271 before merge and authorized implementation on baseline `7be300590847422ce2e4d683cd0f0ba00405c018`;
+- early implementation runs stopped at rustfmt while the implementation was still being assembled and are formatting-repair evidence only;
+- implementation-head run 290 (`41167411681`) on exact head `f3c5d30b80d2061bb7652dcb96112655291c4cf1` passed repository gates, fmt, workspace check, strict Clippy, all workspace tests, docs, and all three examples;
+- a temporary branch-only helper synchronized `Cargo.lock`; helper files are removed before final validation and are not part of the merged product surface;
+- final clean-head CI remains the merge gate after documentation/helper cleanup.
+
+### ENG-022 exit gate
+
+Implementation acceptance is satisfied for all Issue #65 scenarios: shared rule registration/schema validation, backwards-compatible Stage Trigger validation, Dialogue graph round-trip/compiler integrity, structured graph diagnostics, non-blocking unreachable warnings, semantic Command dry-run/apply/atomic failure behavior, AgentHost permission/working-set enforcement, deterministic read-only rule discovery, live capability discovery, strict no-partial build failure, command golden update, and executable tactical-demo coverage.
+
+No runtime Dialogue VM or rule executor, quest/world-state/save framework, generic engine-core plugin registry, visual graph authoring path, or Talos runtime change was introduced.
+
+ENG-023 remains Proposed and non-executable until separately promoted through Direction Governance.

@@ -1,21 +1,36 @@
 #![forbid(unsafe_code)]
 
-//! Tactical Stage and Encounter validation with machine-readable error codes.
+//! Tactical Stage, Encounter, Dialogue, and rule validation with machine-readable error codes.
 
 mod encounter;
 pub use self::encounter::*;
 
-use guiyi_engine_validation::{Diagnostic, DiagnosticBag, DiagnosticLocation};
-use std::collections::BTreeSet;
+use guiyi_engine_validation::{Diagnostic, DiagnosticBag, DiagnosticLocation, Severity};
+use std::collections::{BTreeSet, VecDeque};
 use tactical_rpg_content::{
-    shortest_path, stage_position_in_bounds, CoordinateSpace, StageDocument, StageObjectKind,
+    default_tactical_rule_registry, shortest_path, stage_position_in_bounds, CoordinateSpace,
+    DialogueDocument, RuleInvocationError, StageDocument, StageObjectKind, TacticalRuleKind,
+    TacticalRuleRegistry,
 };
+
+pub const TACTICAL_RULE_TYPE_INVALID: &str = "TACTICAL_RULE_TYPE_INVALID";
+pub const TACTICAL_RULE_UNKNOWN: &str = "TACTICAL_RULE_UNKNOWN";
+pub const TACTICAL_RULE_SCHEMA_INVALID: &str = "TACTICAL_RULE_SCHEMA_INVALID";
+pub const DIALOGUE_NAME_EMPTY: &str = "DIALOGUE_NAME_EMPTY";
+pub const DIALOGUE_DUPLICATE_NODE_ID: &str = "DIALOGUE_DUPLICATE_NODE_ID";
+pub const DIALOGUE_ENTRY_NODE_NOT_FOUND: &str = "DIALOGUE_ENTRY_NODE_NOT_FOUND";
+pub const DIALOGUE_NODE_TEXT_EMPTY: &str = "DIALOGUE_NODE_TEXT_EMPTY";
+pub const DIALOGUE_DUPLICATE_CHOICE_ID: &str = "DIALOGUE_DUPLICATE_CHOICE_ID";
+pub const DIALOGUE_CHOICE_TEXT_EMPTY: &str = "DIALOGUE_CHOICE_TEXT_EMPTY";
+pub const DIALOGUE_CHOICE_TARGET_NOT_FOUND: &str = "DIALOGUE_CHOICE_TARGET_NOT_FOUND";
+pub const DIALOGUE_NODE_UNREACHABLE: &str = "DIALOGUE_NODE_UNREACHABLE";
 
 pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
     let mut bag = DiagnosticBag::default();
     let mut ids = BTreeSet::new();
     let mut spawn_count = 0;
     let mut navigation_has_blocking_errors = false;
+    let rules = default_tactical_rule_registry();
 
     if matches!(
         &stage.coordinate_space,
@@ -54,7 +69,7 @@ pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
         if !blocked.insert(key) {
             bag.push(Diagnostic {
                 code: "STAGE_NAV_DUPLICATE_BLOCKED_CELL".into(),
-                severity: guiyi_engine_validation::Severity::Warning,
+                severity: Severity::Warning,
                 message: format!(
                     "navigation blocked cell ({}, {}) is duplicated",
                     position.q, position.r
@@ -72,7 +87,7 @@ pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
             navigation_has_blocking_errors = true;
             bag.push(Diagnostic {
                 code: "STAGE_NAV_BLOCKED_CELL_OUT_OF_BOUNDS".into(),
-                severity: guiyi_engine_validation::Severity::Error,
+                severity: Severity::Error,
                 message: format!(
                     "navigation blocked cell ({}, {}) is outside Stage bounds",
                     position.q, position.r
@@ -89,11 +104,11 @@ pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
     }
 
     let mut spawn_positions = Vec::new();
-    for object in &stage.objects {
+    for (object_index, object) in stage.objects.iter().enumerate() {
         if !ids.insert(object.id.clone()) {
             bag.push(Diagnostic {
                 code: "STAGE_DUPLICATE_OBJECT_ID".into(),
-                severity: guiyi_engine_validation::Severity::Error,
+                severity: Severity::Error,
                 message: format!("duplicate object identifier: {}", object.id),
                 location: Some(DiagnosticLocation {
                     document: Some(stage.id.clone()),
@@ -111,7 +126,7 @@ pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
                 navigation_has_blocking_errors = true;
                 bag.push(Diagnostic {
                     code: "STAGE_NAV_SPAWN_BLOCKED".into(),
-                    severity: guiyi_engine_validation::Severity::Error,
+                    severity: Severity::Error,
                     message: format!("spawn point {} is on a blocked navigation cell", object.id),
                     location: Some(DiagnosticLocation {
                         document: Some(stage.id.clone()),
@@ -123,10 +138,35 @@ pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
                 });
             }
         }
+        if let StageObjectKind::Trigger {
+            conditions,
+            effects,
+            ..
+        } = &object.object
+        {
+            validate_rule_list(
+                &rules,
+                TacticalRuleKind::Condition,
+                conditions,
+                &stage.id,
+                Some(object.id.clone()),
+                &format!("/objects/{object_index}/object/conditions"),
+                &mut bag,
+            );
+            validate_rule_list(
+                &rules,
+                TacticalRuleKind::Effect,
+                effects,
+                &stage.id,
+                Some(object.id.clone()),
+                &format!("/objects/{object_index}/object/effects"),
+                &mut bag,
+            );
+        }
         if !stage_position_in_bounds(&stage.coordinate_space, object.position) {
             bag.push(Diagnostic {
                 code: "STAGE_OBJECT_OUT_OF_BOUNDS".into(),
-                severity: guiyi_engine_validation::Severity::Error,
+                severity: Severity::Error,
                 message: format!("object {} is outside the Stage bounds", object.id),
                 location: Some(DiagnosticLocation {
                     document: Some(stage.id.clone()),
@@ -170,7 +210,7 @@ pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
             if !reachable {
                 bag.push(Diagnostic {
                     code: "STAGE_OBJECT_UNREACHABLE".into(),
-                    severity: guiyi_engine_validation::Severity::Error,
+                    severity: Severity::Error,
                     message: format!(
                         "object {} is unreachable from every Stage spawn point",
                         object.id
@@ -204,6 +244,227 @@ pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
     }
 
     bag
+}
+
+pub fn validate_dialogue(dialogue: &DialogueDocument) -> DiagnosticBag {
+    let mut bag = DiagnosticBag::default();
+    let rules = default_tactical_rule_registry();
+    let mut node_ids = BTreeSet::new();
+    let mut duplicate_node = false;
+
+    if dialogue.name.trim().is_empty() {
+        bag.push(
+            Diagnostic::error(DIALOGUE_NAME_EMPTY, "Dialogue name cannot be empty")
+                .at_document(dialogue.id.clone()),
+        );
+    }
+
+    for (node_index, node) in dialogue.nodes.iter().enumerate() {
+        if !node_ids.insert(node.id.clone()) {
+            duplicate_node = true;
+            bag.push(Diagnostic {
+                code: DIALOGUE_DUPLICATE_NODE_ID.into(),
+                severity: Severity::Error,
+                message: format!("duplicate Dialogue node identifier: {}", node.id),
+                location: Some(DiagnosticLocation {
+                    document: Some(dialogue.id.clone()),
+                    object: Some(node.id.clone()),
+                    field_path: Some(format!("/nodes/{node_index}/id")),
+                }),
+                suggested_tools: vec!["dialogue.add_node".into()],
+                auto_fixable: false,
+            });
+        }
+        if node.text.trim().is_empty() {
+            bag.push(Diagnostic {
+                code: DIALOGUE_NODE_TEXT_EMPTY.into(),
+                severity: Severity::Error,
+                message: format!("Dialogue node {} has empty text", node.id),
+                location: Some(DiagnosticLocation {
+                    document: Some(dialogue.id.clone()),
+                    object: Some(node.id.clone()),
+                    field_path: Some(format!("/nodes/{node_index}/text")),
+                }),
+                suggested_tools: vec!["dialogue.add_node".into()],
+                auto_fixable: false,
+            });
+        }
+    }
+
+    if !node_ids.contains(&dialogue.entry_node) {
+        bag.push(Diagnostic {
+            code: DIALOGUE_ENTRY_NODE_NOT_FOUND.into(),
+            severity: Severity::Error,
+            message: format!("Dialogue entry node {} does not exist", dialogue.entry_node),
+            location: Some(DiagnosticLocation {
+                document: Some(dialogue.id.clone()),
+                object: Some(dialogue.entry_node.clone()),
+                field_path: Some("/entry_node".into()),
+            }),
+            suggested_tools: vec!["dialogue.add_node".into()],
+            auto_fixable: false,
+        });
+    }
+
+    let mut choice_ids = BTreeSet::new();
+    for (node_index, node) in dialogue.nodes.iter().enumerate() {
+        for (choice_index, choice) in node.choices.iter().enumerate() {
+            if !choice_ids.insert(choice.id.clone()) {
+                bag.push(Diagnostic {
+                    code: DIALOGUE_DUPLICATE_CHOICE_ID.into(),
+                    severity: Severity::Error,
+                    message: format!("duplicate Dialogue choice identifier: {}", choice.id),
+                    location: Some(DiagnosticLocation {
+                        document: Some(dialogue.id.clone()),
+                        object: Some(choice.id.clone()),
+                        field_path: Some(format!("/nodes/{node_index}/choices/{choice_index}/id")),
+                    }),
+                    suggested_tools: vec!["dialogue.add_choice".into()],
+                    auto_fixable: false,
+                });
+            }
+            if choice.text.trim().is_empty() {
+                bag.push(Diagnostic {
+                    code: DIALOGUE_CHOICE_TEXT_EMPTY.into(),
+                    severity: Severity::Error,
+                    message: format!("Dialogue choice {} has empty text", choice.id),
+                    location: Some(DiagnosticLocation {
+                        document: Some(dialogue.id.clone()),
+                        object: Some(choice.id.clone()),
+                        field_path: Some(format!(
+                            "/nodes/{node_index}/choices/{choice_index}/text"
+                        )),
+                    }),
+                    suggested_tools: vec!["dialogue.add_choice".into()],
+                    auto_fixable: false,
+                });
+            }
+            if let Some(target) = &choice.target {
+                if !node_ids.contains(target) {
+                    bag.push(Diagnostic {
+                        code: DIALOGUE_CHOICE_TARGET_NOT_FOUND.into(),
+                        severity: Severity::Error,
+                        message: format!(
+                            "Dialogue choice {} targets missing node {}",
+                            choice.id, target
+                        ),
+                        location: Some(DiagnosticLocation {
+                            document: Some(dialogue.id.clone()),
+                            object: Some(choice.id.clone()),
+                            field_path: Some(format!(
+                                "/nodes/{node_index}/choices/{choice_index}/target"
+                            )),
+                        }),
+                        suggested_tools: vec!["dialogue.add_node".into()],
+                        auto_fixable: false,
+                    });
+                }
+            }
+            validate_rule_list(
+                &rules,
+                TacticalRuleKind::Condition,
+                &choice.conditions,
+                &dialogue.id,
+                Some(choice.id.clone()),
+                &format!("/nodes/{node_index}/choices/{choice_index}/conditions"),
+                &mut bag,
+            );
+            validate_rule_list(
+                &rules,
+                TacticalRuleKind::Effect,
+                &choice.effects,
+                &dialogue.id,
+                Some(choice.id.clone()),
+                &format!("/nodes/{node_index}/choices/{choice_index}/effects"),
+                &mut bag,
+            );
+        }
+    }
+
+    if !duplicate_node && node_ids.contains(&dialogue.entry_node) {
+        let mut visited = BTreeSet::from([dialogue.entry_node.clone()]);
+        let mut queue = VecDeque::from([dialogue.entry_node.clone()]);
+        while let Some(current) = queue.pop_front() {
+            if let Some(node) = dialogue.nodes.iter().find(|node| node.id == current) {
+                for choice in &node.choices {
+                    if let Some(target) = &choice.target {
+                        if node_ids.contains(target) && visited.insert(target.clone()) {
+                            queue.push_back(target.clone());
+                        }
+                    }
+                }
+            }
+        }
+        for (node_index, node) in dialogue.nodes.iter().enumerate() {
+            if !visited.contains(&node.id) {
+                bag.push(Diagnostic {
+                    code: DIALOGUE_NODE_UNREACHABLE.into(),
+                    severity: Severity::Warning,
+                    message: format!(
+                        "Dialogue node {} is unreachable from entry node {}",
+                        node.id, dialogue.entry_node
+                    ),
+                    location: Some(DiagnosticLocation {
+                        document: Some(dialogue.id.clone()),
+                        object: Some(node.id.clone()),
+                        field_path: Some(format!("/nodes/{node_index}")),
+                    }),
+                    suggested_tools: vec!["dialogue.add_choice".into()],
+                    auto_fixable: false,
+                });
+            }
+        }
+    }
+
+    bag
+}
+
+fn validate_rule_list(
+    registry: &TacticalRuleRegistry,
+    kind: TacticalRuleKind,
+    values: &[serde_json::Value],
+    document: &guiyi_engine_core::DocumentId,
+    object: Option<guiyi_engine_core::ObjectId>,
+    base_path: &str,
+    bag: &mut DiagnosticBag,
+) {
+    for (index, value) in values.iter().enumerate() {
+        if let Err(error) = registry.validate_invocation(kind, value) {
+            let (code, message) = match error {
+                RuleInvocationError::TypeInvalid { detail } => (TACTICAL_RULE_TYPE_INVALID, detail),
+                RuleInvocationError::Unknown {
+                    kind: rule_kind,
+                    rule_type,
+                } => (
+                    TACTICAL_RULE_UNKNOWN,
+                    format!("unknown {} rule type `{rule_type}`", rule_kind.as_str()),
+                ),
+                RuleInvocationError::SchemaInvalid {
+                    kind: rule_kind,
+                    rule_type,
+                    detail,
+                } => (
+                    TACTICAL_RULE_SCHEMA_INVALID,
+                    format!(
+                        "{} rule `{rule_type}` does not match its schema: {detail}",
+                        rule_kind.as_str()
+                    ),
+                ),
+            };
+            bag.push(Diagnostic {
+                code: code.into(),
+                severity: Severity::Error,
+                message,
+                location: Some(DiagnosticLocation {
+                    document: Some(document.clone()),
+                    object: object.clone(),
+                    field_path: Some(format!("{base_path}/{index}")),
+                }),
+                suggested_tools: vec!["tactical.rules.catalog".into()],
+                auto_fixable: false,
+            });
+        }
+    }
 }
 
 #[cfg(test)]
