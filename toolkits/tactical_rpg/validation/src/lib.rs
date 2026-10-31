@@ -139,7 +139,9 @@ pub fn validate_stage(stage: &StageDocument) -> DiagnosticBag {
             }
         }
         if let StageObjectKind::Trigger {
-            conditions, effects, ..
+            conditions,
+            effects,
+            ..
         } = &object.object
         {
             validate_rule_list(
@@ -315,9 +317,7 @@ pub fn validate_dialogue(dialogue: &DialogueDocument) -> DiagnosticBag {
                     location: Some(DiagnosticLocation {
                         document: Some(dialogue.id.clone()),
                         object: Some(choice.id.clone()),
-                        field_path: Some(format!(
-                            "/nodes/{node_index}/choices/{choice_index}/id"
-                        )),
+                        field_path: Some(format!("/nodes/{node_index}/choices/{choice_index}/id")),
                     }),
                     suggested_tools: vec!["dialogue.add_choice".into()],
                     auto_fixable: false,
@@ -431,9 +431,7 @@ fn validate_rule_list(
     for (index, value) in values.iter().enumerate() {
         if let Err(error) = registry.validate_invocation(kind, value) {
             let (code, message) = match error {
-                RuleInvocationError::TypeInvalid { detail } => {
-                    (TACTICAL_RULE_TYPE_INVALID, detail)
-                }
+                RuleInvocationError::TypeInvalid { detail } => (TACTICAL_RULE_TYPE_INVALID, detail),
                 RuleInvocationError::Unknown {
                     kind: rule_kind,
                     rule_type,
