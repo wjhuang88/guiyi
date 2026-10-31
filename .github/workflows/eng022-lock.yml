@@ -1,0 +1,30 @@
+name: ENG-022 lock refresh
+
+on:
+  push:
+    branches:
+      - feature/ENG-022-dialogue-rule-registry
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feature/ENG-022-dialogue-rule-registry
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check --workspace --all-features
+      - name: Commit Cargo.lock if Cargo refreshed workspace path dependencies
+        run: |
+          if git diff --quiet -- Cargo.lock; then
+            echo "Cargo.lock already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.lock
+          git commit -m "chore: refresh Cargo.lock for ENG-022"
+          git push origin HEAD:feature/ENG-022-dialogue-rule-registry
