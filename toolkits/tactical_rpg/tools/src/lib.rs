@@ -7,7 +7,9 @@ mod navigation;
 mod stage_object_commands;
 
 use crate::encounter::{
-    AddEncounterParticipantCommand, CreateEncounterCommand, RemoveEncounterParticipantCommand,
+    AddDialogueChoiceCommand, AddDialogueNodeCommand, AddEncounterParticipantCommand,
+    CreateDialogueCommand, CreateEncounterCommand, RemoveEncounterParticipantCommand,
+    TacticalRulesCatalogQuery,
 };
 use crate::navigation::{ReachabilityQuery, SetNavigationBlockedCommand};
 use crate::stage_object_commands::{MoveStageObjectCommand, RemoveStageObjectCommand};
@@ -25,7 +27,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use tactical_rpg_content::{
     HexCoord, StageConnection, StageDocument, StageObject, StageObjectKind,
-    ENCOUNTER_DOCUMENT_TYPE, STAGE_DOCUMENT_TYPE,
+    DIALOGUE_DOCUMENT_TYPE, ENCOUNTER_DOCUMENT_TYPE, STAGE_DOCUMENT_TYPE,
 };
 use tactical_rpg_validation::validate_stage;
 
@@ -474,6 +476,9 @@ pub fn register_tactical_commands(registry: &mut CommandRegistry) -> Result<(), 
     registry.register(CreateEncounterCommand)?;
     registry.register(AddEncounterParticipantCommand)?;
     registry.register(RemoveEncounterParticipantCommand)?;
+    registry.register(CreateDialogueCommand)?;
+    registry.register(AddDialogueNodeCommand)?;
+    registry.register(AddDialogueChoiceCommand)?;
     Ok(())
 }
 
@@ -481,11 +486,15 @@ pub fn register_tactical_queries(registry: &mut QueryRegistry) -> Result<(), Que
     registry.register(ValidateStageQuery)?;
     registry.register(StageSummaryQuery)?;
     registry.register(ReachabilityQuery)?;
+    registry.register(TacticalRulesCatalogQuery)?;
     Ok(())
 }
 
 pub fn is_tactical_document(type_id: &str) -> bool {
-    matches!(type_id, STAGE_DOCUMENT_TYPE | ENCOUNTER_DOCUMENT_TYPE)
+    matches!(
+        type_id,
+        STAGE_DOCUMENT_TYPE | ENCOUNTER_DOCUMENT_TYPE | DIALOGUE_DOCUMENT_TYPE
+    )
 }
 
 #[cfg(test)]
