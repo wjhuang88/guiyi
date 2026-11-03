@@ -20,12 +20,7 @@ const STAGE_ID: &str = "stage.eng023";
 const TOOL_ID: &str = "tactical.make_stage_playable";
 
 fn stage() -> StageDocument {
-    StageDocument::new_hex(
-        DocumentId::from_static(STAGE_ID),
-        "ENG-023 intent",
-        4,
-        4,
-    )
+    StageDocument::new_hex(DocumentId::from_static(STAGE_ID), "ENG-023 intent", 4, 4)
 }
 
 fn spawn(id: &'static str, q: i32, r: i32) -> StageObject {
@@ -66,7 +61,10 @@ fn blocked_spawn_stage() -> StageDocument {
 
 fn state_with(stage: StageDocument) -> EngineState {
     let mut state = EngineState::default();
-    state.documents.insert(stage.to_envelope().unwrap()).unwrap();
+    state
+        .documents
+        .insert(stage.to_envelope().unwrap())
+        .unwrap();
     state
 }
 
@@ -121,7 +119,11 @@ fn already_playable_stage_is_an_empty_no_op_transaction() {
     let before = state.clone();
 
     let report = executor
-        .execute(request(default_input(), false), &author_context(), &mut state)
+        .execute(
+            request(default_input(), false),
+            &author_context(),
+            &mut state,
+        )
         .unwrap();
 
     assert_eq!(report.status, TransactionStatus::Applied);
@@ -140,7 +142,11 @@ fn blocked_spawn_dry_run_is_reviewable_and_apply_uses_one_outer_transaction() {
     let before = state.clone();
 
     let preview = executor
-        .execute(request(default_input(), true), &author_context(), &mut state)
+        .execute(
+            request(default_input(), true),
+            &author_context(),
+            &mut state,
+        )
         .unwrap();
     assert_eq!(preview.status, TransactionStatus::Previewed);
     assert_eq!(preview.document_diffs.len(), 1);
@@ -160,7 +166,11 @@ fn blocked_spawn_dry_run_is_reviewable_and_apply_uses_one_outer_transaction() {
     assert_eq!(state, before);
 
     let applied = executor
-        .execute(request(default_input(), false), &author_context(), &mut state)
+        .execute(
+            request(default_input(), false),
+            &author_context(),
+            &mut state,
+        )
         .unwrap();
     assert_eq!(applied.status, TransactionStatus::Applied);
     assert_eq!(applied.document_diffs.len(), 1);
@@ -190,7 +200,10 @@ fn missing_spawn_uses_deterministic_fallback_and_honors_explicit_identity() {
     assert_eq!(preview.status, TransactionStatus::Previewed);
     assert_eq!(preview.output["plan"].as_array().unwrap().len(), 1);
     assert_eq!(preview.output["plan"][0]["command"], "stage.create_spawn");
-    assert_eq!(preview.output["plan"][0]["input"]["object_id"], "spawn.entry");
+    assert_eq!(
+        preview.output["plan"][0]["input"]["object_id"],
+        "spawn.entry"
+    );
     assert_eq!(preview.output["plan"][0]["input"]["profile"], "hero");
     assert_eq!(preview.output["plan"][0]["input"]["q"], 0);
     assert_eq!(preview.output["plan"][0]["input"]["r"], 1);
@@ -231,7 +244,11 @@ fn multiple_blocked_spawns_are_planned_deterministically_and_commit_atomically()
     let mut state = state_with(value);
 
     let report = executor
-        .execute(request(default_input(), false), &author_context(), &mut state)
+        .execute(
+            request(default_input(), false),
+            &author_context(),
+            &mut state,
+        )
         .unwrap();
 
     assert_eq!(report.status, TransactionStatus::Applied);
@@ -255,7 +272,11 @@ fn unsupported_blocker_preserves_authoritative_diagnostic_and_never_partially_mu
     let before = state.clone();
 
     let error = executor
-        .execute(request(default_input(), false), &author_context(), &mut state)
+        .execute(
+            request(default_input(), false),
+            &author_context(),
+            &mut state,
+        )
         .unwrap_err();
     let CommandError::ValidationFailed(bag) = error else {
         panic!("expected validation failure");
