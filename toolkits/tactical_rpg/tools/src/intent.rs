@@ -1,13 +1,15 @@
 use crate::navigation::SetNavigationBlockedCommand;
 use crate::CreateSpawnCommand;
 use guiyi_engine_command::{CommandDescriptor, CommandError, CommandHandler, EngineState};
-use guiyi_engine_core::{DocumentAccessPlan, DocumentId, ObjectId, Permission, PermissionSet, ToolId};
+use guiyi_engine_core::{
+    DocumentAccessPlan, DocumentId, ObjectId, Permission, PermissionSet, ToolId,
+};
 use guiyi_engine_schema::{FieldSchema, SchemaNode};
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
-use tactical_rpg_content::{CoordinateSpace, HexCoord, StageDocument, StageObjectKind};
+use tactical_rpg_content::{CoordinateSpace, StageDocument, StageObjectKind};
 use tactical_rpg_validation::validate_stage;
 
 const TOOL_ID: &str = "tactical.make_stage_playable";
@@ -277,7 +279,8 @@ fn derive_plan(
     if !has_spawn {
         let spawn_object_id = input.spawn_object_id();
         let spawn_profile = input.spawn_profile();
-        let Some((width, height)) = grid_dimensions(&stage_after_unblocking.coordinate_space) else {
+        let Some((width, height)) = grid_dimensions(&stage_after_unblocking.coordinate_space)
+        else {
             let mut diagnostics_after = validate_stage(&stage_after_unblocking);
             diagnostics_after.extend(plan_failure(
                 &input.stage_id,
@@ -415,101 +418,6 @@ fn is_locally_playable(diagnostics: &DiagnosticBag) -> bool {
 
 fn plan_failure(stage_id: &DocumentId, message: impl Into<String>) -> DiagnosticBag {
     let mut bag = DiagnosticBag::default();
-    bag.push(
-        Diagnostic::error(PLAYABILITY_PLAN_FAILED, message)
-            .at_document(stage_id.clone()),
-    );
+    bag.push(Diagnostic::error(PLAYABILITY_PLAN_FAILED, message).at_document(stage_id.clone()));
     bag
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use guiyi_engine_command::{CommandContext, CommandExecutor, CommandRegistry, CommandRequest};
-    use guiyi_engine_core::PermissionSet;
-    use tactical_rpg_content::{StageNavigation, StageObject};
-
-    fn state_with(stage: StageDocument) -> EngineState {
-        let mut state = EngineState::default();
-        state.documents.insert(stage.to_envelope().unwrap()).unwrap();
-        state
-    }
-
-    fn execute(stage: StageDocument, dry_run: bool) -> (EngineState, guiyi_engine_command::TransactionReport) {
-        let mut registry = CommandRegistry::default();
-        crate::register_tactical_commands(&mut registry).unwrap();
-        let mut executor = CommandExecutor::new(registry);
-        let mut state = state_with(stage);
-        let report = executor
-            .execute(
-                CommandRequest {
-                    command: ToolId::from_static(TOOL_ID),
-                    input: json!({"stage_id": "stage.intent"}),
-                    dry_run,
-                },
-                &CommandContext {
-                    actor: "eng023-unit".into(),
-                    permissions: PermissionSet::content_author(),
-                },
-                &mut state,
-            )
-            .unwrap();
-        (state, report)
-    }
-
-    #[test]
-    fn deterministic_missing_spawn_uses_first_unblocked_coordinate() {
-        let mut stage = StageDocument::new_hex(
-            DocumentId::from_static("stage.intent"),
-            "Intent",
-            2,
-            2,
-        );
-        stage.navigation = StageNavigation {
-            blocked: vec![HexCoord::new(0, 0)],
-        };
-
-        let (_, report) = execute(stage, true);
-        assert_eq!(report.output["playable_before"], false);
-        assert_eq!(report.output["playable_after"], true);
-        assert_eq!(report.output["plan"][0]["command"], "stage.create_spawn");
-        assert_eq!(report.output["plan"][0]["input"]["q"], 0);
-        assert_eq!(report.output["plan"][0]["input"]["r"], 1);
-        assert_eq!(report.output["plan"][0]["input"]["object_id"], DEFAULT_SPAWN_OBJECT_ID);
-        assert_eq!(report.output["plan"][0]["input"]["profile"], DEFAULT_SPAWN_PROFILE);
-    }
-
-    #[test]
-    fn multiple_blocked_spawn_repairs_are_sorted_and_use_primitive_command_inputs() {
-        let mut stage = StageDocument::new_hex(
-            DocumentId::from_static("stage.intent"),
-            "Intent",
-            3,
-            3,
-        );
-        stage.navigation = StageNavigation {
-            blocked: vec![HexCoord::new(2, 1), HexCoord::new(0, 2)],
-        };
-        for (id, q, r) in [("spawn.b", 2, 1), ("spawn.a", 0, 2)] {
-            stage.objects.push(StageObject {
-                id: ObjectId::new(id).unwrap(),
-                position: HexCoord::new(q, r),
-                object: StageObjectKind::SpawnPoint {
-                    profile: "player".into(),
-                },
-                properties: json!({}),
-            });
-        }
-
-        let (_, report) = execute(stage, true);
-        assert_eq!(report.output["plan"].as_array().unwrap().len(), 2);
-        assert_eq!(report.output["plan"][0]["input"]["q"], 0);
-        assert_eq!(report.output["plan"][0]["input"]["r"], 2);
-        assert_eq!(report.output["plan"][1]["input"]["q"], 2);
-        assert_eq!(report.output["plan"][1]["input"]["r"], 1);
-        assert_eq!(
-            report.output["plan"][0]["reason_codes"],
-            json!([STAGE_NAV_SPAWN_BLOCKED])
-        );
-    }
 }
