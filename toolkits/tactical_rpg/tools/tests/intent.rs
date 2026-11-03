@@ -4,7 +4,7 @@ use guiyi_engine_agent_host::{
 use guiyi_engine_agent_tools::ToolCatalog;
 use guiyi_engine_command::{
     CommandContext, CommandError, CommandExecutor, CommandRegistry, CommandRequest, EngineState,
-    TransactionStatus,
+    TransactionReport, TransactionStatus,
 };
 use guiyi_engine_core::{AgentSessionId, DocumentId, ObjectId, PermissionSet, ToolId};
 use guiyi_engine_protocol::{ToolCall, ToolResultStatus};
@@ -110,6 +110,10 @@ fn assert_locally_playable(stage: &StageDocument) {
         .diagnostics
         .iter()
         .any(|diagnostic| diagnostic.code == "STAGE_NO_SPAWN_POINT"));
+}
+
+fn transaction(value: &Value) -> TransactionReport {
+    serde_json::from_value(value.clone()).unwrap()
 }
 
 #[test]
@@ -394,10 +398,8 @@ fn live_catalog_exposes_machine_visible_defaults_and_dry_run_graph_discipline() 
     let mut author = session("session.eng023.author", PermissionSet::content_author());
     let preview = host.execute(&mut author, call("preview", true));
     assert_eq!(preview.status, ToolResultStatus::Ok);
-    assert_eq!(
-        preview.transaction.as_ref().unwrap().status,
-        TransactionStatus::Previewed
-    );
+    let preview_transaction = transaction(preview.transaction.as_ref().unwrap());
+    assert_eq!(preview_transaction.status, TransactionStatus::Previewed);
     assert_eq!(host.state, before_state);
     assert_eq!(
         serde_json::to_value(host.project_graph_snapshot()).unwrap(),
@@ -406,10 +408,10 @@ fn live_catalog_exposes_machine_visible_defaults_and_dry_run_graph_discipline() 
 
     let applied = host.execute(&mut author, call("apply", false));
     assert_eq!(applied.status, ToolResultStatus::Ok);
-    let transaction = applied.transaction.as_ref().unwrap();
-    assert_eq!(transaction.status, TransactionStatus::Applied);
-    assert_eq!(transaction.command.as_str(), TOOL_ID);
-    assert_eq!(transaction.document_diffs.len(), 1);
+    let applied_transaction = transaction(applied.transaction.as_ref().unwrap());
+    assert_eq!(applied_transaction.status, TransactionStatus::Applied);
+    assert_eq!(applied_transaction.command.as_str(), TOOL_ID);
+    assert_eq!(applied_transaction.document_diffs.len(), 1);
     assert_locally_playable(&read_stage(&host.state));
     assert_eq!(
         serde_json::to_value(host.project_graph_snapshot()).unwrap(),
