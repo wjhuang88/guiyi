@@ -43,8 +43,8 @@ fn main() {
             json!({"id": "stage.demo", "name": "AI Test Range", "width": 8, "height": 8}),
         ),
         (
-            "stage.create_spawn",
-            json!({"stage_id": "stage.demo", "object_id": "spawn.player", "profile": "player", "q": 1, "r": 1}),
+            "tactical.make_stage_playable",
+            json!({"stage_id": "stage.demo"}),
         ),
         (
             "stage.place_actor",
@@ -109,7 +109,7 @@ fn main() {
             }),
         ),
     ] {
-        executor
+        let report = executor
             .execute(
                 CommandRequest {
                     command: ToolId::new(tool).unwrap(),
@@ -120,6 +120,11 @@ fn main() {
                 &mut state,
             )
             .unwrap();
+        if tool == "tactical.make_stage_playable" {
+            assert_eq!(report.output["playable_before"], false);
+            assert_eq!(report.output["playable_after"], true);
+            assert_eq!(report.output["plan"][0]["command"], "stage.create_spawn");
+        }
     }
 
     let mut compilers = CompilerRegistry::default();
@@ -148,7 +153,7 @@ fn main() {
     let mut runtime = StageRuntimeManager::default();
     let instance = runtime.load(&mut world, stage_artifact).unwrap();
     println!(
-        "stage instance {} loaded with {} entities; Encounter and Dialogue compiled",
+        "stage instance {} loaded with {} entities; intent repair, Encounter, and Dialogue compiled",
         instance,
         world.entities().len()
     );
