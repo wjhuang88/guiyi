@@ -14,8 +14,8 @@ At the product-surface level, this iteration advances an Agent-first development
 - ENG-013 / #57 is Done and squash-merged through PR #58 (`cb6c2a5016d04fd59e97926ae62b416bff6b41a0`). Final clean-head CI run 234 passed before merge.
 - ENG-020 / #59 is Done and squash-merged through PR #61 (`80eaee3338e5a772b1b56a2b44e97f8eef73afb4`). Final clean-head CI run 248 passed before merge.
 - ENG-021 / #62 is Done and squash-merged through PR #64 (`1387415f7145e56632bfbca2d3562d48236bf589`). Final clean-head CI run 269 passed before merge.
-- ENG-022 / #65 implementation acceptance is complete in PR #68; implementation-head CI run 290 passed the complete suite. Final merge remains gated on closure synchronization and a clean-head complete-suite CI run.
-- ENG-023 remains Proposed and non-executable until separately promoted.
+- ENG-022 / #65 is Done and squash-merged through PR #68 (`742ba403e7e475784d75cb1f7c756ca065947913`). Final clean-head CI run 298 (`41184421365`) passed on exact head `f791a72961ad5b7a41465c9ed1be19fa02c6a2c9` before merge.
+- ENG-023 / #69 is Ready under the Product Backlog after its explicit intent-tool implementation contract, ownership, compatibility, rollback, and non-goal gates were defined. Implementation starts only after this Ready-promotion change passes the complete repository suite and merges.
 - Other Proposed Stories remain non-executable.
 
 ## Completed baseline — ENG-014
@@ -249,7 +249,7 @@ GitHub Issue: #65
 
 Branch: `feature/ENG-022-dialogue-rule-registry`
 
-Implementation PR: #68
+Merged PR: #68
 
 Validation record: `docs/validation/ENG-022.md`
 
@@ -295,8 +295,8 @@ The tactical content crate adds only an internal path dependency on `guiyi-engin
 - Ready-promotion PR #67 passed complete CI run 271 before merge and authorized implementation on baseline `7be300590847422ce2e4d683cd0f0ba00405c018`;
 - early implementation runs stopped at rustfmt while the implementation was still being assembled and are formatting-repair evidence only;
 - implementation-head run 290 (`41167411681`) on exact head `f3c5d30b80d2061bb7652dcb96112655291c4cf1` passed repository gates, fmt, workspace check, strict Clippy, all workspace tests, docs, and all three examples;
-- a temporary branch-only helper synchronized `Cargo.lock`; helper files are removed before final validation and are not part of the merged product surface;
-- final clean-head CI remains the merge gate after documentation/helper cleanup.
+- a temporary branch-only helper synchronized `Cargo.lock`; helper files were removed before final validation and are not part of the merged product surface;
+- final clean-head run 298 (`41184421365`) on exact head `f791a72961ad5b7a41465c9ed1be19fa02c6a2c9` passed the complete suite before PR #68 squash-merged as `742ba403e7e475784d75cb1f7c756ca065947913` and Issue #65 closed.
 
 ### ENG-022 exit gate
 
@@ -304,4 +304,39 @@ Implementation acceptance is satisfied for all Issue #65 scenarios: shared rule 
 
 No runtime Dialogue VM or rule executor, quest/world-state/save framework, generic engine-core plugin registry, visual graph authoring path, or Talos runtime change was introduced.
 
-ENG-023 remains Proposed and non-executable until separately promoted through Direction Governance.
+ENG-022 is fully closed.
+
+## Ready Story slice — ENG-023
+
+### ENG-023 Add intent-level `tactical.make_stage_playable` Tool
+
+GitHub Issue: #69
+
+Primary owner: GUIYI tactical-RPG toolkit, primarily `toolkits/tactical_rpg/tools`, reusing existing tactical Stage validation and existing engine Command/AgentHost execution boundaries.
+
+ENG-023 is the final Gate-3 semantic-density vertical before ENG-030. It lets an Agent express “make this Stage locally playable” through one discoverable intent Command while preserving existing primitive semantic Commands, Stage validation, permissions, working-set enforcement, dry-run/diff review, transaction/audit/persistence, and Project Graph refresh as the authoritative execution surface.
+
+### Ready contract
+
+- local playability is derived only from existing `validate_stage`: no error diagnostics and no `STAGE_NO_SPAWN_POINT`; no persisted playable flag or second validator is introduced;
+- add one live schema-bearing Command, `tactical.make_stage_playable(stage_id, spawn_object_id?, spawn_profile?)`, with deterministic schema defaults for fallback spawn identity/profile;
+- derive and return an ordered machine-readable repair plan whose mutations are represented by existing primitive Stage Command IDs/inputs;
+- minimum automatic scope is bounded to unblocking existing spawn cells through `stage.set_navigation_blocked(..., false)` and creating a deterministic fallback spawn through `stage.create_spawn` when a missing spawn is the repairable gap;
+- preflight the complete candidate and reject atomically when bounded repairs still leave blocking Stage diagnostics; do not partially apply a “best effort” plan;
+- the outer intent remains one normal GUIYI Command transaction and must reuse/delegate primitive semantic Stage mutation implementations rather than hand-editing Stage fields through a private path;
+- successful output exposes `stage_id`, before/after playability, ordered delegated plan, and before/after diagnostics while normal `ToolResult.transaction` remains the transaction truth;
+- AgentHost permission/working-set enforcement and applied-only Project Graph refresh remain unchanged; dry-run/rejected/failed calls never mutate authoritative state or graph cache;
+- live registry exposure automatically reaches the existing ENG-014 Talos adapter; no Talos-specific Tool registration or runtime change is allowed;
+- ENG-023 does not run build/preview automatically, start a Talos session, create Encounter/Dialogue content, or claim whole-project playability. ENG-030 remains the real Talos-driven create/repair/validate/build/preview proof.
+
+### Explicit non-goals / stop conditions
+
+ENG-023 does not own general automatic repair for every Stage diagnostic, object deletion/renaming, arbitrary topology redesign, cross-document reference repair, combat/AI/quest/world-state/save systems, visual workbench behavior, direct document/file patching, or an engine-wide intent/composite-command framework.
+
+If implementation requires changing generic transaction atomicity/audit semantics, adding a new generic Tool kind/composite executor, persisting a second playability/repair-plan truth, or changing Talos ownership/dependencies, stop and perform separate change-control/ADR assessment instead of expanding this Story.
+
+### Validation / rollback
+
+Issue #69 is the implementation contract. Required acceptance includes deterministic planning/fallback placement, already-playable no-op behavior, blocked-spawn and missing-spawn dry-run/apply, combined-plan atomicity, blocker preservation, permission/working-set denial, transaction/graph discipline, live capability discovery, and executable tactical-demo/equivalent integration. The full repository suite and final clean-head CI are required before Done/merge.
+
+Compatibility is additive: no Stage schema migration, external dependency, or Talos SDK/version/feature change is expected. Rollback removes the intent Tool/tests/golden/demo/docs while leaving existing Stage Commands, validation, Project Graph, build/preview, and Talos adapter intact.
