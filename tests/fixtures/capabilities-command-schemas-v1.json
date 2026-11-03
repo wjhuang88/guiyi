@@ -532,5 +532,30 @@
     ],
     "type": "object",
     "x-schema-version": 1
+  },
+  "tactical.make_stage_playable": {
+    "additionalProperties": true,
+    "properties": {
+      "spawn_object_id": {
+        "default": "spawn.player",
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "spawn_profile": {
+        "default": "player",
+        "minLength": 1,
+        "type": "string",
+        "x-schema-version": 1
+      },
+      "stage_id": {
+        "type": "string",
+        "x-schema-version": 1
+      }
+    },
+    "required": [
+      "stage_id"
+    ],
+    "type": "object",
+    "x-schema-version": 1
   }
 }
