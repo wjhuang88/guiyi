@@ -3,6 +3,7 @@
 //! High-level tactical RPG commands and queries for AI agents and human clients.
 
 mod encounter;
+mod intent;
 mod navigation;
 mod stage_object_commands;
 
@@ -11,6 +12,7 @@ use crate::encounter::{
     CreateDialogueCommand, CreateEncounterCommand, RemoveEncounterParticipantCommand,
     TacticalRulesCatalogQuery,
 };
+use crate::intent::MakeStagePlayableCommand;
 use crate::navigation::{ReachabilityQuery, SetNavigationBlockedCommand};
 use crate::stage_object_commands::{MoveStageObjectCommand, RemoveStageObjectCommand};
 use guiyi_engine_command::{
@@ -479,6 +481,7 @@ pub fn register_tactical_commands(registry: &mut CommandRegistry) -> Result<(), 
     registry.register(CreateDialogueCommand)?;
     registry.register(AddDialogueNodeCommand)?;
     registry.register(AddDialogueChoiceCommand)?;
+    registry.register(MakeStagePlayableCommand)?;
     Ok(())
 }
 
