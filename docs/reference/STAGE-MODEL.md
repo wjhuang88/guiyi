@@ -66,6 +66,30 @@ Reachability validation intentionally does not define movement cost, terrain typ
 
 Executable acceptance and rollback evidence is recorded in `docs/validation/ENG-020.md`.
 
+### Intent-level local playability repair
+
+ENG-023 adds `tactical.make_stage_playable(stage_id, spawn_object_id?, spawn_profile?)` as a higher-level semantic Command. It does not create a second Stage-validity system. The existing `validate_stage` result remains authoritative, and this intent defines **locally playable** only as:
+
+1. `validate_stage` reports no `Error` diagnostics; and
+2. `STAGE_NO_SPAWN_POINT` is absent, because a standard preview profile otherwise has no Stage entry point.
+
+The optional fallback spawn identity/profile default to `spawn.player` and `player` in the machine-readable input schema. These values are used only when a missing spawn must be created; collisions or invalid candidates are reported rather than silently renamed.
+
+Before mutation, the intent derives a deterministic ordered repair plan from the authoritative Stage. Every authored action is exposed as an existing primitive semantic Command ID plus machine-readable input and reason codes. ENG-023 deliberately limits automatic repair to:
+
+- unblocking an existing spawn cell through `stage.set_navigation_blocked(..., blocked=false)` when `STAGE_NAV_SPAWN_BLOCKED` applies; and
+- creating one deterministic fallback spawn through `stage.create_spawn` when `STAGE_NO_SPAWN_POINT` is the repairable gap. Grid candidates are considered in stable `q`-major, then `r` order, skipping blocked cells, and a candidate is accepted only when the resulting Stage satisfies the same local-playability predicate.
+
+The intent preflights the complete candidate on cloned engine state and reuses the existing primitive Command mutation implementations. Apply then runs as one normal outer GUIYI Command transaction. There are no synthetic sub-transaction IDs, no second audit log, and no direct private `StageDocument` mutation path for fields already owned by the primitive Commands. Normal permission, working-set, schema, dry-run, diff, persistence, audit, and applied-only Project Graph refresh behavior remains authoritative in `CommandExecutor` / `AgentHost`.
+
+A successful machine result contains the Stage ID, `playable_before`, `playable_after`, ordered plan, and before/after diagnostics. The normal `ToolResult.transaction` remains transaction truth. An already-playable Stage produces an empty plan and no content diff. Dry-run produces normal preview evidence without authoritative mutation.
+
+ENG-023 does not attempt to repair out-of-bounds objects, duplicate IDs, invalid dimensions, unsupported navigation state, arbitrary unreachable topology, malformed tactical rules, cross-document build/reference failures, connection design, or defects requiring deletion/renaming/game-specific choices. Those remain structured blockers from the existing authorities; the intent rejects atomically instead of applying a partial best-effort repair.
+
+Local playability is intentionally not whole-project buildability. The intent does not start Talos, run a model, invoke build/preview automatically, create Encounter/Dialogue content, or own runtime combat/world state. The tactical demo proves that an intent-repaired Stage can continue through the existing validation/build/runtime path; ENG-030 owns the real Talos-driven production proof.
+
+Executable acceptance and rollback evidence is recorded in `docs/validation/ENG-023.md`.
+
 ### Shared tactical rule validation
 
 ENG-022 fulfills the pre-existing `stage.create_trigger` promise that Trigger conditions/effects are registry-defined. Trigger authoring keeps the same persisted JSON invocation shape: each condition/effect is an object with a string `type` and descriptor-specific fields. `validate_stage` validates those invocations through the same default tactical rule registry used by Dialogue.
@@ -86,4 +110,4 @@ ENG-020 does not add runtime path-following or movement AI. The runtime may cons
 
 ## Toolkit scope
 
-The toolkit includes Actor, Trigger, SpawnPoint, Marker, StageConnection, and reusable Stage grid-navigation concepts. It does not include any specific game's resurrection, lifespan, faction, world-state mechanics, or game-specific movement rules.
+The toolkit includes Actor, Trigger, SpawnPoint, Marker, StageConnection, reusable Stage grid-navigation concepts, and bounded intent-level Stage repair. It does not include any specific game's resurrection, lifespan, faction, world-state mechanics, or game-specific movement rules.

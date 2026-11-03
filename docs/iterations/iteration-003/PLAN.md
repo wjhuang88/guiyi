@@ -15,8 +15,8 @@ At the product-surface level, this iteration advances an Agent-first development
 - ENG-020 / #59 is Done and squash-merged through PR #61 (`80eaee3338e5a772b1b56a2b44e97f8eef73afb4`). Final clean-head CI run 248 passed before merge.
 - ENG-021 / #62 is Done and squash-merged through PR #64 (`1387415f7145e56632bfbca2d3562d48236bf589`). Final clean-head CI run 269 passed before merge.
 - ENG-022 / #65 is Done and squash-merged through PR #68 (`742ba403e7e475784d75cb1f7c756ca065947913`). Final clean-head CI run 298 (`41184421365`) passed on exact head `f791a72961ad5b7a41465c9ed1be19fa02c6a2c9` before merge.
-- ENG-023 / #69 is Ready under the Product Backlog after its explicit intent-tool implementation contract, ownership, compatibility, rollback, and non-goal gates were defined. Implementation starts only after this Ready-promotion change passes the complete repository suite and merges.
-- Other Proposed Stories remain non-executable.
+- ENG-023 / #69 is Done at implementation acceptance under PR #71. Ready-promotion run 300 authorized baseline `ed8b07c5873f05e15b7c95c3c6f429c6abfe963b`; implementation-head run 308 (`41648591032`) passed the complete suite on `f8bcfd6c156215279e20f220810a3ab57882d5d7`. Repository policy still requires the exact closure-docs head to pass the complete suite before squash merge.
+- Other Proposed Stories remain non-executable. ENG-030 is now the next primary candidate and must complete its own Proposed → Ready change-control before implementation.
 
 ## Completed baseline — ENG-014
 
@@ -306,37 +306,63 @@ No runtime Dialogue VM or rule executor, quest/world-state/save framework, gener
 
 ENG-022 is fully closed.
 
-## Ready Story slice — ENG-023
+## Completed Story slice — ENG-023
 
 ### ENG-023 Add intent-level `tactical.make_stage_playable` Tool
 
 GitHub Issue: #69
 
+Implementation PR: #71
+
+Branch: `feature/ENG-023-make-stage-playable`
+
+Validation record: `docs/validation/ENG-023.md`
+
 Primary owner: GUIYI tactical-RPG toolkit, primarily `toolkits/tactical_rpg/tools`, reusing existing tactical Stage validation and existing engine Command/AgentHost execution boundaries.
 
-ENG-023 is the final Gate-3 semantic-density vertical before ENG-030. It lets an Agent express “make this Stage locally playable” through one discoverable intent Command while preserving existing primitive semantic Commands, Stage validation, permissions, working-set enforcement, dry-run/diff review, transaction/audit/persistence, and Project Graph refresh as the authoritative execution surface.
+ENG-023 closes Gate 3 with a bounded high-level authoring intent. An Agent can request “make this Stage locally playable”, inspect a deterministic primitive-command plan, dry-run the resulting diff, and apply one normal transaction without direct file mutation or Editor-private automation.
 
-### Ready contract
+### Delivered ENG-023 work packages
 
-- local playability is derived only from existing `validate_stage`: no error diagnostics and no `STAGE_NO_SPAWN_POINT`; no persisted playable flag or second validator is introduced;
-- add one live schema-bearing Command, `tactical.make_stage_playable(stage_id, spawn_object_id?, spawn_profile?)`, with deterministic schema defaults for fallback spawn identity/profile;
-- derive and return an ordered machine-readable repair plan whose mutations are represented by existing primitive Stage Command IDs/inputs;
-- minimum automatic scope is bounded to unblocking existing spawn cells through `stage.set_navigation_blocked(..., false)` and creating a deterministic fallback spawn through `stage.create_spawn` when a missing spawn is the repairable gap;
-- preflight the complete candidate and reject atomically when bounded repairs still leave blocking Stage diagnostics; do not partially apply a “best effort” plan;
-- the outer intent remains one normal GUIYI Command transaction and must reuse/delegate primitive semantic Stage mutation implementations rather than hand-editing Stage fields through a private path;
-- successful output exposes `stage_id`, before/after playability, ordered delegated plan, and before/after diagnostics while normal `ToolResult.transaction` remains the transaction truth;
-- AgentHost permission/working-set enforcement and applied-only Project Graph refresh remain unchanged; dry-run/rejected/failed calls never mutate authoritative state or graph cache;
-- live registry exposure automatically reaches the existing ENG-014 Talos adapter; no Talos-specific Tool registration or runtime change is allowed;
-- ENG-023 does not run build/preview automatically, start a Talos session, create Encounter/Dialogue content, or claim whole-project playability. ENG-030 remains the real Talos-driven create/repair/validate/build/preview proof.
+#### A. Existing Stage truth remains authoritative
 
-### Explicit non-goals / stop conditions
+Local playability is derived only from `validate_stage`: no errors and no `STAGE_NO_SPAWN_POINT`. The Story adds no persisted playability flag, repair-plan truth, second validator, graph, audit log, or transaction model.
 
-ENG-023 does not own general automatic repair for every Stage diagnostic, object deletion/renaming, arbitrary topology redesign, cross-document reference repair, combat/AI/quest/world-state/save systems, visual workbench behavior, direct document/file patching, or an engine-wide intent/composite-command framework.
+#### B. Live semantic intent Command
 
-If implementation requires changing generic transaction atomicity/audit semantics, adding a new generic Tool kind/composite executor, persisting a second playability/repair-plan truth, or changing Talos ownership/dependencies, stop and perform separate change-control/ADR assessment instead of expanding this Story.
+`tactical.make_stage_playable(stage_id, spawn_object_id?, spawn_profile?)` is registered in the normal tactical Command registry with `EditContent`, target-Stage access, machine-visible fallback defaults `spawn.player` / `player`, and normal live Tool discovery. The existing ENG-014 adapter therefore sees the capability without Talos-specific registration code.
 
-### Validation / rollback
+#### C. Deterministic bounded plan
 
-Issue #69 is the implementation contract. Required acceptance includes deterministic planning/fallback placement, already-playable no-op behavior, blocked-spawn and missing-spawn dry-run/apply, combined-plan atomicity, blocker preservation, permission/working-set denial, transaction/graph discipline, live capability discovery, and executable tactical-demo/equivalent integration. The full repository suite and final clean-head CI are required before Done/merge.
+The machine result exposes ordered primitive Command IDs/inputs and reason codes. Automatic repair is limited to:
 
-Compatibility is additive: no Stage schema migration, external dependency, or Talos SDK/version/feature change is expected. Rollback removes the intent Tool/tests/golden/demo/docs while leaving existing Stage Commands, validation, Project Graph, build/preview, and Talos adapter intact.
+- `stage.set_navigation_blocked(..., false)` for blocked existing spawn cells; and
+- `stage.create_spawn` for a missing spawn at the first valid unblocked grid coordinate in deterministic `q`-major / `r`-minor order.
+
+The complete candidate is preflighted on cloned state. Unsupported or ambiguous remaining blockers reject atomically with authoritative diagnostics rather than committing a partial best-effort change.
+
+#### D. Primitive ownership and one outer transaction
+
+Authored changes reuse `SetNavigationBlockedCommand::apply` and `CreateSpawnCommand::apply`. The intent does not hand-edit the Stage fields those primitive Commands own. One outer GUIYI transaction provides dry-run/applied status, diff, audit, persistence, and applied-only Project Graph refresh; no synthetic sub-transactions or generic composite-command framework was added.
+
+#### E. Security, discovery, and executable proof
+
+Focused tests cover permission denial, working-set denial, no-op behavior, deterministic plan ordering/fallback placement, primitive-equivalence, blocker preservation, dry-run state/graph discipline, and one outer transaction. The CLI command-schema golden grows from 17 to 18 Commands. The tactical demo repairs a Stage through the intent and then continues through existing Actor/Trigger/Encounter/Dialogue authoring, strict build, and Stage runtime load.
+
+### ENG-023 validation history
+
+- Ready promotion PR #70 passed full CI run 300 (`41646029568`) on exact docs head `010da76632ca13d2b98264ff2070ea511f1b08b3` before squash merge established authorized implementation baseline `ed8b07c5873f05e15b7c95c3c6f429c6abfe963b`;
+- run 302 stopped at rustfmt and is formatting-repair evidence only; repository gates were green;
+- run 307 (`41648195957`) passed repository gates, fmt, and workspace check, then test-target compilation under strict Clippy exposed that AgentHost transaction evidence is serialized JSON; the test was corrected to deserialize the existing `TransactionReport` payload without changing production behavior;
+- implementation-head run 308 (`41648591032`) on exact head `f8bcfd6c156215279e20f220810a3ab57882d5d7` passed repository gates, fmt, check, strict Clippy, all workspace tests, docs, and all three executable examples;
+- repository policy requires the exact closure-docs head to pass the same complete suite before PR #71 squash merge.
+
+No local Cargo gate is claimed; GitHub Actions is the executable validation source.
+
+### ENG-023 exit gate
+
+Issue #69 acceptance is satisfied by the implementation and tests: existing Stage validity remains authoritative; bounded primitive-command planning is deterministic; already-playable, blocked-spawn, missing-spawn, multi-action, blocker, permission, working-set, dry-run, transaction, graph, live-discovery, golden, and executable integration scenarios are covered; no generic composite framework or Talos/runtime/world-state scope was introduced.
+
+Compatibility is additive and rollback removes only the intent Tool/tests/golden/demo/docs while preserving primitive Stage capabilities and project truth.
+
+ENG-023 is implementation-complete. ENG-030 is the next primary candidate but remains Proposed until its own explicit change-control promotion.
