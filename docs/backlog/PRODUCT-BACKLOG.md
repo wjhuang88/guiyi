@@ -29,14 +29,12 @@ First-party AI dependency rule:
 Current primary sequence:
 
 ```text
-ENG-023 tactical RPG intent vertical
-    ↓
 ENG-030 Talos-driven playable-slice demo
     ↓
 ENG-024 human review workbench
 ```
 
-ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established the incremental semantic Project Graph baseline, ENG-013 established semantic Stage object move/remove authoring, ENG-020 established deterministic Stage navigation/reachability, ENG-021 established Agent-first Encounter composition through additive content, compilation, validation, semantic references, and typed Commands; ENG-022 established schema-backed tactical rule discovery/validation and Agent-first Dialogue graph authoring/compilation. A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
+ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established the incremental semantic Project Graph baseline, ENG-013 established semantic Stage object move/remove authoring, ENG-020 established deterministic Stage navigation/reachability, ENG-021 established Agent-first Encounter composition through additive content, compilation, validation, semantic references, and typed Commands; ENG-022 established schema-backed tactical rule discovery/validation and Agent-first Dialogue graph authoring/compilation; ENG-023 established bounded intent-level Stage repair by composing existing semantic Commands under one reviewable transaction. A different primary sequence requires an explicit Backlog/change-control decision. Parallel governance, security, quality, or reproducibility work is allowed when it protects this path without replacing the primary product outcome.
 
 ## Done — Direction convergence
 
@@ -296,29 +294,28 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 - Reference: `docs/reference/DIALOGUE-MODEL.md` and `docs/reference/STAGE-MODEL.md`.
 - Evidence: `docs/validation/ENG-022.md`; final clean-head CI run 298 (`41184421365`) passed the complete suite on exact head `f791a72961ad5b7a41465c9ed1be19fa02c6a2c9` before PR #68 squash-merged as `742ba403e7e475784d75cb1f7c756ca065947913` and Issue #65 closed.
 
-## Ready — Gate 3 intent-level tactical vertical
+## Done — Gate 3 intent-level tactical vertical
 
 ### ENG-023 Intent-level `tactical.make_stage_playable` Tool
 
 - Type: Tactical Toolkit / Intent Tool / Command
 - Priority: P0
-- Status: Ready
-- GitHub: [#69](https://github.com/wjhuang88/guiyi/issues/69) — Open
+- Status: Done
+- GitHub: [#69](https://github.com/wjhuang88/guiyi/issues/69) — implementation PR #71.
 - Depends on: ENG-014 / #52, ENG-012 / #54, ENG-013 / #57, ENG-020 / #59, ENG-021 / #62, and ENG-022 / #65 (Done).
 - Primary ownership: GUIYI tactical-RPG toolkit, primarily `toolkits/tactical_rpg/tools`; no Talos runtime, human-client, or generic engine-core ownership change.
-- North-star contribution: close Gate 3 with a higher-level machine-facing Stage repair intent before ENG-030, so an Agent can request a reviewable “make this Stage locally playable” operation without direct file mutation or an Editor-only automation path.
-- Playability authority: existing `validate_stage` remains the only Stage validity authority. For this intent, completion means no `Error` diagnostics and no `STAGE_NO_SPAWN_POINT`; no persisted playable flag, repair truth, or second validator is introduced.
-- Scope: add live schema-bearing Command `tactical.make_stage_playable(stage_id, spawn_object_id?, spawn_profile?)`; derive a deterministic ordered repair plan whose mutations are expressed as existing primitive Stage Command IDs/inputs; automatically repair only blocked spawn cells through `stage.set_navigation_blocked(..., false)` and missing-spawn gaps through a deterministic `stage.create_spawn` fallback; preflight the complete candidate and reject atomically if the bounded plan does not satisfy local playability.
-- Delegation/transaction gate: every authored change must reuse/delegate the existing primitive semantic Stage Command implementation. The intent Tool executes as one normal outer GUIYI Command transaction with standard dry-run/diff/audit/persistence/working-set behavior; no direct private Stage mutation path, fake sub-transactions, second audit log, or generic engine-wide composite-command subsystem is authorized.
-- Machine-facing evidence: successful output includes `stage_id`, before/after playability, ordered primitive-command plan with reason codes, and before/after diagnostics; normal `ToolResult.transaction` remains authoritative transaction evidence. Already-playable Stages produce an empty no-op plan/diff.
-- Failure behavior: unsupported or ambiguous blockers such as out-of-bounds objects, duplicate IDs, invalid dimensions, unsupported navigation state, remaining arbitrary unreachable topology, malformed tactical rules, cross-document reference problems, or repairs requiring delete/rename/game-specific choices remain authoritative diagnostics and cause atomic rejection rather than hidden “best effort” mutation.
-- Security/graph: target Stage is the declared access scope; AgentHost permissions/working set remain authoritative; dry-run/rejected/failed calls do not refresh Project Graph; successful applied outer transactions use the normal changed-document graph refresh.
-- Build/preview boundary: the Tool does not start Talos, run a model, invoke build/preview automatically, create Encounter/Dialogue content, or claim whole-project playability. ENG-030 remains the real Talos-driven create/repair/validate/build/preview proof.
-- Dependency direction: toolkit -> existing reusable engine crates only; no new external dependency, no Talos SDK/version/feature change, and no Stage persistence/schema migration expected.
-- Compatibility: additive Tool ID only; existing primitive Stage Tool IDs/schemas and Stage document/artifact truth remain authoritative.
-- Non-goals: general automatic repair of all Stage diagnostics; arbitrary topology redesign; combat/AI/runtime movement; quest/world-state/inventory/party/save; visual workbench/editor automation; direct file/document patching; generic engine-core intent/planner/composite-command framework; Talos provider/planner/session/runtime changes.
-- ADR assessment: no new ADR is expected under the scoped contract. If implementation requires changed generic transaction/audit semantics, a new Tool kind/composite executor, a second playability/persistence truth, or Talos ownership/dependency changes, stop and perform separate change-control/ADR assessment.
-- Validation/rollback: Issue #69 is the implementation contract; acceptance requires deterministic plan/fallback selection, already-playable no-op, blocked-spawn and missing-spawn dry-run/apply, combined-plan atomicity, blocker preservation, permission/working-set denial, transaction/Project Graph discipline, live discovery, and executable tactical-demo/equivalent integration. The full repository suite and final clean-head CI are required before Done/merge. Rollback removes only intent Tool/tests/golden/demo/docs and leaves primitive Stage capabilities intact.
+- Result: live schema-bearing `tactical.make_stage_playable(stage_id, spawn_object_id?, spawn_profile?)` composes existing semantic Stage mutations into a deterministic, reviewable bounded repair intent. Machine-visible defaults are `spawn.player` / `player`; successful output includes before/after playability, ordered primitive-command plan/reason codes, and before/after diagnostics.
+- Playability authority: existing `validate_stage` remains the only Stage validity authority. Intent completion means no `Error` diagnostics and no `STAGE_NO_SPAWN_POINT`; no persisted playable flag, repair truth, or second validator was introduced.
+- Repair result: blocked spawn cells delegate `stage.set_navigation_blocked(..., false)`; missing-spawn repair delegates `stage.create_spawn` at the first deterministic valid unblocked `q`-major / `r`-minor grid coordinate. The complete candidate is preflighted and unsupported blockers reject atomically rather than committing partial best-effort changes.
+- Delegation/transaction result: authored mutations reuse the existing primitive Command implementations inside one normal outer GUIYI Command transaction. No direct private Stage patch path, fake sub-transactions, second audit log, new Tool kind, or engine-wide composite-command subsystem was introduced.
+- Security/graph result: target Stage is the declared access scope; AgentHost permission and working-set checks remain authoritative; dry-run/rejected/failed calls do not refresh Project Graph; applied success follows the existing transaction diff/audit/persistence/applied-only graph refresh path.
+- Build/example result: the tactical demo creates a Stage without a spawn, repairs it through the intent Tool, then continues through existing Actor/Trigger/Encounter/Dialogue authoring, strict tactical build, and Stage runtime load. ENG-030 remains the real Talos-driven create/repair/validate/build/preview proof.
+- Capability result: command schema golden grows from 17 to 18 Commands; live registry exposure automatically reaches the existing ENG-014 Talos adapter without Talos-specific code.
+- Compatibility: additive Tool ID only; no Stage document/artifact schema migration, external dependency, new workspace dependency edge, or Talos SDK/version/feature change.
+- Non-goals preserved: general automatic repair of all Stage diagnostics; arbitrary topology redesign; combat/AI/runtime movement; quest/world-state/inventory/party/save; visual workbench/editor automation; direct file/document patching; generic engine-core intent/planner/composite-command framework; Talos provider/planner/session/runtime changes.
+- ADR assessment: no new ADR was required; no Issue #69 architecture stop condition was triggered.
+- Evidence: `docs/validation/ENG-023.md`; implementation-head CI run 308 (`41648591032`) passed the complete suite on exact head `f8bcfd6c156215279e20f220810a3ab57882d5d7`. Repository merge policy additionally requires the exact closure-docs head to pass the complete suite before PR #71 squash merge.
+- Rollback: remove the intent Tool/tests/golden/demo/docs while leaving primitive Stage Commands, validation, Project Graph, build/runtime, and Talos adapter intact; do not replace it with direct file mutation or Editor-private automation.
 
 ## Proposed — Synced GitHub issue intake
 
