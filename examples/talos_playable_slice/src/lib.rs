@@ -29,7 +29,7 @@ use tactical_rpg_content::{
 };
 use tactical_rpg_tools::{register_tactical_commands, register_tactical_queries};
 use tactical_rpg_validation::{validate_dialogue, validate_encounter_project, validate_stage};
-use talos_runtime::{
+use guiyi_talos_runtime::sdk::{
     AgentEvent, AgentTool, LanguageModel, PermissionDecision, PermissionRule, RuntimeBuilder,
     RuntimeTurnCompletionStatus, SessionEvent, ToolNature, ToolResult as TalosToolResult,
     TurnEventPayload,
