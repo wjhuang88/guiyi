@@ -17,7 +17,7 @@ use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use talos_runtime::{
+use guiyi_talos_runtime::sdk::{
     AgentEvent, LanguageModel, Message, ProviderResult, Receiver, StopReason,
     ToolCall as TalosToolCall, ToolDefinition, Usage,
 };
