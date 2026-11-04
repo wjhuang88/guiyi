@@ -603,7 +603,9 @@ pub async fn run_with_provider(
                 })
             })
             .collect::<Vec<_>>();
-        return Err(format!("Talos build/preview evidence incomplete: {observed:?}"));
+        return Err(format!(
+            "Talos build/preview evidence incomplete: {observed:?}"
+        ));
     }
     let storage = ProjectStorage::open(root).map_err(|error| error.to_string())?;
     let audits = storage.audit_records().map_err(|error| error.to_string())?;
