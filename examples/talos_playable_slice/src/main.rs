@@ -13,7 +13,7 @@ use guiyi_engine_core::{
 };
 #[path = "lib.rs"]
 mod proof;
-use proof::run_with_provider;
+use self::proof::run_with_provider;
 use guiyi_talos_runtime::GuiyiExecutionContext;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
