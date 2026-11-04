@@ -15,7 +15,7 @@ use guiyi_engine_content::{
 };
 use guiyi_engine_core::{deterministic_hash, DocumentId, EngineTypeId, Permission, PermissionSet};
 use guiyi_engine_query::{register_builtin_queries, QueryExecutor, QueryRegistry};
-use guiyi_engine_runtime::StageRuntimeManager;
+use guiyi_engine_runtime::{StageOwned, StageRuntimeManager};
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
 use guiyi_talos_runtime::sdk::{
     AgentEvent, AgentTool, LanguageModel, PermissionDecision, PermissionRule, RuntimeBuilder,
@@ -324,10 +324,11 @@ impl OperationalTool {
                     if let Err(error) = manager.unload(&mut world, &instance) {
                         return denied("DEMO_PREVIEW_RUNTIME_FAILED", &error.to_string());
                     }
-                    if manager.active_count() != 0 || !world.entities().is_empty() {
+                    let remaining_owned = world.query::<&StageOwned>().iter(&world).count();
+                    if manager.active_count() != 0 || remaining_owned != 0 {
                         return denied(
                             "DEMO_PREVIEW_CLEANUP_FAILED",
-                            "Stage ECS resources leaked across repeated previews",
+                            "Stage-owned ECS resources leaked across repeated previews",
                         );
                     }
                 }
