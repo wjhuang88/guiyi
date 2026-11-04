@@ -22,6 +22,9 @@ The executable prints a derived review packet with live Tool schema metadata, ob
 
 The full workspace tests also exercise missing permissions, non-empty working sets, invalid operation input, incomplete/invalid build, zero partial artifacts, missing current build, corrupted artifact hashes, and diagnostic-code-dependent fixture decisions.
 
+Additional ENG-030 CI assertions cover **rejection continuation** and **restart semantics**. The deterministic Talos session deliberately requests `demo.project.validate` with an invalid parameter, receives `status: rejected` and `DEMO_INVALID_INPUT`, and then continues to valid semantic authoring and successful build/preview. Expected domain/authorization rejections from the **demo-scoped** Tools are returned as machine-readable Tool data so Talos can consume them; they remain rejections, never authorization successes. Genuine Talos transport errors are distinct and may end a turn. A newly requested build invalidates the previous derived build cache on **any** rejected/failed attempt; preview then fails closed instead of reusing its earlier success. After reopening ProjectStorage, the harness checks Stage/Encounter/Dialogue presence, Stage-owned external references, Encounter→Stage reference edges and all document-reference targets; it exports only aggregate counts as `persistence_summary`.
+
+
 ## Real-provider product acceptance — **HUMAN REQUIRED / BLOCKED**
 
 **Operator handoff:** [ENG-030-MANUAL-ACCEPTANCE.md](../../docs/validation/ENG-030-MANUAL-ACCEPTANCE.md) contains the separate-session checklist, required evidence, pass/fail matrix, redaction rules and the post-acceptance merge gate. The model-led run has **not** been executed; the fixture is not a replacement.
