@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 
+/// Canonical Talos SDK facade for GUIYI outer-client integrations and examples.
+pub use talos_runtime as sdk;
+
 //! Thin Talos runtime integration for GUIYI's existing machine-facing Tool surface.
 //!
 //! Talos owns the first-party Agent loop. This crate only adapts the live GUIYI
