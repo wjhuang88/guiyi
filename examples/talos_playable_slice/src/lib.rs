@@ -242,7 +242,10 @@ impl OperationalTool {
                 ];
                 if ok
                     && !required_types.iter().all(|required| {
-                        report.artifacts.iter().any(|artifact| artifact.artifact_type.as_str() == *required)
+                        report
+                            .artifacts
+                            .iter()
+                            .any(|artifact| artifact.artifact_type.as_str() == *required)
                     })
                 {
                     if let Ok(mut cache) = self.shared.cache.lock() {
@@ -515,9 +518,7 @@ pub async fn run_with_provider(
     let mut capability_schemas = adapter
         .agent_tools()
         .iter()
-        .map(|tool| {
-            json!({"tool": tool.name(), "input_schema": tool.parameters()})
-        })
+        .map(|tool| json!({"tool": tool.name(), "input_schema": tool.parameters()}))
         .collect::<Vec<_>>();
     let mut builder = adapter.register(
         RuntimeBuilder::new()
@@ -709,7 +710,6 @@ pub async fn run_with_provider(
     }))
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -740,7 +740,10 @@ mod tests {
     }
 
     fn make_project(stage: Option<StageDocument>) -> PathBuf {
-        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
         let root = std::env::temp_dir().join(format!(
             "guiyi-eng030-negative-{}-{nonce}",
             std::process::id()
@@ -759,10 +762,13 @@ mod tests {
             AgentSessionId::from_static("session.eng030-fixture"),
             "fixture.create",
             json!({"kind": "immutable_test_fixture"}),
-        ).unwrap();
+        )
+        .unwrap();
         if let Some(stage) = stage {
             let path = ProjectPath::new("content/stages/eng030.stage.json").unwrap();
-            transaction.write_json(path.clone(), &stage.to_envelope().unwrap()).unwrap();
+            transaction
+                .write_json(path.clone(), &stage.to_envelope().unwrap())
+                .unwrap();
             manifest.documents.push(path);
         }
         transaction
@@ -773,12 +779,8 @@ mod tests {
     }
 
     fn stage_with_spawn(position: HexCoord) -> StageDocument {
-        let mut stage = StageDocument::new_hex(
-            DocumentId::from_static("stage.eng030"),
-            "ENG-030",
-            4,
-            4,
-        );
+        let mut stage =
+            StageDocument::new_hex(DocumentId::from_static("stage.eng030"), "ENG-030", 4, 4);
         stage.objects.push(StageObject {
             id: ObjectId::from_static("spawn.player"),
             position,
@@ -815,7 +817,10 @@ mod tests {
                 operation,
                 input,
             );
-            assert_eq!(restricted["output"]["error"]["code"], "AGENT_WORKING_SET_DENIED");
+            assert_eq!(
+                restricted["output"]["error"]["code"],
+                "AGENT_WORKING_SET_DENIED"
+            );
         }
         let validation_only = invoke(
             &shared(
@@ -826,7 +831,10 @@ mod tests {
             Operation::Validate,
             json!({}),
         );
-        assert_eq!(validation_only["output"]["error"]["code"], "AGENT_PERMISSION_DENIED");
+        assert_eq!(
+            validation_only["output"]["error"]["code"],
+            "AGENT_PERMISSION_DENIED"
+        );
     }
 
     #[test]
@@ -838,7 +846,10 @@ mod tests {
         assert_eq!(malformed["output"]["error"]["code"], "DEMO_INVALID_INPUT");
 
         let incomplete = invoke(&shared, Operation::Build, json!({}));
-        assert_eq!(incomplete["output"]["error"]["code"], "DEMO_BUILD_INCOMPLETE_SLICE");
+        assert_eq!(
+            incomplete["output"]["error"]["code"],
+            "DEMO_BUILD_INCOMPLETE_SLICE"
+        );
         assert_eq!(incomplete["output"]["artifacts"], json!([]));
 
         let preview = invoke(
@@ -846,7 +857,10 @@ mod tests {
             Operation::Preview,
             json!({"stage_id": "stage.eng030"}),
         );
-        assert_eq!(preview["output"]["error"]["code"], "DEMO_PREVIEW_STALE_BUILD");
+        assert_eq!(
+            preview["output"]["error"]["code"],
+            "DEMO_PREVIEW_STALE_BUILD"
+        );
         std::fs::remove_dir_all(root).unwrap();
     }
 
@@ -856,18 +870,26 @@ mod tests {
         let shared = shared(&root, PermissionSet::content_author(), Vec::new());
 
         let failed_build = invoke(&shared, Operation::Build, json!({}));
-        assert_eq!(failed_build["output"]["error"]["code"], "DEMO_BUILD_VALIDATION_FAILED");
+        assert_eq!(
+            failed_build["output"]["error"]["code"],
+            "DEMO_BUILD_VALIDATION_FAILED"
+        );
         assert_eq!(failed_build["output"]["artifacts"], json!([]));
-        assert!(failed_build["diagnostics"].as_array().unwrap().iter().any(|item| {
-            item["code"] == "STAGE_OBJECT_OUT_OF_BOUNDS"
-        }));
+        assert!(failed_build["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| { item["code"] == "STAGE_OBJECT_OUT_OF_BOUNDS" }));
 
         let preview = invoke(
             &shared,
             Operation::Preview,
             json!({"stage_id": "stage.eng030"}),
         );
-        assert_eq!(preview["output"]["error"]["code"], "DEMO_PREVIEW_STALE_BUILD");
+        assert_eq!(
+            preview["output"]["error"]["code"],
+            "DEMO_PREVIEW_STALE_BUILD"
+        );
         std::fs::remove_dir_all(root).unwrap();
     }
 
@@ -890,7 +912,10 @@ mod tests {
             Operation::Preview,
             json!({"stage_id": "stage.eng030"}),
         );
-        assert_eq!(preview["output"]["error"]["code"], "DEMO_PREVIEW_RUNTIME_FAILED");
+        assert_eq!(
+            preview["output"]["error"]["code"],
+            "DEMO_PREVIEW_RUNTIME_FAILED"
+        );
         std::fs::remove_dir_all(root).unwrap();
     }
 }
