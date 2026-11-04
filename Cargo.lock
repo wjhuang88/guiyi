@@ -1260,6 +1260,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "guiyi-example-talos-playable-slice"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "async-trait",
+ "bevy_ecs",
+ "guiyi-engine-agent-host",
+ "guiyi-engine-agent-tools",
+ "guiyi-engine-build",
+ "guiyi-engine-command",
+ "guiyi-engine-content",
+ "guiyi-engine-core",
+ "guiyi-engine-query",
+ "guiyi-engine-runtime",
+ "guiyi-engine-validation",
+ "guiyi-talos-runtime",
+ "serde_json",
+ "tactical-rpg-content",
+ "tactical-rpg-tools",
+ "tactical-rpg-validation",
+ "tokio",
+]
+
+[[package]]
 name = "guiyi-talos-runtime"
 version = "0.1.0-alpha.1"
 dependencies = [
