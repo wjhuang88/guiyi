@@ -18,7 +18,6 @@ guiyi-engine-runtime = { path = "../../crates/engine_runtime" }
 guiyi-engine-validation = { path = "../../crates/engine_validation" }
 guiyi-talos-runtime = { path = "../../integrations/talos_runtime" }
 serde_json.workspace = true
-talos-runtime.workspace = true
 tactical-rpg-content = { path = "../../toolkits/tactical_rpg/content" }
 tactical-rpg-tools = { path = "../../toolkits/tactical_rpg/tools" }
 tactical-rpg-validation = { path = "../../toolkits/tactical_rpg/validation" }
