@@ -22,7 +22,9 @@ The executable prints a derived review packet with live Tool schema metadata, ob
 
 The full workspace tests also exercise missing permissions, non-empty working sets, invalid operation input, incomplete/invalid build, zero partial artifacts, missing current build, corrupted artifact hashes, and diagnostic-code-dependent fixture decisions.
 
-## Real-provider product acceptance — still required
+## Real-provider product acceptance — **HUMAN REQUIRED / BLOCKED**
+
+**Operator handoff:** [ENG-030-MANUAL-ACCEPTANCE.md](../../docs/validation/ENG-030-MANUAL-ACCEPTANCE.md) contains the separate-session checklist, required evidence, pass/fail matrix, redaction rules and the post-acceptance merge gate. The model-led run has **not** been executed; the fixture is not a replacement.
 
 `guiyi-example-talos-playable-slice` exports `run_with_provider(root, provider, context)`. (Rust crate name: `guiyi_example_talos_playable_slice`.) A separate **operator-owned** Talos embedding application must supply a genuine `Arc<dyn guiyi_talos_runtime::sdk::LanguageModel>` and an already initialized GUIYI project root. Construct/configure that provider and its credentials using Talos/operator infrastructure **outside GUIYI**. Do not implement another model client in engine/toolkit crates.
 
