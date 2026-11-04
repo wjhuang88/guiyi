@@ -262,6 +262,16 @@ impl OperationalTool {
     }
 
     fn execute_sync(&self, input: Value) -> TalosToolResult {
+        // A newly requested build supersedes the last derived build witness.
+        // No rejected or failed build may leave an earlier artifact available
+        // for a subsequent preview claim, including malformed/denied calls.
+        if matches!(self.operation, Operation::Build) {
+            let mut cache = match self.shared.cache.lock() {
+                Ok(cache) => cache,
+                Err(_) => return denied("DEMO_BUILD_CACHE_FAILED", "build cache lock poisoned"),
+            };
+            *cache = BuildCache::default();
+        }
         if !self.shared.permissions.contains(Permission::Read)
             || !self.shared.permissions.contains(self.needed_permission())
         {
@@ -1143,6 +1153,34 @@ mod tests {
             Operation::Preview,
             json!({"stage_id": "stage.eng030"}),
         );
+        assert_eq!(
+            preview["output"]["error"]["code"],
+            "DEMO_PREVIEW_STALE_BUILD"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rejected_build_invalidates_previous_derived_preview() {
+        let root = make_project(Some(stage_with_spawn(HexCoord::new(0, 0))));
+        let store = project_state(&root).unwrap();
+        let report = strict_build(&store, &root).unwrap();
+        assert!(report.succeeded());
+        let shared = shared(&root, PermissionSet::content_author(), Vec::new());
+        *shared.cache.lock().unwrap() = BuildCache {
+            document_hash: project_hash(&store).unwrap(),
+            artifacts: report.artifacts,
+        };
+        // A previous successful build is previewable, but an attempted
+        // malformed build must revoke it rather than reuse stale success.
+        let preview_input = json!({"stage_id": "stage.eng030"});
+        assert_eq!(
+            invoke(&shared, Operation::Preview, preview_input.clone())["status"],
+            "ok"
+        );
+        let invalid = invoke(&shared, Operation::Build, json!({"unexpected": true}));
+        assert_eq!(invalid["output"]["error"]["code"], "DEMO_INVALID_INPUT");
+        let preview = invoke(&shared, Operation::Preview, preview_input);
         assert_eq!(
             preview["output"]["error"]["code"],
             "DEMO_PREVIEW_STALE_BUILD"
