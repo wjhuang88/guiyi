@@ -21,15 +21,6 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - name: ENG030 temporary rustfmt source export
-        run: |
-          cargo fmt --all
-          echo 'ENG030_FORMAT_START_LIB'
-          cat examples/talos_playable_slice/src/lib.rs
-          echo 'ENG030_FORMAT_END_LIB'
-          echo 'ENG030_FORMAT_START_MAIN'
-          cat examples/talos_playable_slice/src/main.rs
-          echo 'ENG030_FORMAT_END_MAIN'
       - run: cargo fmt --all -- --check
       - run: cargo check --workspace --all-features
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
