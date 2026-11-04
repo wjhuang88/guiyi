@@ -423,12 +423,40 @@ impl EventEvidence {
             }
             AgentEvent::ToolResult { result } => {
                 let value: Value = serde_json::from_str(&result.content).unwrap_or(Value::Null);
+                let tool_name = self
+                    .calls
+                    .iter()
+                    .find(|call| call["id"].as_str() == Some(result.tool_use_id.as_str()))
+                    .and_then(|call| call["tool"].as_str());
+                // Retain only inspection-safe evidence. Raw document/query payloads
+                // and model transcript content are never copied into the packet.
+                let safe_output = match tool_name {
+                    Some(
+                        "stage.validate"
+                        | "tactical.make_stage_playable"
+                        | "demo.project.validate"
+                        | "demo.project.build"
+                        | "demo.stage.preview",
+                    ) => value.get("output").cloned().unwrap_or(Value::Null),
+                    _ => Value::Null,
+                };
+                let transaction = value
+                    .get("transaction")
+                    .filter(|item| item.is_object())
+                    .map(|item| {
+                        json!({
+                            "transaction_id": item["transaction_id"],
+                            "command": item["command"],
+                            "status": item["status"],
+                            "document_diffs": item["document_diffs"],
+                        })
+                    });
                 self.results.push(json!({
                     "tool_use_id": result.tool_use_id,
                     "status": value.get("status"),
                     "diagnostics": value.get("diagnostics"),
-                    "transaction": value.get("transaction"),
-                    "output": value.get("output"),
+                    "transaction": transaction,
+                    "output": safe_output,
                 }));
             }
             _ => {}
@@ -459,6 +487,13 @@ pub async fn run_with_provider(
         working_set: context.working_set,
         cache: Mutex::new(BuildCache::default()),
     });
+    let mut capability_schemas = adapter
+        .agent_tools()
+        .iter()
+        .map(|tool| {
+            json!({"tool": tool.name(), "input_schema": tool.parameters()})
+        })
+        .collect::<Vec<_>>();
     let mut builder = adapter.register(
         RuntimeBuilder::new()
             .provider(provider)
@@ -471,10 +506,15 @@ pub async fn run_with_provider(
             )),
     );
     for operation in [Operation::Validate, Operation::Build, Operation::Preview] {
-        builder = builder.tool(Arc::new(OperationalTool {
+        let tool = Arc::new(OperationalTool {
             operation,
             shared: Arc::clone(&ops),
+        });
+        capability_schemas.push(json!({
+            "tool": tool.name(),
+            "input_schema": tool.parameters(),
         }));
+        builder = builder.tool(tool);
     }
     let mut runtime = builder.build().map_err(|error| error.to_string())?;
     runtime.submit(
@@ -615,11 +655,20 @@ pub async fn run_with_provider(
         .iter()
         .map(|(id, _)| id.to_string())
         .collect::<Vec<_>>();
-    let audit_count = audits
+    let durable_audits = audits
         .iter()
         .filter(|record| record.session_id == session_id)
-        .count();
-    if audit_count == 0 {
+        .map(|record| {
+            json!({
+                "sequence": record.sequence,
+                "transaction_id": record.transaction_id,
+                "command": record.report["command"],
+                "status": record.report["status"],
+                "document_diffs": record.report["document_diffs"],
+            })
+        })
+        .collect::<Vec<_>>();
+    if durable_audits.is_empty() {
         return Err("no durable GUIYI applied transaction audit was recorded".into());
     }
     Ok(json!({
@@ -627,9 +676,10 @@ pub async fn run_with_provider(
         "session_id": session_id,
         "model_proof": "injected-provider; independent real-provider evidence still required",
         "talos_completed": evidence.complete,
+        "capability_schemas": capability_schemas,
         "calls": evidence.calls,
         "results": evidence.results,
         "persisted_documents": ids,
-        "durable_applied_audits": audit_count,
+        "durable_applied_audits": durable_audits,
     }))
 }
