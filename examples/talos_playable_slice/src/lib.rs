@@ -436,7 +436,9 @@ impl OperationalTool {
                             return denied("DEMO_PREVIEW_RUNTIME_FAILED", &error.to_string())
                         }
                     };
-                    entity_count = world.entities().len();
+                    // Count live owned entities, not Bevy's monotonically
+                    // allocated entity slots across repeated load/unload.
+                    entity_count = world.query::<&StageOwned>().iter(&world).count();
                     if let Err(error) = manager.unload(&mut world, &instance) {
                         return denied("DEMO_PREVIEW_RUNTIME_FAILED", &error.to_string());
                     }
@@ -814,6 +816,35 @@ pub async fn run_with_provider(
         .collect::<Vec<_>>();
     if durable_audits.is_empty() {
         return Err("no durable GUIYI applied transaction audit was recorded".into());
+    }
+    // Check the runtime evidence against a *freshly reopened* durable journal.
+    // A dry-run must not appear as an applied mutation, while the successful
+    // intent repair's exact transaction identity must appear in the journal.
+    let intent_transaction = |status: &str| {
+        evidence.results.iter().find_map(|result| {
+            if result["transaction"]["command"] == "tactical.make_stage_playable"
+                && result["transaction"]["status"] == status
+            {
+                result["transaction"]["transaction_id"].as_str()
+            } else {
+                None
+            }
+        })
+    };
+    let dry_run_id = intent_transaction("previewed").ok_or("missing dry-run transaction identity")?;
+    let applied_id = intent_transaction("applied").ok_or("missing applied transaction identity")?;
+    if durable_audits.iter().any(|record| record["transaction_id"] == dry_run_id) {
+        return Err("GUIYI persisted a dry-run transaction in the applied audit".into());
+    }
+    if !durable_audits.iter().any(|record| {
+        record["transaction_id"] == applied_id
+            && record["command"] == "tactical.make_stage_playable"
+            && record["status"] == "applied"
+    }) {
+        return Err("the applied intent transaction is missing from durable GUIYI audit".into());
+    }
+    if validators(&persisted).has_errors() {
+        return Err("persisted GUIYI project is invalid after reopening storage".into());
     }
     Ok(json!({
         "status": "complete",
