@@ -48,7 +48,7 @@ Preferred order:
 
 Owner: ENG-030 when promoted.
 
-A real Talos session must discover capabilities, inspect a project, create or edit a playable tactical-RPG slice, respond to structured GUIYI diagnostics, repair at least one defect, validate, build, preview, and leave a reviewable transaction/audit summary. A mock driver or scripted Tool sequence is not sufficient product-level evidence.
+A real Talos session must discover capabilities, inspect a project, create or edit a playable tactical-RPG slice, respond to structured GUIYI diagnostics, repair at least one defect, validate, build, preview, and leave a reviewable transaction/audit summary. A mock driver or scripted Tool sequence is not sufficient product-level evidence. ENG-030 / Issue #72 records the Gate-4 contract: a genuine model-driven Talos session must invoke validation/build/preview through typed Tools; demo-scoped operational capability gaps delegate to GUIYI's existing authoritative validation/build/runtime without inventing a second project truth. A deterministic CI fixture does not replace sanitized real-model evidence.
 
 ### Gate 5 — Human workbench
 

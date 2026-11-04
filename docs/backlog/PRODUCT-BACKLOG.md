@@ -2,7 +2,7 @@
 
 This is the only executable requirement list.
 
-GitHub Issue state was last synchronized on 2026-11-03. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
+GitHub Issue state was last synchronized on 2026-11-04. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
 
 ## Current direction and ownership
 
@@ -301,7 +301,7 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 - Type: Tactical Toolkit / Intent Tool / Command
 - Priority: P0
 - Status: Done
-- GitHub: [#69](https://github.com/wjhuang88/guiyi/issues/69) — implementation PR #71.
+- GitHub: [#69](https://github.com/wjhuang88/guiyi/issues/69) — completed by PR #71; squash merge `d181a405e0578f0157621cf450ab878d33c38557`; Issue closed.
 - Depends on: ENG-014 / #52, ENG-012 / #54, ENG-013 / #57, ENG-020 / #59, ENG-021 / #62, and ENG-022 / #65 (Done).
 - Primary ownership: GUIYI tactical-RPG toolkit, primarily `toolkits/tactical_rpg/tools`; no Talos runtime, human-client, or generic engine-core ownership change.
 - Result: live schema-bearing `tactical.make_stage_playable(stage_id, spawn_object_id?, spawn_profile?)` composes existing semantic Stage mutations into a deterministic, reviewable bounded repair intent. Machine-visible defaults are `spawn.player` / `player`; successful output includes before/after playability, ordered primitive-command plan/reason codes, and before/after diagnostics.
@@ -314,8 +314,29 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 - Compatibility: additive Tool ID only; no Stage document/artifact schema migration, external dependency, new workspace dependency edge, or Talos SDK/version/feature change.
 - Non-goals preserved: general automatic repair of all Stage diagnostics; arbitrary topology redesign; combat/AI/runtime movement; quest/world-state/inventory/party/save; visual workbench/editor automation; direct file/document patching; generic engine-core intent/planner/composite-command framework; Talos provider/planner/session/runtime changes.
 - ADR assessment: no new ADR was required; no Issue #69 architecture stop condition was triggered.
-- Evidence: `docs/validation/ENG-023.md`; implementation-head CI run 308 (`41648591032`) passed the complete suite on exact head `f8bcfd6c156215279e20f220810a3ab57882d5d7`. Repository merge policy additionally requires the exact closure-docs head to pass the complete suite before PR #71 squash merge.
+- Evidence: `docs/validation/ENG-023.md`; implementation-head CI run 308 (`41648591032`) passed the complete suite on exact head `f8bcfd6c156215279e20f220810a3ab57882d5d7`. Final clean-head full CI run 311 (`41649202665`) passed on exact head `bfa5175b591b2d543e4fdf04e3f51c5e8b90ee65` before PR #71 squash-merged as `d181a405e0578f0157621cf450ab878d33c38557`.
 - Rollback: remove the intent Tool/tests/golden/demo/docs while leaving primitive Stage Commands, validation, Project Graph, build/runtime, and Talos adapter intact; do not replace it with direct file mutation or Editor-private automation.
+
+## Ready — Gate 4 real Talos-driven production proof
+
+### ENG-030 Real Talos-driven tactical playable-slice demo
+
+- Type: Integration / Agent-first executable proof / Project workflow
+- Priority: P0
+- Status: Ready
+- GitHub: [#72](https://github.com/wjhuang88/guiyi/issues/72) — Open; Issue acceptance criteria are the implementation contract.
+- Dependencies: ENG-014 / #52, ENG-012 / #54, ENG-013 / #57, ENG-020 / #59, ENG-021 / #62, ENG-022 / #65, and ENG-023 / #69 (Done).
+- Primary owner: GUIYI engine platform's **outer Talos integration and executable demo**. Talos exclusively owns model/provider, planning, conversation/turn/session, retry and stopping; the tactical toolkit remains the owner of game semantics; GUIYI retains domain execution, security, documents, validation, build, preview, and persistence.
+- North-star contribution: a real Talos Runtime session with an operator-provided real model discovers live GUIYI Tools, inspects documents, consumes authentic structured Stage diagnostics, chooses a semantic dry-run/apply repair, validates, strictly builds Stage+Encounter+Dialogue, headlessly previews the built Stage artifact, and leaves a reviewable transaction/audit packet. A scripted Tool tape or mock driver does not constitute product proof.
+- Baseline: `GuiyiTalosAdapter` already registers live schema-bearing Commands/Queries with `talos-runtime = =0.10.1` (`default-features = false`); ENG-023 added bounded intent repair. Existing `guiyi-engine-cli validate/compile` and `guiyi-engine-preview` are headless executables, but project validation/build/preview are not currently separately Talos-callable through the live AgentHost Tool catalog.
+- Capability-gap scope: minimal **demo-scoped, schema-bearing operational Talos Tools** may bridge project validation, strict build, and preview to existing GUIYI validator/`BuildPipeline`/`StageRuntimeManager` APIs. They must share the authoritative project/persistence view, explicitly enforce `RunValidation`/`RunBuild`/`RunPreview` and project working-set permissions, and return structured errors. They are an interim *documented* gap rather than a second permanent catalog, authoring truth, persistence path, or generic Tool kind; stable platform-wide Tools require separate change-control.
+- Provider contract: accept an operator-injected real `Arc<dyn talos_runtime::LanguageModel>` using the published RuntimeBuilder surface. No GUIYI model client, provider selection/credential store, prompt planner/retry framework, direct `talos-provider` dependency, or second Agent loop. The actual model chooses Tools in response to schemas and structured results.
+- Acceptance: real Talos events and result-aware tool decisions (not a hard-coded tape); Stage/Encounter/Dialogue authored by existing typed Commands; `STAGE_NO_SPAWN_POINT` or another real diagnostic observed **before** a dry-run/apply `tactical.make_stage_playable` repair; explicit Talos-requested validation, three-artifact strict build, preview of that build's Stage artifact; security/working-set/rejection continuation; restart-safe documents/references; redacted transaction/audit and derived review packet. See Issue #72 for complete scenarios.
+- CI and proof: deterministic data-dependent provider fixture tests cover branching, atomic failure, permission/working-set, strict no-partial build, runtime lifecycle, persistence and direct-client regressions. A sanitized execution using an **actual model provider** is separately mandatory to mark ENG-030 Done. If real provider credentials are unavailable, record the gap and do not claim the Story finished on CI fixture evidence alone.
+- Dependencies and compatibility: no Talos SDK version/feature/Git change; no new provider stack; no Stage/Encounter/Dialogue/rule schema migration; existing Tool IDs unchanged; no reversed engine/toolkit dependency edges or alternative Project Graph/persistence/artifact truth.
+- Non-goals: generic GUIYI Agent runtime/planner/provider; Editor/GUI automation (ENG-024); game-specific combat/quest/world-state/party/inventory/save; arbitrary tactical repair; raw file or shell-based authoring shortcuts.
+- ADR / stop conditions: no new ADR expected for the scoped proof. Stop and run separate change-control for a new stable engine Tool kind/public platform API, new Talos dependencies/features, changed generic transaction/audit authority, or any second project truth.
+- Rollback: remove only ENG-030 demo/fixture/operational adapters/tests/docs/evidence; leave ENG-014..023 semantic capabilities and GUIYI/Talos authority intact. Implementation starts from the new authorized main after this docs-only promotion PR passes full CI and merges; final implementation merge requires full clean-head CI and real-provider product evidence.
 
 ## Proposed — Synced GitHub issue intake
 
@@ -369,4 +390,3 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 
 - ENG-024 Human transaction-review and spatial-inspection workbench.
 - ENG-025 Content and save schema migration framework.
-- ENG-030 Talos-driven playable-slice production demo: a real Talos session creates or repairs a tactical-RPG slice, consumes at least one structured GUIYI diagnostic, validates, builds, previews, and produces a reviewable transaction/audit summary. Promotion requires ENG-014 plus enough ENG-012/013/020-023 capability to make the demo meaningful.

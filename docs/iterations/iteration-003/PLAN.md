@@ -15,8 +15,8 @@ At the product-surface level, this iteration advances an Agent-first development
 - ENG-020 / #59 is Done and squash-merged through PR #61 (`80eaee3338e5a772b1b56a2b44e97f8eef73afb4`). Final clean-head CI run 248 passed before merge.
 - ENG-021 / #62 is Done and squash-merged through PR #64 (`1387415f7145e56632bfbca2d3562d48236bf589`). Final clean-head CI run 269 passed before merge.
 - ENG-022 / #65 is Done and squash-merged through PR #68 (`742ba403e7e475784d75cb1f7c756ca065947913`). Final clean-head CI run 298 (`41184421365`) passed on exact head `f791a72961ad5b7a41465c9ed1be19fa02c6a2c9` before merge.
-- ENG-023 / #69 is Done at implementation acceptance under PR #71. Ready-promotion run 300 authorized baseline `ed8b07c5873f05e15b7c95c3c6f429c6abfe963b`; implementation-head run 308 (`41648591032`) passed the complete suite on `f8bcfd6c156215279e20f220810a3ab57882d5d7`. Repository policy still requires the exact closure-docs head to pass the complete suite before squash merge.
-- Other Proposed Stories remain non-executable. ENG-030 is now the next primary candidate and must complete its own Proposed → Ready change-control before implementation.
+- ENG-023 / #69 is fully Done, PR #71 squash-merged as `d181a405e0578f0157621cf450ab878d33c38557`, Issue closed. Ready-promotion run 300 authorized baseline `ed8b07c5873f05e15b7c95c3c6f429c6abfe963b`. Final clean-head full CI run 311 (`41649202665`) passed on exact head `bfa5175b591b2d543e4fdf04e3f51c5e8b90ee65` before merge.
+- ENG-030 / #72 is the next Gate-4 Story. This docs-only change promotes its explicit contract to Ready; implementation starts only after the entire CI suite passes on the promotion PR and that PR merges. Other Proposed Stories remain non-executable.
 
 ## Completed baseline — ENG-014
 
@@ -366,3 +366,38 @@ Issue #69 acceptance is satisfied by the implementation and tests: existing Stag
 Compatibility is additive and rollback removes only the intent Tool/tests/golden/demo/docs while preserving primitive Stage capabilities and project truth.
 
 ENG-023 is implementation-complete. ENG-030 is the next primary candidate but remains Proposed until its own explicit change-control promotion.
+
+## Ready Story slice — ENG-030
+
+### ENG-030 Prove a real Talos-driven playable tactical slice
+
+GitHub Issue: #72 (complete implementation contract)
+
+Primary owner: GUIYI engine platform's outer Talos integration and executable proof, using the tactical toolkit's existing Stage/Encounter/Dialogue semantics and existing engine Command/Query/security/persistence/build/preview authority. Talos owns generic model/provider, planning, turn lifecycle, retry, and stopping.
+
+### Current baseline and gap
+
+- ENG-014 already supplies `GuiyiTalosAdapter`, live schema-bearing Talos `AgentTool`s and persistence/dry-run handling. ENG-023 already supplies bounded intent-level Stage repair.
+- `mock_agent_workflow` uses a scripted GUIYI driver and `tactical_demo` uses direct CommandExecutor. Existing Talos integration tests use a scripted provider; none counts as a real model-driven production demo.
+- Existing CLI validation/compile and headless Preview binaries implement authoritative project operations but are not separately callable by Talos through the current live GUIYI Command/Query catalog. Issue #72 authorizes only **demo-scoped typed operational adapters** to those existing GUIYI validation/build/runtime APIs, preserving permission/project working-set scope. Any stable public platform Tool requires separate change-control.
+
+### Machine-facing acceptance
+
+1. A real Talos `RuntimeBuilder`/`RuntimeHandle` session with operator-injected real `LanguageModel` discovers the existing live semantic Tool catalog and the limited explicit demo operational Tools. GUIYI must not own a competing model/provider/planning/session runtime.
+2. Talos inspects project truth and uses typed Commands for Stage/Encounter/Dialogue authoring. The model must first receive authentic `STAGE_NO_SPAWN_POINT` or equivalent structured diagnostics, then select `tactical.make_stage_playable` dry-run, inspect its diff and apply a bounded repair. An adaptive fixture test proves behavior depends on diagnostic results, rather than a hard-coded sequence.
+3. The same Talos session explicitly requests project validation, strict three-artifact tactical build and headless Stage preview from that exact successful build. A hidden post-session CLI/scripted substitute or pre-existing artifact does not satisfy acceptance. Build failure must produce no partial artifacts or successful preview.
+4. Enforce project scope, `EditContent`/`RunValidation`/`RunBuild`/`RunPreview`, working-set and permission denials, with structured failure/continuation. Verify Bevy preview load/unload lifecycle and artifact integrity.
+5. Confirm persisted Stage/Encounter/Dialogue/references survive restart; dry-run/rejected changes do not persist. Report observed Talos events/Tool results, authoritative transaction IDs/diffs, diagnostics, artifact hashes, preview and durable GUIYI audit as a *derived, sanitized* review packet.
+6. Deterministic CI fixture tests exercise the whole path, but **a sanitized real model-provider Talos execution is mandatory before Done**. If credentials or a supplied real provider are unavailable, record the blocker and do not misstate fixture CI as product proof.
+
+### Ownership / compatibility / non-goals / rollback
+
+- No new direct Talos dependencies, SDK version/features, generic provider client, GUIYI Agent loop, second graph/transaction/artifact/persistence truth, content-schema migrations, or reverse engine/toolkit dependencies.
+- No combat, world-state, quest, party, inventory, save, visual Editor/workbench (ENG-024), arbitrary auto-repair, shell or raw file authoring.
+- An external real model is injected through Talos's supported SDK facade; model credentials/configuration, decision policy and retries remain Talos/operator-owned.
+- Stop for separate change-control/ADR if generic Tool kinds, engine-wide stable APIs, transaction authority, new Talos dependencies or a second state truth prove required. The rollback deletes only the example/fixture/operational demo adapters/tests/docs; established GUIYI APIs remain intact.
+
+### Gates
+
+- This Ready promotion uses a docs-only PR from `docs/ENG-030-talos-playable-slice-ready`; complete CI and merge are prerequisites to creating `feature/ENG-030-talos-playable-slice` from its new main.
+- Implementation requires failing acceptance tests, narrow code, live Tool metadata, diagnostics and documentation, real provider proof, complete Rust/repository/example suite, final clean-head exact-head CI, then squash merge.
