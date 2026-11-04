@@ -227,6 +227,61 @@ fn validators(store: &DocumentStore) -> DiagnosticBag {
     diagnostics
 }
 
+// Reopen the persisted project and prove the semantic slice's reference
+// edges survived the journal, not only its document IDs. Envelope references
+// remain authoritative; this is a verification report, not a second graph.
+fn persisted_slice_summary(store: &DocumentStore) -> Result<Value, String> {
+    let stages: BTreeSet<String> = store
+        .iter()
+        .filter(|(_, document)| document.header.type_id.as_str() == STAGE_DOCUMENT_TYPE)
+        .map(|(_, document)| document.header.id.to_string())
+        .collect();
+    let mut encounters = 0usize;
+    let mut dialogues = 0usize;
+    let mut reference_count = 0usize;
+    let mut stage_reference_count = 0usize;
+    let mut encounter_stage_edges = 0usize;
+    for (_, document) in store.iter() {
+        for reference in &document.references {
+            if store.get(&reference.target_document).is_err() {
+                return Err("reopened ProjectStorage has an unresolved semantic reference".into());
+            }
+            reference_count += 1;
+        }
+        match document.header.type_id.as_str() {
+            STAGE_DOCUMENT_TYPE => stage_reference_count += document.references.len(),
+            ENCOUNTER_DOCUMENT_TYPE => {
+                encounters += 1;
+                encounter_stage_edges += document
+                    .references
+                    .iter()
+                    .filter(|reference| {
+                        stages.contains(reference.target_document.as_str())
+                            && reference.kind == "encounter_stage"
+                    })
+                    .count();
+            }
+            DIALOGUE_DOCUMENT_TYPE => dialogues += 1,
+            _ => {}
+        }
+    }
+    if stages.is_empty()
+        || encounters == 0
+        || dialogues == 0
+        || stage_reference_count == 0
+        || encounter_stage_edges == 0
+    {
+        return Err("reopened ProjectStorage lacks the referenced tactical slice".into());
+    }
+    Ok(json!({
+        "stage_count": stages.len(),
+        "encounter_count": encounters,
+        "dialogue_count": dialogues,
+        "authoritative_reference_count": reference_count,
+        "encounter_stage_reference_count": encounter_stage_edges,
+    }))
+}
+
 fn strict_build(
     store: &DocumentStore,
     root: &Path,
@@ -807,6 +862,7 @@ pub async fn run_with_provider(
     let storage = ProjectStorage::open(root).map_err(|error| error.to_string())?;
     let audits = storage.audit_records().map_err(|error| error.to_string())?;
     let persisted = project_state(root)?;
+    let persistence_summary = persisted_slice_summary(&persisted)?;
     let ids = persisted
         .iter()
         .map(|(id, _)| id.to_string())
@@ -869,6 +925,7 @@ pub async fn run_with_provider(
         "calls": evidence.calls,
         "results": evidence.results,
         "persisted_documents": ids,
+        "persistence_summary": persistence_summary,
         "durable_applied_audits": durable_audits,
     }))
 }
@@ -1157,6 +1214,16 @@ mod tests {
             preview["output"]["error"]["code"],
             "DEMO_PREVIEW_STALE_BUILD"
         );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn reopened_slice_requires_semantic_stage_and_encounter_references() {
+        let root = make_project(Some(stage_with_spawn(HexCoord::new(0, 0))));
+        let store = project_state(&root).unwrap();
+        assert!(persisted_slice_summary(&store)
+            .unwrap_err()
+            .contains("lacks the referenced tactical slice"));
         std::fs::remove_dir_all(root).unwrap();
     }
 
