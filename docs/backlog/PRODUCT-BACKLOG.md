@@ -324,6 +324,7 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 - Type: Integration / Agent-first executable proof / Project workflow
 - Priority: P0
 - Status: Ready
+- **HUMAN REQUIRED / BLOCKED:** external real-model Talos session and sanitized operator sign-off are mandatory before Done. [Separate-session acceptance checklist](../validation/ENG-030-MANUAL-ACCEPTANCE.md); deterministic CI fixture is not acceptance.
 - GitHub: [#72](https://github.com/wjhuang88/guiyi/issues/72) — Open; Issue acceptance criteria are the implementation contract.
 - Dependencies: ENG-014 / #52, ENG-012 / #54, ENG-013 / #57, ENG-020 / #59, ENG-021 / #62, ENG-022 / #65, and ENG-023 / #69 (Done).
 - Primary owner: GUIYI engine platform's **outer Talos integration and executable demo**. Talos exclusively owns model/provider, planning, conversation/turn/session, retry and stopping; the tactical toolkit remains the owner of game semantics; GUIYI retains domain execution, security, documents, validation, build, preview, and persistence.
