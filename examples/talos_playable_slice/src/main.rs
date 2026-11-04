@@ -63,6 +63,20 @@ impl FixtureProvider {
         let absent = |name: &str| !results.contains_key(name);
         // The fixture examines real returned JSON. It never unconditionally
         // chooses a repair unless the validator explicitly finds that defect.
+        if absent("invalid-input") {
+            return Next::Call {
+                id: "invalid-input",
+                name: "demo.project.validate",
+                input: json!({"unexpected": true}),
+            };
+        }
+        // Talos must deliver the typed error to the model, then allow it
+        // to continue with valid GUIYI Tools instead of ending the turn.
+        if results["invalid-input"]["status"] != "rejected"
+            || results["invalid-input"]["output"]["error"]["code"] != "DEMO_INVALID_INPUT"
+        {
+            return Next::Text;
+        }
         if absent("inspect") {
             return Next::Call {
                 id: "inspect",
@@ -309,6 +323,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .any(|name| name == "tactical.make_stage_playable"));
     assert!(tools.iter().any(|name| name == "demo.project.build"));
+    let results = packet["results"]
+        .as_array()
+        .ok_or("missing structured Talos Tool results")?;
+    let rejection = results
+        .iter()
+        .position(|entry| {
+            entry["tool_use_id"] == "invalid-input"
+                && entry["status"] == "rejected"
+                && entry["output"]["error"]["code"] == "DEMO_INVALID_INPUT"
+        })
+        .ok_or("Talos did not observe the intentional typed Tool rejection")?;
+    let subsequent_stage = results
+        .iter()
+        .position(|entry| entry["tool_use_id"] == "stage" && entry["status"] == "ok")
+        .ok_or("Talos did not continue with semantic authoring after rejection")?;
+    assert!(rejection < subsequent_stage);
     println!("{}", serde_json::to_string_pretty(&packet)?);
     Ok(())
 }
