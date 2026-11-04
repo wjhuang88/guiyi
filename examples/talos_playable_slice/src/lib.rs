@@ -324,7 +324,7 @@ impl OperationalTool {
                     if let Err(error) = manager.unload(&mut world, &instance) {
                         return denied("DEMO_PREVIEW_RUNTIME_FAILED", &error.to_string());
                     }
-                    if manager.active_count() != 0 || world.entities().len() != 0 {
+                    if manager.active_count() != 0 || !world.entities().is_empty() {
                         return denied(
                             "DEMO_PREVIEW_CLEANUP_FAILED",
                             "Stage ECS resources leaked across repeated previews",
