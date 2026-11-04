@@ -75,11 +75,6 @@ impl FixtureProvider {
         if results["invalid-input"]["status"] != "rejected"
             || results["invalid-input"]["output"]["error"]["code"] != "DEMO_INVALID_INPUT"
         {
-            eprintln!(
-                "ENG-030 typed rejection probe: status={:?} code={:?}",
-                results["invalid-input"]["status"],
-                results["invalid-input"]["output"]["error"]["code"]
-            );
             return Next::Text;
         }
         if absent("inspect") {
