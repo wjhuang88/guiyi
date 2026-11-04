@@ -74,6 +74,89 @@ fn result(ok: bool, output: Value, diagnostics: Value) -> TalosToolResult {
     }
 }
 
+// Packet projection is intentionally allowlisted: Tool outputs can contain
+// private authored content and diagnostic messages can contain user data.
+fn diagnostic_codes(value: &Value) -> Value {
+    Value::Array(
+        value
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|entry| json!({
+                "code": entry["code"],
+                "severity": entry["severity"],
+            }))
+            .collect(),
+    )
+}
+
+fn safe_document_diffs(value: &Value) -> Value {
+    Value::Array(
+        value
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|diff| json!({
+                "document_id": diff["document_id"],
+                "change": diff["change"],
+                "before_hash": diff["before_hash"],
+                "after_hash": diff["after_hash"],
+            }))
+            .collect(),
+    )
+}
+
+fn safe_output(tool: Option<&str>, output: &Value) -> Value {
+    match tool {
+        Some("stage.validate") => {
+            json!({"diagnostics": diagnostic_codes(&output["diagnostics"])})
+        }
+        Some("tactical.make_stage_playable") => json!({
+            "stage_id": output["stage_id"],
+            "playable_before": output["playable_before"],
+            "playable_after": output["playable_after"],
+            "diagnostics_before": diagnostic_codes(&output["diagnostics_before"]),
+            "diagnostics_after": diagnostic_codes(&output["diagnostics_after"]),
+            "plan": output["plan"].as_array().map(|plans| plans.iter().map(|plan| {
+                json!({
+                    "command": plan["command"],
+                    "reason_codes": plan["reason_codes"]
+                })
+            }).collect::<Vec<_>>()),
+        }),
+        Some("demo.project.validate") => json!({
+            "ok": output["ok"],
+            "summary": output["summary"],
+            "error": {"code": output["error"]["code"]},
+        }),
+        Some("demo.project.build") => json!({
+            "ok": output["ok"],
+            "error": {"code": output["error"]["code"]},
+            "skipped_documents": output["skipped_documents"],
+            "artifacts": output["artifacts"].as_array().map(|artifacts| artifacts.iter().map(|artifact| {
+                json!({
+                    "id": artifact["id"],
+                    "artifact_type": artifact["artifact_type"],
+                    "source_document": artifact["source_document"],
+                    "source_hash": artifact["source_hash"],
+                    "artifact_hash": artifact["artifact_hash"],
+                })
+            }).collect::<Vec<_>>()),
+        }),
+        Some("demo.stage.preview") => json!({
+            "status": output["status"],
+            "stage_id": output["stage_id"],
+            "artifact_id": output["artifact_id"],
+            "source_hash": output["source_hash"],
+            "artifact_hash": output["artifact_hash"],
+            "entity_count": output["entity_count"],
+            "load_unload_cycles": output["load_unload_cycles"],
+            "error": {"code": output["error"]["code"]},
+        }),
+        _ => Value::Null,
+    }
+}
+
 fn denied(code: &str, message: &str) -> TalosToolResult {
     result(
         false,
@@ -268,6 +351,7 @@ impl OperationalTool {
                         .map(|artifact| {
                             json!({
                                 "id": artifact.id,
+                                "artifact_type": artifact.artifact_type,
                                 "source_document": artifact.source_document,
                                 "source_hash": artifact.source_hash,
                                 "artifact_hash": artifact.artifact_hash,
@@ -458,16 +542,7 @@ impl EventEvidence {
                     .and_then(|call| call["tool"].as_str());
                 // Retain only inspection-safe evidence. Raw document/query payloads
                 // and model transcript content are never copied into the packet.
-                let safe_output = match tool_name {
-                    Some(
-                        "stage.validate"
-                        | "tactical.make_stage_playable"
-                        | "demo.project.validate"
-                        | "demo.project.build"
-                        | "demo.stage.preview",
-                    ) => value.get("output").cloned().unwrap_or(Value::Null),
-                    _ => Value::Null,
-                };
+                let safe_output = safe_output(tool_name, &value["output"]);
                 let transaction = value
                     .get("transaction")
                     .filter(|item| item.is_object())
@@ -476,13 +551,13 @@ impl EventEvidence {
                             "transaction_id": item["transaction_id"],
                             "command": item["command"],
                             "status": item["status"],
-                            "document_diffs": item["document_diffs"],
+                            "document_diffs": safe_document_diffs(&item["document_diffs"]),
                         })
                     });
                 self.results.push(json!({
                     "tool_use_id": result.tool_use_id,
                     "status": value.get("status"),
-                    "diagnostics": value.get("diagnostics"),
+                    "diagnostics": diagnostic_codes(&value["diagnostics"]),
                     "transaction": transaction,
                     "output": safe_output,
                 }));
@@ -490,6 +565,69 @@ impl EventEvidence {
             _ => {}
         }
     }
+}
+
+// Only completed results count. Linking by Tool use ID prevents unrelated
+// responses from satisfying a gate; the result order must show causal progress.
+fn evidence_result_index(
+    evidence: &EventEvidence,
+    tool: &str,
+    predicate: fn(&Value) -> bool,
+) -> Option<usize> {
+    evidence.results.iter().enumerate().find_map(|(index, result)| {
+        let matching_call = evidence.calls.iter().any(|call| {
+            call["id"] == result["tool_use_id"] && call["tool"] == tool
+        });
+        (matching_call && result["status"] == "ok" && predicate(result)).then_some(index)
+    })
+}
+
+fn verify_evidence(evidence: &EventEvidence) -> Result<(), String> {
+    let diagnose = evidence_result_index(evidence, "stage.validate", |result| {
+        result["output"]["diagnostics"].as_array().is_some_and(|items| {
+            items.iter().any(|entry| entry["code"] == "STAGE_NO_SPAWN_POINT")
+        })
+    }).ok_or("model did not observe an authentic STAGE_NO_SPAWN_POINT diagnostic")?;
+    let dry_run = evidence_result_index(evidence, "tactical.make_stage_playable", |result| {
+        result["transaction"]["status"] == "previewed"
+            && result["output"]["playable_after"] == true
+    }).ok_or("successful intent dry-run evidence missing")?;
+    let apply = evidence_result_index(evidence, "tactical.make_stage_playable", |result| {
+        result["transaction"]["status"] == "applied"
+            && result["output"]["playable_after"] == true
+    }).ok_or("successful applied intent evidence missing")?;
+    let validate = evidence_result_index(evidence, "demo.project.validate", |result| {
+        result["output"]["ok"] == true
+    }).ok_or("successful agent-requested project validation evidence missing")?;
+    let build = evidence_result_index(evidence, "demo.project.build", |result| {
+        result["output"]["ok"] == true && result["output"]["artifacts"].as_array().is_some_and(|items| {
+            items.len() == 3 && [
+                "tactical.stage.artifact",
+                "tactical.encounter.artifact",
+                "tactical.dialogue.artifact"
+            ].iter().all(|kind| items.iter().any(|item| item["artifact_type"] == *kind))
+        })
+    }).ok_or("successful three-artifact strict build evidence missing")?;
+    let preview = evidence_result_index(evidence, "demo.stage.preview", |result| {
+        result["output"]["status"] == "ready"
+            && result["output"]["load_unload_cycles"] == 2
+            && result["output"]["entity_count"].as_u64().is_some_and(|count| count > 0)
+    }).ok_or("successful two-cycle Stage preview evidence missing")?;
+    if !(diagnose < dry_run && dry_run < apply && apply < validate && validate < build && build < preview) {
+        return Err("Talos evidence is not ordered: diagnose -> dry-run -> apply -> validate -> build -> preview".into());
+    }
+    let build_artifacts = evidence.results[build]["output"]["artifacts"].as_array().ok_or("missing build artifacts")?;
+    let preview_output = &evidence.results[preview]["output"];
+    if !build_artifacts.iter().any(|artifact| {
+        artifact["artifact_type"] == "tactical.stage.artifact"
+            && artifact["id"] == preview_output["artifact_id"]
+            && artifact["source_hash"] == preview_output["source_hash"]
+            && artifact["artifact_hash"] == preview_output["artifact_hash"]
+            && artifact["source_document"] == preview_output["stage_id"]
+    }) {
+        return Err("preview evidence does not match the successful Stage build artifact".into());
+    }
+    Ok(())
 }
 
 /// Execute an actual Talos runtime turn with an externally supplied model.
@@ -621,59 +759,7 @@ pub async fn run_with_provider(
             return Err(format!("Talos session omitted required Tool: {required}"));
         }
     }
-    let diagnostics_seen = evidence.results.iter().any(|r| {
-        r["output"]["diagnostics"].as_array().is_some_and(|items| {
-            items
-                .iter()
-                .any(|diagnostic| diagnostic["code"] == "STAGE_NO_SPAWN_POINT")
-        })
-    });
-    if !diagnostics_seen {
-        return Err("model did not observe an authentic STAGE_NO_SPAWN_POINT diagnostic".into());
-    }
-    for status in ["previewed", "applied"] {
-        if !evidence.results.iter().any(|r| {
-            r["transaction"]["command"] == "tactical.make_stage_playable"
-                && r["transaction"]["status"] == status
-        }) {
-            return Err(format!(
-                "intent repair transaction status {status} was not observed"
-            ));
-        }
-    }
-    let build_succeeded = evidence.results.iter().any(|r| {
-        r["output"]["ok"] == true
-            && r["output"]["artifacts"]
-                .as_array()
-                .is_some_and(|artifacts| artifacts.len() == 3)
-    });
-    let preview_succeeded = evidence
-        .results
-        .iter()
-        .any(|r| r["output"]["status"] == "ready" && r["output"]["load_unload_cycles"] == 2);
-    if !build_succeeded || !preview_succeeded {
-        let observed = evidence
-            .results
-            .iter()
-            .map(|r| {
-                json!({
-                    "tool_use_id": r["tool_use_id"],
-                    "status": r["status"],
-                    "ok": r["output"]["ok"],
-                    "error_code": r["output"]["error"]["code"],
-                    "artifact_count": r["output"]["artifacts"].as_array().map(Vec::len),
-                    "preview_status": r["output"]["status"],
-                    "load_unload_cycles": r["output"]["load_unload_cycles"],
-                    "diagnostic_codes": r["diagnostics"].as_array().map(|items| {
-                        items.iter().map(|d| d["code"].clone()).collect::<Vec<_>>()
-                    })
-                })
-            })
-            .collect::<Vec<_>>();
-        return Err(format!(
-            "Talos build/preview evidence incomplete: {observed:?}"
-        ));
-    }
+    verify_evidence(&evidence)?;
     let storage = ProjectStorage::open(root).map_err(|error| error.to_string())?;
     let audits = storage.audit_records().map_err(|error| error.to_string())?;
     let persisted = project_state(root)?;
@@ -690,7 +776,7 @@ pub async fn run_with_provider(
                 "transaction_id": record.transaction_id,
                 "command": record.report["command"],
                 "status": record.report["status"],
-                "document_diffs": record.report["document_diffs"],
+                "document_diffs": safe_document_diffs(&record.report["document_diffs"]),
             })
         })
         .collect::<Vec<_>>();
