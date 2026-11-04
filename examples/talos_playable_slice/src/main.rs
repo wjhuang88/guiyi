@@ -40,6 +40,14 @@ enum Next {
 }
 
 impl FixtureProvider {
+    fn requires_spawn_repair(diagnostics: &Value) -> bool {
+        diagnostics.as_array().is_some_and(|items| {
+            items
+                .iter()
+                .any(|diagnostic| diagnostic["code"] == "STAGE_NO_SPAWN_POINT")
+        })
+    }
+
     fn choose(&self, messages: &[Message], tools: &[ToolDefinition]) -> Next {
         if let Ok(mut names) = self.observed_tool_names.lock() {
             *names = tools.iter().map(|tool| tool.name.clone()).collect();
@@ -76,13 +84,8 @@ impl FixtureProvider {
                 input: json!({"stage_id": "stage.demo"}),
             };
         }
-        let no_spawn = results["diagnose"]["output"]["diagnostics"]
-            .as_array()
-            .is_some_and(|items| {
-                items
-                    .iter()
-                    .any(|diagnostic| diagnostic["code"] == "STAGE_NO_SPAWN_POINT")
-            });
+        let no_spawn =
+            Self::requires_spawn_repair(&results["diagnose"]["output"]["diagnostics"]);
         if no_spawn && absent("repair-preview") {
             return Next::Call {
                 id: "repair-preview",
@@ -309,4 +312,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert!(tools.iter().any(|name| name == "demo.project.build"));
     println!("{}", serde_json::to_string_pretty(&packet)?);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fixture_provider_chooses_repair_from_actual_diagnostic_code() {
+        assert!(FixtureProvider::requires_spawn_repair(&json!([
+            {"code": "STAGE_NO_SPAWN_POINT", "severity": "warning"}
+        ])));
+        assert!(!FixtureProvider::requires_spawn_repair(&json!([])));
+        assert!(!FixtureProvider::requires_spawn_repair(&json!([
+            {"code": "STAGE_NAV_UNSUPPORTED_COORDINATE_SPACE", "severity": "error"}
+        ])));
+        assert!(!FixtureProvider::requires_spawn_repair(&Value::Null));
+    }
 }
