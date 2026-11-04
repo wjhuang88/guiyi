@@ -175,7 +175,9 @@ impl OperationalTool {
     }
 
     fn execute_sync(&self, input: Value) -> TalosToolResult {
-        if !self.shared.permissions.contains(self.needed_permission()) {
+        if !self.shared.permissions.contains(Permission::Read)
+            || !self.shared.permissions.contains(self.needed_permission())
+        {
             return denied(
                 "AGENT_PERMISSION_DENIED",
                 "required GUIYI project-operation permission is missing",
