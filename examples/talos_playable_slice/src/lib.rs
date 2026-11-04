@@ -17,6 +17,11 @@ use guiyi_engine_core::{deterministic_hash, DocumentId, EngineTypeId, Permission
 use guiyi_engine_query::{register_builtin_queries, QueryExecutor, QueryRegistry};
 use guiyi_engine_runtime::StageRuntimeManager;
 use guiyi_engine_validation::{Diagnostic, DiagnosticBag};
+use guiyi_talos_runtime::sdk::{
+    AgentEvent, AgentTool, LanguageModel, PermissionDecision, PermissionRule, RuntimeBuilder,
+    RuntimeTurnCompletionStatus, SessionEvent, ToolNature, ToolResult as TalosToolResult,
+    TurnEventPayload,
+};
 use guiyi_talos_runtime::{GuiyiExecutionContext, GuiyiTalosAdapter, ProjectStoragePersistence};
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
@@ -29,11 +34,6 @@ use tactical_rpg_content::{
 };
 use tactical_rpg_tools::{register_tactical_commands, register_tactical_queries};
 use tactical_rpg_validation::{validate_dialogue, validate_encounter_project, validate_stage};
-use guiyi_talos_runtime::sdk::{
-    AgentEvent, AgentTool, LanguageModel, PermissionDecision, PermissionRule, RuntimeBuilder,
-    RuntimeTurnCompletionStatus, SessionEvent, ToolNature, ToolResult as TalosToolResult,
-    TurnEventPayload,
-};
 
 #[derive(Default)]
 struct BuildCache {
@@ -75,7 +75,11 @@ fn result(ok: bool, output: Value, diagnostics: Value) -> TalosToolResult {
 }
 
 fn denied(code: &str, message: &str) -> TalosToolResult {
-    result(false, json!({"error": {"code": code, "message": message}}), json!([]))
+    result(
+        false,
+        json!({"error": {"code": code, "message": message}}),
+        json!([]),
+    )
 }
 
 fn project_state(root: &Path) -> Result<DocumentStore, String> {
@@ -136,11 +140,20 @@ fn validators(store: &DocumentStore) -> DiagnosticBag {
     diagnostics
 }
 
-fn strict_build(store: &DocumentStore, root: &Path) -> Result<guiyi_engine_build::BuildReport, String> {
+fn strict_build(
+    store: &DocumentStore,
+    root: &Path,
+) -> Result<guiyi_engine_build::BuildReport, String> {
     let mut compilers = CompilerRegistry::default();
-    compilers.register(StageCompiler).map_err(|error| error.to_string())?;
-    compilers.register(EncounterCompiler).map_err(|error| error.to_string())?;
-    compilers.register(DialogueCompiler).map_err(|error| error.to_string())?;
+    compilers
+        .register(StageCompiler)
+        .map_err(|error| error.to_string())?;
+    compilers
+        .register(EncounterCompiler)
+        .map_err(|error| error.to_string())?;
+    compilers
+        .register(DialogueCompiler)
+        .map_err(|error| error.to_string())?;
     let profile = BuildProfile::default()
         .with_authoring_only_type(EngineTypeId::from_static(ACTOR_DEFINITION_TYPE));
     Ok(BuildPipeline::with_profile(compilers, profile).build(
@@ -163,12 +176,18 @@ impl OperationalTool {
 
     fn execute_sync(&self, input: Value) -> TalosToolResult {
         if !self.shared.permissions.contains(self.needed_permission()) {
-            return denied("AGENT_PERMISSION_DENIED", "required GUIYI project-operation permission is missing");
+            return denied(
+                "AGENT_PERMISSION_DENIED",
+                "required GUIYI project-operation permission is missing",
+            );
         }
         // These operations read whole-project content. Never run a project
         // scan from a restricted working set and expose hidden source data.
         if !self.shared.working_set.is_empty() {
-            return denied("AGENT_WORKING_SET_DENIED", "project-wide operational Tools require unrestricted document scope");
+            return denied(
+                "AGENT_WORKING_SET_DENIED",
+                "project-wide operational Tools require unrestricted document scope",
+            );
         }
         let store = match project_state(&self.shared.root) {
             Ok(store) => store,
@@ -177,7 +196,10 @@ impl OperationalTool {
         match self.operation {
             Operation::Validate => {
                 if input != json!({}) {
-                    return denied("DEMO_INVALID_INPUT", "validation requires an empty input object");
+                    return denied(
+                        "DEMO_INVALID_INPUT",
+                        "validation requires an empty input object",
+                    );
                 }
                 let diagnostics = validators(&store);
                 let ok = !diagnostics.has_errors();
@@ -196,11 +218,15 @@ impl OperationalTool {
                     if let Ok(mut cache) = self.shared.cache.lock() {
                         *cache = BuildCache::default();
                     }
-                    return result(false, json!({
-                        "ok": false,
-                        "error": {"code": "DEMO_BUILD_VALIDATION_FAILED"},
-                        "artifacts": []
-                    }), json!(diagnostics.diagnostics));
+                    return result(
+                        false,
+                        json!({
+                            "ok": false,
+                            "error": {"code": "DEMO_BUILD_VALIDATION_FAILED"},
+                            "artifacts": []
+                        }),
+                        json!(diagnostics.diagnostics),
+                    );
                 }
                 let report = match strict_build(&store, &self.shared.root) {
                     Ok(report) => report,
@@ -208,12 +234,18 @@ impl OperationalTool {
                 };
                 let ok = report.succeeded();
                 let artifacts = if ok {
-                    report.artifacts.iter().map(|artifact| json!({
-                        "id": artifact.id,
-                        "source_document": artifact.source_document,
-                        "source_hash": artifact.source_hash,
-                        "artifact_hash": artifact.artifact_hash,
-                    })).collect::<Vec<_>>()
+                    report
+                        .artifacts
+                        .iter()
+                        .map(|artifact| {
+                            json!({
+                                "id": artifact.id,
+                                "source_document": artifact.source_document,
+                                "source_hash": artifact.source_hash,
+                                "artifact_hash": artifact.artifact_hash,
+                            })
+                        })
+                        .collect::<Vec<_>>()
                 } else {
                     Vec::new()
                 };
@@ -223,18 +255,27 @@ impl OperationalTool {
                 };
                 let mut cache = match self.shared.cache.lock() {
                     Ok(cache) => cache,
-                    Err(_) => return denied("DEMO_BUILD_CACHE_FAILED", "build cache lock poisoned"),
+                    Err(_) => {
+                        return denied("DEMO_BUILD_CACHE_FAILED", "build cache lock poisoned")
+                    }
                 };
                 *cache = if ok {
-                    BuildCache { document_hash, artifacts: report.artifacts }
+                    BuildCache {
+                        document_hash,
+                        artifacts: report.artifacts,
+                    }
                 } else {
                     BuildCache::default()
                 };
-                result(ok, json!({
-                    "ok": ok,
-                    "artifacts": artifacts,
-                    "skipped_documents": report.skipped_documents
-                }), json!(report.diagnostics.diagnostics))
+                result(
+                    ok,
+                    json!({
+                        "ok": ok,
+                        "artifacts": artifacts,
+                        "skipped_documents": report.skipped_documents
+                    }),
+                    json!(report.diagnostics.diagnostics),
+                )
             }
             Operation::Preview => {
                 let Some(stage_id) = input.get("stage_id").and_then(Value::as_str) else {
@@ -250,15 +291,24 @@ impl OperationalTool {
                 let artifact = {
                     let cache = match self.shared.cache.lock() {
                         Ok(cache) => cache,
-                        Err(_) => return denied("DEMO_BUILD_CACHE_FAILED", "build cache lock poisoned"),
+                        Err(_) => {
+                            return denied("DEMO_BUILD_CACHE_FAILED", "build cache lock poisoned")
+                        }
                     };
                     if cache.document_hash != document_hash || cache.artifacts.is_empty() {
                         return denied("DEMO_PREVIEW_STALE_BUILD", "preview requires a successful build of current authoritative documents");
                     }
-                    cache.artifacts.iter().find(|artifact| artifact.source_document.as_str() == stage_id).cloned()
+                    cache
+                        .artifacts
+                        .iter()
+                        .find(|artifact| artifact.source_document.as_str() == stage_id)
+                        .cloned()
                 };
                 let Some(artifact) = artifact else {
-                    return denied("DEMO_PREVIEW_ARTIFACT_NOT_FOUND", "the latest build has no artifact for the requested Stage");
+                    return denied(
+                        "DEMO_PREVIEW_ARTIFACT_NOT_FOUND",
+                        "the latest build has no artifact for the requested Stage",
+                    );
                 };
                 let mut world = World::new();
                 let mut manager = StageRuntimeManager::default();
@@ -266,25 +316,34 @@ impl OperationalTool {
                 for _ in 0..2 {
                     let instance = match manager.load(&mut world, &artifact) {
                         Ok(instance) => instance,
-                        Err(error) => return denied("DEMO_PREVIEW_RUNTIME_FAILED", &error.to_string()),
+                        Err(error) => {
+                            return denied("DEMO_PREVIEW_RUNTIME_FAILED", &error.to_string())
+                        }
                     };
                     entity_count = world.entities().len();
                     if let Err(error) = manager.unload(&mut world, &instance) {
                         return denied("DEMO_PREVIEW_RUNTIME_FAILED", &error.to_string());
                     }
                     if manager.active_count() != 0 || world.entities().len() != 0 {
-                        return denied("DEMO_PREVIEW_CLEANUP_FAILED", "Stage ECS resources leaked across repeated previews");
+                        return denied(
+                            "DEMO_PREVIEW_CLEANUP_FAILED",
+                            "Stage ECS resources leaked across repeated previews",
+                        );
                     }
                 }
-                result(true, json!({
-                    "status": "ready",
-                    "stage_id": stage_id,
-                    "artifact_id": artifact.id,
-                    "source_hash": artifact.source_hash,
-                    "artifact_hash": artifact.artifact_hash,
-                    "entity_count": entity_count,
-                    "load_unload_cycles": 2
-                }), json!([]))
+                result(
+                    true,
+                    json!({
+                        "status": "ready",
+                        "stage_id": stage_id,
+                        "artifact_id": artifact.id,
+                        "source_hash": artifact.source_hash,
+                        "artifact_hash": artifact.artifact_hash,
+                        "entity_count": entity_count,
+                        "load_unload_cycles": 2
+                    }),
+                    json!([]),
+                )
             }
         }
     }
@@ -338,8 +397,8 @@ fn host(store: DocumentStore) -> Result<AgentHost, String> {
     let mut queries = QueryRegistry::default();
     register_builtin_queries(&mut queries).map_err(|error| error.to_string())?;
     register_tactical_queries(&mut queries).map_err(|error| error.to_string())?;
-    let catalog = ToolCatalog::from_registries(&commands, &queries)
-        .map_err(|error| error.to_string())?;
+    let catalog =
+        ToolCatalog::from_registries(&commands, &queries).map_err(|error| error.to_string())?;
     Ok(AgentHost::new(
         guiyi_engine_command::EngineState { documents: store },
         CommandExecutor::new(commands),
@@ -389,7 +448,9 @@ pub async fn run_with_provider(
     let adapter = GuiyiTalosAdapter::with_persistence(
         host(state.documents)?,
         context.clone(),
-        ProjectStoragePersistence::open(root).map_err(|error| error.to_string())?.0,
+        ProjectStoragePersistence::open(root)
+            .map_err(|error| error.to_string())?
+            .0,
     );
     let ops = Arc::new(OperationalContext {
         root: root.to_path_buf(),
@@ -431,11 +492,23 @@ pub async fn run_with_provider(
             return Err("Talos session exceeded the bounded event limit".into());
         }
         match event {
-            SessionEvent::TurnEvent { payload: TurnEventPayload::Progress { event }, .. }
-            | SessionEvent::StructuredTurnEvent { payload: TurnEventPayload::Progress { event }, .. }
+            SessionEvent::TurnEvent {
+                payload: TurnEventPayload::Progress { event },
+                ..
+            }
+            | SessionEvent::StructuredTurnEvent {
+                payload: TurnEventPayload::Progress { event },
+                ..
+            }
             | SessionEvent::AgentEvent { event } => evidence.collect(event),
-            SessionEvent::TurnEvent { payload: TurnEventPayload::Completed { status }, .. }
-            | SessionEvent::StructuredTurnEvent { payload: TurnEventPayload::Completed { status }, .. }
+            SessionEvent::TurnEvent {
+                payload: TurnEventPayload::Completed { status },
+                ..
+            }
+            | SessionEvent::StructuredTurnEvent {
+                payload: TurnEventPayload::Completed { status },
+                ..
+            }
             | SessionEvent::TurnCompleted { status, .. } => {
                 if !matches!(status, RuntimeTurnCompletionStatus::Success { .. }) {
                     let _ = runtime.shutdown().await;
@@ -451,11 +524,16 @@ pub async fn run_with_provider(
             _ => {}
         }
     }
-    runtime.shutdown().await.map_err(|error| error.to_string())?;
+    runtime
+        .shutdown()
+        .await
+        .map_err(|error| error.to_string())?;
     if !evidence.complete {
         return Err("Talos runtime ended before a successful completion event".into());
     }
-    let names: BTreeSet<&str> = evidence.calls.iter()
+    let names: BTreeSet<&str> = evidence
+        .calls
+        .iter()
         .filter_map(|call| call["tool"].as_str())
         .collect();
     for required in [
@@ -478,7 +556,9 @@ pub async fn run_with_provider(
     }
     let diagnostics_seen = evidence.results.iter().any(|r| {
         r["output"]["diagnostics"].as_array().is_some_and(|items| {
-            items.iter().any(|diagnostic| diagnostic["code"] == "STAGE_NO_SPAWN_POINT")
+            items
+                .iter()
+                .any(|diagnostic| diagnostic["code"] == "STAGE_NO_SPAWN_POINT")
         })
     });
     if !diagnostics_seen {
@@ -489,24 +569,35 @@ pub async fn run_with_provider(
             r["transaction"]["command"] == "tactical.make_stage_playable"
                 && r["transaction"]["status"] == status
         }) {
-            return Err(format!("intent repair transaction status {status} was not observed"));
+            return Err(format!(
+                "intent repair transaction status {status} was not observed"
+            ));
         }
     }
     let build_succeeded = evidence.results.iter().any(|r| {
-        r["output"]["ok"] == true && r["output"]["artifacts"].as_array().is_some_and(|artifacts| artifacts.len() == 3)
+        r["output"]["ok"] == true
+            && r["output"]["artifacts"]
+                .as_array()
+                .is_some_and(|artifacts| artifacts.len() == 3)
     });
-    let preview_succeeded = evidence.results.iter().any(|r| {
-        r["output"]["status"] == "ready"
-            && r["output"]["load_unload_cycles"] == 2
-    });
+    let preview_succeeded = evidence
+        .results
+        .iter()
+        .any(|r| r["output"]["status"] == "ready" && r["output"]["load_unload_cycles"] == 2);
     if !build_succeeded || !preview_succeeded {
         return Err("Talos build/preview did not return successful authoritative evidence".into());
     }
     let storage = ProjectStorage::open(root).map_err(|error| error.to_string())?;
     let audits = storage.audit_records().map_err(|error| error.to_string())?;
     let persisted = project_state(root)?;
-    let ids = persisted.iter().map(|(id, _)| id.to_string()).collect::<Vec<_>>();
-    let audit_count = audits.iter().filter(|record| record.session_id == session_id).count();
+    let ids = persisted
+        .iter()
+        .map(|(id, _)| id.to_string())
+        .collect::<Vec<_>>();
+    let audit_count = audits
+        .iter()
+        .filter(|record| record.session_id == session_id)
+        .count();
     if audit_count == 0 {
         return Err("no durable GUIYI applied transaction audit was recorded".into());
     }
