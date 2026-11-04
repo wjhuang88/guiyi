@@ -82,10 +82,12 @@ fn diagnostic_codes(value: &Value) -> Value {
             .as_array()
             .into_iter()
             .flatten()
-            .map(|entry| json!({
-                "code": entry["code"],
-                "severity": entry["severity"],
-            }))
+            .map(|entry| {
+                json!({
+                    "code": entry["code"],
+                    "severity": entry["severity"],
+                })
+            })
             .collect(),
     )
 }
@@ -96,12 +98,14 @@ fn safe_document_diffs(value: &Value) -> Value {
             .as_array()
             .into_iter()
             .flatten()
-            .map(|diff| json!({
-                "document_id": diff["document_id"],
-                "change": diff["change"],
-                "before_hash": diff["before_hash"],
-                "after_hash": diff["after_hash"],
-            }))
+            .map(|diff| {
+                json!({
+                    "document_id": diff["document_id"],
+                    "change": diff["change"],
+                    "before_hash": diff["before_hash"],
+                    "after_hash": diff["after_hash"],
+                })
+            })
             .collect(),
     )
 }
@@ -574,49 +578,77 @@ fn evidence_result_index(
     tool: &str,
     predicate: fn(&Value) -> bool,
 ) -> Option<usize> {
-    evidence.results.iter().enumerate().find_map(|(index, result)| {
-        let matching_call = evidence.calls.iter().any(|call| {
-            call["id"] == result["tool_use_id"] && call["tool"] == tool
-        });
-        (matching_call && result["status"] == "ok" && predicate(result)).then_some(index)
-    })
+    evidence
+        .results
+        .iter()
+        .enumerate()
+        .find_map(|(index, result)| {
+            let matching_call = evidence
+                .calls
+                .iter()
+                .any(|call| call["id"] == result["tool_use_id"] && call["tool"] == tool);
+            (matching_call && result["status"] == "ok" && predicate(result)).then_some(index)
+        })
 }
 
 fn verify_evidence(evidence: &EventEvidence) -> Result<(), String> {
     let diagnose = evidence_result_index(evidence, "stage.validate", |result| {
-        result["output"]["diagnostics"].as_array().is_some_and(|items| {
-            items.iter().any(|entry| entry["code"] == "STAGE_NO_SPAWN_POINT")
-        })
-    }).ok_or("model did not observe an authentic STAGE_NO_SPAWN_POINT diagnostic")?;
+        result["output"]["diagnostics"]
+            .as_array()
+            .is_some_and(|items| {
+                items
+                    .iter()
+                    .any(|entry| entry["code"] == "STAGE_NO_SPAWN_POINT")
+            })
+    })
+    .ok_or("model did not observe an authentic STAGE_NO_SPAWN_POINT diagnostic")?;
     let dry_run = evidence_result_index(evidence, "tactical.make_stage_playable", |result| {
-        result["transaction"]["status"] == "previewed"
-            && result["output"]["playable_after"] == true
-    }).ok_or("successful intent dry-run evidence missing")?;
+        result["transaction"]["status"] == "previewed" && result["output"]["playable_after"] == true
+    })
+    .ok_or("successful intent dry-run evidence missing")?;
     let apply = evidence_result_index(evidence, "tactical.make_stage_playable", |result| {
-        result["transaction"]["status"] == "applied"
-            && result["output"]["playable_after"] == true
-    }).ok_or("successful applied intent evidence missing")?;
+        result["transaction"]["status"] == "applied" && result["output"]["playable_after"] == true
+    })
+    .ok_or("successful applied intent evidence missing")?;
     let validate = evidence_result_index(evidence, "demo.project.validate", |result| {
         result["output"]["ok"] == true
-    }).ok_or("successful agent-requested project validation evidence missing")?;
+    })
+    .ok_or("successful agent-requested project validation evidence missing")?;
     let build = evidence_result_index(evidence, "demo.project.build", |result| {
-        result["output"]["ok"] == true && result["output"]["artifacts"].as_array().is_some_and(|items| {
-            items.len() == 3 && [
-                "tactical.stage.artifact",
-                "tactical.encounter.artifact",
-                "tactical.dialogue.artifact"
-            ].iter().all(|kind| items.iter().any(|item| item["artifact_type"] == *kind))
-        })
-    }).ok_or("successful three-artifact strict build evidence missing")?;
+        result["output"]["ok"] == true
+            && result["output"]["artifacts"]
+                .as_array()
+                .is_some_and(|items| {
+                    items.len() == 3
+                        && [
+                            "tactical.stage.artifact",
+                            "tactical.encounter.artifact",
+                            "tactical.dialogue.artifact",
+                        ]
+                        .iter()
+                        .all(|kind| items.iter().any(|item| item["artifact_type"] == *kind))
+                })
+    })
+    .ok_or("successful three-artifact strict build evidence missing")?;
     let preview = evidence_result_index(evidence, "demo.stage.preview", |result| {
         result["output"]["status"] == "ready"
             && result["output"]["load_unload_cycles"] == 2
-            && result["output"]["entity_count"].as_u64().is_some_and(|count| count > 0)
-    }).ok_or("successful two-cycle Stage preview evidence missing")?;
-    if !(diagnose < dry_run && dry_run < apply && apply < validate && validate < build && build < preview) {
+            && result["output"]["entity_count"]
+                .as_u64()
+                .is_some_and(|count| count > 0)
+    })
+    .ok_or("successful two-cycle Stage preview evidence missing")?;
+    if !(diagnose < dry_run
+        && dry_run < apply
+        && apply < validate
+        && validate < build
+        && build < preview)
+    {
         return Err("Talos evidence is not ordered: diagnose -> dry-run -> apply -> validate -> build -> preview".into());
     }
-    let build_artifacts = evidence.results[build]["output"]["artifacts"].as_array().ok_or("missing build artifacts")?;
+    let build_artifacts = evidence.results[build]["output"]["artifacts"]
+        .as_array()
+        .ok_or("missing build artifacts")?;
     let preview_output = &evidence.results[preview]["output"];
     if !build_artifacts.iter().any(|artifact| {
         artifact["artifact_type"] == "tactical.stage.artifact"
@@ -901,19 +933,25 @@ mod tests {
         }]));
         assert_eq!(diffs[0]["after_hash"], "hash-only");
         assert!(!diffs.to_string().contains("top secret"));
-        let intent = safe_output(Some("tactical.make_stage_playable"), &json!({
-            "stage_id": "stage.test",
-            "playable_before": false,
-            "playable_after": true,
-            "plan": [{
-                "command": "stage.create_spawn",
-                "reason_codes": ["STAGE_NO_SPAWN_POINT"],
-                "input": {"private": "secret authoring text"}
-            }]
-        }));
+        let intent = safe_output(
+            Some("tactical.make_stage_playable"),
+            &json!({
+                "stage_id": "stage.test",
+                "playable_before": false,
+                "playable_after": true,
+                "plan": [{
+                    "command": "stage.create_spawn",
+                    "reason_codes": ["STAGE_NO_SPAWN_POINT"],
+                    "input": {"private": "secret authoring text"}
+                }]
+            }),
+        );
         assert_eq!(intent["plan"][0]["command"], "stage.create_spawn");
         assert!(!intent.to_string().contains("secret authoring text"));
-        assert_eq!(safe_output(Some("project.documents.list"), &source), Value::Null);
+        assert_eq!(
+            safe_output(Some("project.documents.list"), &source),
+            Value::Null
+        );
     }
 
     fn ordered_fixture_evidence() -> EventEvidence {
@@ -923,12 +961,32 @@ mod tests {
             {"artifact_type": "tactical.dialogue.artifact", "id": "artifact.dialogue"}
         ]);
         let steps = [
-            ("stage.validate", json!({"diagnostics": [{"code": "STAGE_NO_SPAWN_POINT"}]}), Value::Null),
-            ("tactical.make_stage_playable", json!({"playable_after": true}), json!({"status": "previewed"})),
-            ("tactical.make_stage_playable", json!({"playable_after": true}), json!({"status": "applied"})),
+            (
+                "stage.validate",
+                json!({"diagnostics": [{"code": "STAGE_NO_SPAWN_POINT"}]}),
+                Value::Null,
+            ),
+            (
+                "tactical.make_stage_playable",
+                json!({"playable_after": true}),
+                json!({"status": "previewed"}),
+            ),
+            (
+                "tactical.make_stage_playable",
+                json!({"playable_after": true}),
+                json!({"status": "applied"}),
+            ),
             ("demo.project.validate", json!({"ok": true}), Value::Null),
-            ("demo.project.build", json!({"ok": true, "artifacts": artifacts}), Value::Null),
-            ("demo.stage.preview", json!({"status": "ready", "stage_id": "stage.test", "artifact_id": "artifact.stage", "source_hash": "source", "artifact_hash": "compiled", "load_unload_cycles": 2, "entity_count": 1}), Value::Null),
+            (
+                "demo.project.build",
+                json!({"ok": true, "artifacts": artifacts}),
+                Value::Null,
+            ),
+            (
+                "demo.stage.preview",
+                json!({"status": "ready", "stage_id": "stage.test", "artifact_id": "artifact.stage", "source_hash": "source", "artifact_hash": "compiled", "load_unload_cycles": 2, "entity_count": 1}),
+                Value::Null,
+            ),
         ];
         let mut evidence = EventEvidence::default();
         for (index, (name, output, transaction)) in steps.into_iter().enumerate() {
@@ -946,10 +1004,14 @@ mod tests {
         let mut evidence = ordered_fixture_evidence();
         assert!(verify_evidence(&evidence).is_ok());
         evidence.results.swap(0, 1);
-        assert!(verify_evidence(&evidence).unwrap_err().contains("not ordered"));
+        assert!(verify_evidence(&evidence)
+            .unwrap_err()
+            .contains("not ordered"));
         evidence.results.swap(0, 1);
         evidence.results[5]["output"]["artifact_hash"] = json!("different");
-        assert!(verify_evidence(&evidence).unwrap_err().contains("does not match"));
+        assert!(verify_evidence(&evidence)
+            .unwrap_err()
+            .contains("does not match"));
     }
 
     #[test]
