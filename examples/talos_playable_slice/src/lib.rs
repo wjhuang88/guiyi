@@ -831,9 +831,13 @@ pub async fn run_with_provider(
             }
         })
     };
-    let dry_run_id = intent_transaction("previewed").ok_or("missing dry-run transaction identity")?;
+    let dry_run_id =
+        intent_transaction("previewed").ok_or("missing dry-run transaction identity")?;
     let applied_id = intent_transaction("applied").ok_or("missing applied transaction identity")?;
-    if durable_audits.iter().any(|record| record["transaction_id"] == dry_run_id) {
+    if durable_audits
+        .iter()
+        .any(|record| record["transaction_id"] == dry_run_id)
+    {
         return Err("GUIYI persisted a dry-run transaction in the applied audit".into());
     }
     if !durable_audits.iter().any(|record| {
