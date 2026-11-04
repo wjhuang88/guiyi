@@ -233,6 +233,29 @@ impl OperationalTool {
                     Err(error) => return denied("DEMO_BUILD_SETUP_FAILED", &error),
                 };
                 let ok = report.succeeded();
+                let required_types = [
+                    "tactical.stage.artifact",
+                    "tactical.encounter.artifact",
+                    "tactical.dialogue.artifact",
+                ];
+                if ok
+                    && !required_types.iter().all(|required| {
+                        report.artifacts.iter().any(|artifact| artifact.artifact_type.as_str() == *required)
+                    })
+                {
+                    if let Ok(mut cache) = self.shared.cache.lock() {
+                        *cache = BuildCache::default();
+                    }
+                    return result(
+                        false,
+                        json!({
+                            "ok": false,
+                            "error": {"code": "DEMO_BUILD_INCOMPLETE_SLICE"},
+                            "artifacts": [],
+                        }),
+                        json!(report.diagnostics.diagnostics),
+                    );
+                }
                 let artifacts = if ok {
                     report
                         .artifacts
