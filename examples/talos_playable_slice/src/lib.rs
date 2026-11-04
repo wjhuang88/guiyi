@@ -585,7 +585,17 @@ pub async fn run_with_provider(
         .iter()
         .any(|r| r["output"]["status"] == "ready" && r["output"]["load_unload_cycles"] == 2);
     if !build_succeeded || !preview_succeeded {
-        return Err("Talos build/preview did not return successful authoritative evidence".into());
+        let observed = evidence.results.iter().map(|r| json!({
+            "tool_use_id": r["tool_use_id"],
+            "status": r["status"],
+            "ok": r["output"]["ok"],
+            "error_code": r["output"]["error"]["code"],
+            "artifact_count": r["output"]["artifacts"].as_array().map(Vec::len),
+            "preview_status": r["output"]["status"],
+            "load_unload_cycles": r["output"]["load_unload_cycles"],
+            "diagnostic_codes": r["diagnostics"].as_array().map(|items| items.iter().map(|d| d["code"].clone()).collect::<Vec<_>>())
+        })).collect::<Vec<_>>();
+        return Err(format!("Talos build/preview evidence incomplete: {observed:?}"));
     }
     let storage = ProjectStorage::open(root).map_err(|error| error.to_string())?;
     let audits = storage.audit_records().map_err(|error| error.to_string())?;
