@@ -879,6 +879,80 @@ mod tests {
     }
 
     #[test]
+    fn review_packet_drops_private_document_and_diagnostic_fields() {
+        let source = json!({
+            "diagnostics": [{
+                "code": "STAGE_NO_SPAWN_POINT",
+                "severity": "warning",
+                "message": "secret user text",
+                "location": {"field_path": "/private/path"}
+            }],
+            "private_document": "not-for-export",
+        });
+        let projected = safe_output(Some("stage.validate"), &source);
+        assert_eq!(projected["diagnostics"][0]["code"], "STAGE_NO_SPAWN_POINT");
+        assert!(!projected.to_string().contains("secret"));
+        assert!(!projected.to_string().contains("/private/path"));
+        let diffs = safe_document_diffs(&json!([{
+            "document_id": "stage.test",
+            "change": "modified",
+            "after_hash": "hash-only",
+            "payload": "top secret"
+        }]));
+        assert_eq!(diffs[0]["after_hash"], "hash-only");
+        assert!(!diffs.to_string().contains("top secret"));
+        let intent = safe_output(Some("tactical.make_stage_playable"), &json!({
+            "stage_id": "stage.test",
+            "playable_before": false,
+            "playable_after": true,
+            "plan": [{
+                "command": "stage.create_spawn",
+                "reason_codes": ["STAGE_NO_SPAWN_POINT"],
+                "input": {"private": "secret authoring text"}
+            }]
+        }));
+        assert_eq!(intent["plan"][0]["command"], "stage.create_spawn");
+        assert!(!intent.to_string().contains("secret authoring text"));
+        assert_eq!(safe_output(Some("project.documents.list"), &source), Value::Null);
+    }
+
+    fn ordered_fixture_evidence() -> EventEvidence {
+        let artifacts = json!([
+            {"artifact_type": "tactical.stage.artifact", "id": "artifact.stage", "source_document": "stage.test", "source_hash": "source", "artifact_hash": "compiled"},
+            {"artifact_type": "tactical.encounter.artifact", "id": "artifact.encounter"},
+            {"artifact_type": "tactical.dialogue.artifact", "id": "artifact.dialogue"}
+        ]);
+        let steps = [
+            ("stage.validate", json!({"diagnostics": [{"code": "STAGE_NO_SPAWN_POINT"}]}), Value::Null),
+            ("tactical.make_stage_playable", json!({"playable_after": true}), json!({"status": "previewed"})),
+            ("tactical.make_stage_playable", json!({"playable_after": true}), json!({"status": "applied"})),
+            ("demo.project.validate", json!({"ok": true}), Value::Null),
+            ("demo.project.build", json!({"ok": true, "artifacts": artifacts}), Value::Null),
+            ("demo.stage.preview", json!({"status": "ready", "stage_id": "stage.test", "artifact_id": "artifact.stage", "source_hash": "source", "artifact_hash": "compiled", "load_unload_cycles": 2, "entity_count": 1}), Value::Null),
+        ];
+        let mut evidence = EventEvidence::default();
+        for (index, (name, output, transaction)) in steps.into_iter().enumerate() {
+            let id = format!("call-{index}");
+            evidence.calls.push(json!({"id": id, "tool": name}));
+            evidence.results.push(json!({
+                "tool_use_id": id, "status": "ok", "output": output, "transaction": transaction
+            }));
+        }
+        evidence
+    }
+
+    #[test]
+    fn evidence_requires_causal_tool_order_and_matching_preview_artifact() {
+        let mut evidence = ordered_fixture_evidence();
+        assert!(verify_evidence(&evidence).is_ok());
+        evidence.results.swap(0, 1);
+        assert!(verify_evidence(&evidence).unwrap_err().contains("not ordered"));
+        evidence.results.swap(0, 1);
+        evidence.results[5]["output"]["artifact_hash"] = json!("different");
+        assert!(verify_evidence(&evidence).unwrap_err().contains("does not match"));
+    }
+
+    #[test]
     fn operational_permissions_and_working_set_are_not_bypassed() {
         let root = Path::new("not-a-real-eng030-project");
         for operation in [Operation::Validate, Operation::Build, Operation::Preview] {
