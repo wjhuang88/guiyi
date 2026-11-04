@@ -708,3 +708,189 @@ pub async fn run_with_provider(
         "durable_applied_audits": durable_audits,
     }))
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use guiyi_engine_content::{ProjectManifest, ProjectPath, ProjectTransaction};
+    use guiyi_engine_core::{AgentSessionId, EngineVersion, ObjectId, ProjectId};
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use tactical_rpg_content::{HexCoord, StageObject, StageObjectKind};
+
+    fn shared(
+        root: &Path,
+        permissions: PermissionSet,
+        working_set: Vec<DocumentId>,
+    ) -> Arc<OperationalContext> {
+        Arc::new(OperationalContext {
+            root: root.to_path_buf(),
+            permissions,
+            working_set,
+            cache: Mutex::new(BuildCache::default()),
+        })
+    }
+
+    fn invoke(shared: &Arc<OperationalContext>, operation: Operation, input: Value) -> Value {
+        let tool = OperationalTool {
+            operation,
+            shared: Arc::clone(shared),
+        };
+        serde_json::from_str(&tool.execute_sync(input).content).unwrap()
+    }
+
+    fn make_project(stage: Option<StageDocument>) -> PathBuf {
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "guiyi-eng030-negative-{}-{nonce}",
+            std::process::id()
+        ));
+        let storage = ProjectStorage::create(&root).unwrap();
+        let mut manifest = ProjectManifest {
+            project_id: ProjectId::from_static("project.eng030-negative"),
+            name: "ENG-030 negative cases".into(),
+            engine_api_version: EngineVersion::CURRENT.to_string(),
+            content_schema_version: 1,
+            enabled_extensions: vec!["tactical_rpg".into()],
+            documents: Vec::new(),
+        };
+        let mut transaction = ProjectTransaction::generated(
+            "eng030-negative",
+            AgentSessionId::from_static("session.eng030-fixture"),
+            "fixture.create",
+            json!({"kind": "immutable_test_fixture"}),
+        ).unwrap();
+        if let Some(stage) = stage {
+            let path = ProjectPath::new("content/stages/eng030.stage.json").unwrap();
+            transaction.write_json(path.clone(), &stage.to_envelope().unwrap()).unwrap();
+            manifest.documents.push(path);
+        }
+        transaction
+            .write_manifest_json(ProjectPath::new("engine-project.json").unwrap(), &manifest)
+            .unwrap();
+        storage.commit(transaction).unwrap();
+        root
+    }
+
+    fn stage_with_spawn(position: HexCoord) -> StageDocument {
+        let mut stage = StageDocument::new_hex(
+            DocumentId::from_static("stage.eng030"),
+            "ENG-030",
+            4,
+            4,
+        );
+        stage.objects.push(StageObject {
+            id: ObjectId::from_static("spawn.player"),
+            position,
+            object: StageObjectKind::SpawnPoint {
+                profile: "player".into(),
+            },
+            properties: json!({}),
+        });
+        stage
+    }
+
+    #[test]
+    fn operational_permissions_and_working_set_are_not_bypassed() {
+        let root = Path::new("not-a-real-eng030-project");
+        for operation in [Operation::Validate, Operation::Build, Operation::Preview] {
+            let input = if matches!(operation, Operation::Preview) {
+                json!({"stage_id": "stage.eng030"})
+            } else {
+                json!({})
+            };
+            let denied = invoke(
+                &shared(root, PermissionSet::read_only(), Vec::new()),
+                operation,
+                input.clone(),
+            );
+            assert_eq!(denied["output"]["error"]["code"], "AGENT_PERMISSION_DENIED");
+
+            let restricted = invoke(
+                &shared(
+                    root,
+                    PermissionSet::content_author(),
+                    vec![DocumentId::from_static("stage.visible")],
+                ),
+                operation,
+                input,
+            );
+            assert_eq!(restricted["output"]["error"]["code"], "AGENT_WORKING_SET_DENIED");
+        }
+        let validation_only = invoke(
+            &shared(
+                root,
+                PermissionSet::new([Permission::RunValidation]),
+                Vec::new(),
+            ),
+            Operation::Validate,
+            json!({}),
+        );
+        assert_eq!(validation_only["output"]["error"]["code"], "AGENT_PERMISSION_DENIED");
+    }
+
+    #[test]
+    fn empty_slice_and_preview_before_build_fail_closed() {
+        let root = make_project(None);
+        let shared = shared(&root, PermissionSet::content_author(), Vec::new());
+
+        let malformed = invoke(&shared, Operation::Validate, json!({"unexpected": true}));
+        assert_eq!(malformed["output"]["error"]["code"], "DEMO_INVALID_INPUT");
+
+        let incomplete = invoke(&shared, Operation::Build, json!({}));
+        assert_eq!(incomplete["output"]["error"]["code"], "DEMO_BUILD_INCOMPLETE_SLICE");
+        assert_eq!(incomplete["output"]["artifacts"], json!([]));
+
+        let preview = invoke(
+            &shared,
+            Operation::Preview,
+            json!({"stage_id": "stage.eng030"}),
+        );
+        assert_eq!(preview["output"]["error"]["code"], "DEMO_PREVIEW_STALE_BUILD");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn invalid_stage_produces_no_partial_artifacts_or_preview() {
+        let root = make_project(Some(stage_with_spawn(HexCoord::new(99, 99))));
+        let shared = shared(&root, PermissionSet::content_author(), Vec::new());
+
+        let failed_build = invoke(&shared, Operation::Build, json!({}));
+        assert_eq!(failed_build["output"]["error"]["code"], "DEMO_BUILD_VALIDATION_FAILED");
+        assert_eq!(failed_build["output"]["artifacts"], json!([]));
+        assert!(failed_build["diagnostics"].as_array().unwrap().iter().any(|item| {
+            item["code"] == "STAGE_OBJECT_OUT_OF_BOUNDS"
+        }));
+
+        let preview = invoke(
+            &shared,
+            Operation::Preview,
+            json!({"stage_id": "stage.eng030"}),
+        );
+        assert_eq!(preview["output"]["error"]["code"], "DEMO_PREVIEW_STALE_BUILD");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn corrupt_compiled_artifact_is_rejected_by_existing_runtime_integrity_gate() {
+        let root = make_project(Some(stage_with_spawn(HexCoord::new(0, 0))));
+        let store = project_state(&root).unwrap();
+        let report = strict_build(&store, &root).unwrap();
+        assert!(report.succeeded());
+        let mut artifact = report.artifacts.into_iter().next().unwrap();
+        artifact.artifact_hash = "corrupt".into();
+
+        let shared = shared(&root, PermissionSet::content_author(), Vec::new());
+        *shared.cache.lock().unwrap() = BuildCache {
+            document_hash: project_hash(&store).unwrap(),
+            artifacts: vec![artifact],
+        };
+        let preview = invoke(
+            &shared,
+            Operation::Preview,
+            json!({"stage_id": "stage.eng030"}),
+        );
+        assert_eq!(preview["output"]["error"]["code"], "DEMO_PREVIEW_RUNTIME_FAILED");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
