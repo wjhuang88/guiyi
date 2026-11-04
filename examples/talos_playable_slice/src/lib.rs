@@ -67,11 +67,11 @@ fn result(ok: bool, output: Value, diagnostics: Value) -> TalosToolResult {
         "diagnostics": diagnostics,
         "transaction": null
     });
-    if ok {
-        TalosToolResult::success(payload.to_string())
-    } else {
-        TalosToolResult::error(payload.to_string())
-    }
+    // A well-formed project-operation invocation always returns a structured
+    // GUIYI status. Expected validation/permission/input rejections are
+    // semantic results, not Talos transport errors: the model must receive
+    // the rejection and have a chance to select a corrective Tool next.
+    TalosToolResult::success(payload.to_string())
 }
 
 // Packet projection is intentionally allowlisted: Tool outputs can contain
