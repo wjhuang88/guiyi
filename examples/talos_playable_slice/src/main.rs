@@ -84,8 +84,7 @@ impl FixtureProvider {
                 input: json!({"stage_id": "stage.demo"}),
             };
         }
-        let no_spawn =
-            Self::requires_spawn_repair(&results["diagnose"]["output"]["diagnostics"]);
+        let no_spawn = Self::requires_spawn_repair(&results["diagnose"]["output"]["diagnostics"]);
         if no_spawn && absent("repair-preview") {
             return Next::Call {
                 id: "repair-preview",
