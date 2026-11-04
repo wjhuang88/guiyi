@@ -14,15 +14,15 @@ use guiyi_engine_core::{
 #[path = "lib.rs"]
 mod proof;
 use self::proof::run_with_provider;
+use guiyi_talos_runtime::sdk::{
+    AgentEvent, LanguageModel, Message, ProviderResult, Receiver, StopReason,
+    ToolCall as TalosToolCall, ToolDefinition, Usage,
+};
 use guiyi_talos_runtime::GuiyiExecutionContext;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use guiyi_talos_runtime::sdk::{
-    AgentEvent, LanguageModel, Message, ProviderResult, Receiver, StopReason,
-    ToolCall as TalosToolCall, ToolDefinition, Usage,
-};
 use tactical_rpg_content::ACTOR_DEFINITION_TYPE;
 
 #[derive(Default)]
@@ -31,7 +31,11 @@ struct FixtureProvider {
 }
 
 enum Next {
-    Call { id: &'static str, name: &'static str, input: Value },
+    Call {
+        id: &'static str,
+        name: &'static str,
+        input: Value,
+    },
     Text,
 }
 
@@ -52,26 +56,37 @@ impl FixtureProvider {
         // The fixture examines real returned JSON. It never unconditionally
         // chooses a repair unless the validator explicitly finds that defect.
         if absent("inspect") {
-            return Next::Call { id: "inspect", name: "project.documents.list", input: json!({}) };
+            return Next::Call {
+                id: "inspect",
+                name: "project.documents.list",
+                input: json!({}),
+            };
         }
         if absent("stage") {
             return Next::Call {
-                id: "stage", name: "stage.create",
+                id: "stage",
+                name: "stage.create",
                 input: json!({"input": {"id": "stage.demo", "name": "Talos Playable Slice", "width": 8, "height": 8}}),
             };
         }
         if absent("diagnose") {
             return Next::Call {
-                id: "diagnose", name: "stage.validate",
+                id: "diagnose",
+                name: "stage.validate",
                 input: json!({"stage_id": "stage.demo"}),
             };
         }
-        let no_spawn = results["diagnose"]["output"]["diagnostics"].as_array().is_some_and(|items| {
-            items.iter().any(|diagnostic| diagnostic["code"] == "STAGE_NO_SPAWN_POINT")
-        });
+        let no_spawn = results["diagnose"]["output"]["diagnostics"]
+            .as_array()
+            .is_some_and(|items| {
+                items
+                    .iter()
+                    .any(|diagnostic| diagnostic["code"] == "STAGE_NO_SPAWN_POINT")
+            });
         if no_spawn && absent("repair-preview") {
             return Next::Call {
-                id: "repair-preview", name: "tactical.make_stage_playable",
+                id: "repair-preview",
+                name: "tactical.make_stage_playable",
                 input: json!({"input": {"stage_id": "stage.demo"}, "dry_run": true}),
             };
         }
@@ -80,25 +95,29 @@ impl FixtureProvider {
                 return Next::Text;
             }
             return Next::Call {
-                id: "repair-apply", name: "tactical.make_stage_playable",
+                id: "repair-apply",
+                name: "tactical.make_stage_playable",
                 input: json!({"input": {"stage_id": "stage.demo"}, "dry_run": false}),
             };
         }
         if absent("actor") {
             return Next::Call {
-                id: "actor", name: "stage.place_actor",
+                id: "actor",
+                name: "stage.place_actor",
                 input: json!({"input": {"stage_id": "stage.demo", "object_id": "actor.guard", "definition": "actor.guard.basic", "q": 4, "r": 3}}),
             };
         }
         if absent("encounter") {
             return Next::Call {
-                id: "encounter", name: "encounter.create",
+                id: "encounter",
+                name: "encounter.create",
                 input: json!({"input": {"encounter_id": "encounter.demo", "name": "Talos Encounter", "stage_id": "stage.demo"}}),
             };
         }
         if absent("participant") {
             return Next::Call {
-                id: "participant", name: "encounter.add_participant",
+                id: "participant",
+                name: "encounter.add_participant",
                 input: json!({"input": {
                     "encounter_id": "encounter.demo", "stage_id": "stage.demo",
                     "participant_id": "participant.guard", "actor_definition": "actor.guard.basic",
@@ -108,7 +127,8 @@ impl FixtureProvider {
         }
         if absent("dialogue") {
             return Next::Call {
-                id: "dialogue", name: "dialogue.create",
+                id: "dialogue",
+                name: "dialogue.create",
                 input: json!({"input": {
                     "dialogue_id": "dialogue.demo", "name": "Gate Dialogue",
                     "entry_node_id": "node.entry", "speaker": "Guard", "text": "Halt!"
@@ -117,7 +137,8 @@ impl FixtureProvider {
         }
         if absent("node") {
             return Next::Call {
-                id: "node", name: "dialogue.add_node",
+                id: "node",
+                name: "dialogue.add_node",
                 input: json!({"input": {
                     "dialogue_id": "dialogue.demo", "node_id": "node.end",
                     "speaker": "Guard", "text": "You may enter."
@@ -126,7 +147,8 @@ impl FixtureProvider {
         }
         if absent("choice") {
             return Next::Call {
-                id: "choice", name: "dialogue.add_choice",
+                id: "choice",
+                name: "dialogue.add_choice",
                 input: json!({"input": {
                     "dialogue_id": "dialogue.demo", "from_node_id": "node.entry",
                     "choice_id": "choice.enter", "text": "Let us pass.",
@@ -136,20 +158,29 @@ impl FixtureProvider {
             };
         }
         if absent("validate") {
-            return Next::Call { id: "validate", name: "demo.project.validate", input: json!({}) };
+            return Next::Call {
+                id: "validate",
+                name: "demo.project.validate",
+                input: json!({}),
+            };
         }
         if absent("build") {
             if results["validate"]["output"]["ok"] != true {
                 return Next::Text;
             }
-            return Next::Call { id: "build", name: "demo.project.build", input: json!({}) };
+            return Next::Call {
+                id: "build",
+                name: "demo.project.build",
+                input: json!({}),
+            };
         }
         if absent("preview") {
             if results["build"]["output"]["ok"] != true {
                 return Next::Text;
             }
             return Next::Call {
-                id: "preview", name: "demo.stage.preview",
+                id: "preview",
+                name: "demo.stage.preview",
                 input: json!({"stage_id": "stage.demo"}),
             };
         }
@@ -167,24 +198,36 @@ impl FixtureProvider {
             let _ = tx.send(AgentEvent::TurnStart).await;
             match next {
                 Next::Call { id, name, input } => {
-                    let _ = tx.send(AgentEvent::ToolCall {
-                        call: TalosToolCall { id: id.into(), name: name.into(), input },
-                        provenance: Default::default(),
-                        summary_fields: Vec::new(),
-                    }).await;
-                    let _ = tx.send(AgentEvent::TurnEnd {
-                        stop_reason: StopReason::ToolUse,
-                        usage: Usage::default(),
-                    }).await;
+                    let _ = tx
+                        .send(AgentEvent::ToolCall {
+                            call: TalosToolCall {
+                                id: id.into(),
+                                name: name.into(),
+                                input,
+                            },
+                            provenance: Default::default(),
+                            summary_fields: Vec::new(),
+                        })
+                        .await;
+                    let _ = tx
+                        .send(AgentEvent::TurnEnd {
+                            stop_reason: StopReason::ToolUse,
+                            usage: Usage::default(),
+                        })
+                        .await;
                 }
                 Next::Text => {
-                    let _ = tx.send(AgentEvent::TextDelta {
-                        delta: "The available GUIYI evidence has been collected.".into(),
-                    }).await;
-                    let _ = tx.send(AgentEvent::TurnEnd {
-                        stop_reason: StopReason::EndTurn,
-                        usage: Usage::default(),
-                    }).await;
+                    let _ = tx
+                        .send(AgentEvent::TextDelta {
+                            delta: "The available GUIYI evidence has been collected.".into(),
+                        })
+                        .await;
+                    let _ = tx
+                        .send(AgentEvent::TurnEnd {
+                            stop_reason: StopReason::EndTurn,
+                            usage: Usage::default(),
+                        })
+                        .await;
                 }
             }
         });
@@ -210,7 +253,8 @@ impl LanguageModel for FixtureProvider {
 fn fixture() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let nonce = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
     let root = std::env::temp_dir().join(format!(
-        "guiyi-eng030-fixture-{}-{nonce}", std::process::id()
+        "guiyi-eng030-fixture-{}-{nonce}",
+        std::process::id()
     ));
     let storage = ProjectStorage::create(&root)?;
     let actor_path = ProjectPath::new("content/definitions/guard.json")?;
@@ -255,8 +299,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let packet = run_with_provider(&root, provider.clone(), context).await;
     let _ = std::fs::remove_dir_all(&root);
     let packet = packet?;
-    let tools = provider.observed_tool_names.lock().map_err(|_| "provider lock poisoned")?;
-    assert!(tools.iter().any(|name| name == "tactical.make_stage_playable"));
+    let tools = provider
+        .observed_tool_names
+        .lock()
+        .map_err(|_| "provider lock poisoned")?;
+    assert!(tools
+        .iter()
+        .any(|name| name == "tactical.make_stage_playable"));
     assert!(tools.iter().any(|name| name == "demo.project.build"));
     println!("{}", serde_json::to_string_pretty(&packet)?);
     Ok(())
