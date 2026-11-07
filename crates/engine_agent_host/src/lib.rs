@@ -894,6 +894,29 @@ mod tests {
     }
 
     #[test]
+    fn exhausted_driver_marks_session_failed_without_losing_action_history() {
+        let mut host = host();
+        let mut session = session(PermissionSet::read_only());
+        let mut driver = ScriptedAgentDriver::new([AgentDirective::Tool(list_call("before-error"))]);
+        let error = host.run(&mut driver, &mut session).unwrap_err();
+
+        assert!(matches!(error, AgentHostError::Driver(_)));
+        assert_eq!(session.status, SessionStatus::Failed);
+        assert_eq!(session.actions_used, 1);
+        assert_eq!(session.actions.len(), 1);
+        assert_eq!(session.actions[0].call.id, "before-error");
+        assert_eq!(session.actions[0].result.status, ToolResultStatus::Ok);
+        assert!(
+            session
+                .final_summary
+                .as_deref()
+                .is_some_and(|summary| summary.contains("script exhausted")),
+            "failed session must retain the driver error for audit"
+        );
+        assert_eq!(host.state.documents.len(), 0);
+    }
+
+    #[test]
     fn scripted_agent_creates_and_queries_a_document() {
         let mut host = host();
         let mut session = session(PermissionSet::content_author());
