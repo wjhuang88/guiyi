@@ -43,8 +43,12 @@ fn cli_subprocess_init_validate_compile_and_capabilities_are_noninteractive() {
 
     let capabilities = require_json(&cli(&["capabilities", "--json"]));
     assert!(
-        capabilities.as_array().is_some_and(|tools| !tools.is_empty())
-            || capabilities.as_object().is_some_and(|catalog| !catalog.is_empty()),
+        capabilities
+            .as_array()
+            .is_some_and(|tools| !tools.is_empty())
+            || capabilities
+                .as_object()
+                .is_some_and(|catalog| !catalog.is_empty()),
         "machine-readable capability catalog was empty"
     );
 
@@ -62,7 +66,12 @@ fn cli_subprocess_init_validate_compile_and_capabilities_are_noninteractive() {
     assert!(validated["diagnostics"].is_array());
 
     let compiled = require_json(&cli(&[
-        "compile", "--project", root_arg, "--out", "artifacts", "--json",
+        "compile",
+        "--project",
+        root_arg,
+        "--out",
+        "artifacts",
+        "--json",
     ]));
     assert_eq!(compiled["ok"], true);
     assert_eq!(compiled["artifacts"], 1);
@@ -80,22 +89,37 @@ fn cli_subprocess_failures_use_stderr_and_never_emit_partial_artifacts() {
     let output = cli(&["validate", "--project", missing_arg, "--json"]);
     assert!(!output.status.success());
     assert!(output.stdout.is_empty(), "fatal project error wrote stdout");
-    assert!(!output.stderr.is_empty(), "fatal project error lost diagnostics");
+    assert!(
+        !output.stderr.is_empty(),
+        "fatal project error lost diagnostics"
+    );
 
     let root = project_root("invalid-output");
     let root_arg = root.to_str().unwrap();
-    assert!(cli(&["init", "--path", root_arg, "--name", "Output escape"]).status.success());
+    assert!(
+        cli(&["init", "--path", root_arg, "--name", "Output escape"])
+            .status
+            .success()
+    );
     let invalid = cli(&[
         "compile",
-        "--project", root_arg,
-        "--out", "../escape",
+        "--project",
+        root_arg,
+        "--out",
+        "../escape",
         "--json",
     ]);
     assert!(!invalid.status.success());
-    assert!(invalid.stdout.is_empty(), "invalid output path wrote stdout");
+    assert!(
+        invalid.stdout.is_empty(),
+        "invalid output path wrote stdout"
+    );
     assert!(!invalid.stderr.is_empty());
     assert!(
-        fs::read_dir(root.join("artifacts")).unwrap().next().is_none(),
+        fs::read_dir(root.join("artifacts"))
+            .unwrap()
+            .next()
+            .is_none(),
         "refused compile produced partial artifact output"
     );
     assert!(!Path::new(root_arg).join("../escape").exists());
