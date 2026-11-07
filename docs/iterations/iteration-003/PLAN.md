@@ -399,5 +399,7 @@ Primary owner: GUIYI engine platform's outer Talos integration and executable pr
 
 ### Gates
 
+- **HUMAN REQUIRED / BLOCKED:** a separate operator real-provider Talos execution and signed sanitized evidence. Use [ENG-030 operator handoff](../../validation/ENG-030-MANUAL-ACCEPTANCE.md). Deterministic CI is automated regression evidence only; it cannot close this gate. Non-human ENG-030 hardening continues in PR #74, not in Proposed Stories.
 - This Ready promotion uses a docs-only PR from `docs/ENG-030-talos-playable-slice-ready`; complete CI and merge are prerequisites to creating `feature/ENG-030-talos-playable-slice` from its new main.
 - Implementation requires failing acceptance tests, narrow code, live Tool metadata, diagnostics and documentation, real provider proof, complete Rust/repository/example suite, final clean-head exact-head CI, then squash merge.
+- Implementation evidence so far: draft PR #74 runs the real Talos SDK with a structured-result-dependent CI fixture, semantic Stage/Encounter/Dialogue authoring, intent dry-run/apply, demo-scoped validate/build/preview, sanitized audit and permission/failure tests. Implementation-head CI run 336 (`41751127308`) passed the complete extended suite on `bcdfcab38ed2530e0a0b93fee9fd4671c7ac84e3`; full details are in `docs/validation/ENG-030.md`. This is **not** real-model product acceptance; the issue/PR must stay open/draft until a sanitized genuine model-provider session and final clean-head CI are available.

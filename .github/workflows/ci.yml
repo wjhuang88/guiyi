@@ -29,6 +29,7 @@ jobs:
       - run: cargo run -p guiyi-example-minimal-project
       - run: cargo run -p guiyi-example-tactical-demo
       - run: cargo run -p guiyi-example-mock-agent-workflow
+      - run: cargo run -p guiyi-example-talos-playable-slice
 
   repository-gates:
     runs-on: ubuntu-latest

@@ -6,6 +6,9 @@
 //! [`ToolCatalog`](guiyi_engine_agent_tools::ToolCatalog) into Talos
 //! [`AgentTool`] instances and delegates execution back to [`AgentHost`].
 
+/// Canonical Talos SDK facade for GUIYI outer-client integrations and examples.
+pub use talos_runtime as sdk;
+
 use async_trait::async_trait;
 use guiyi_engine_agent_host::{AgentHost, AgentSession};
 use guiyi_engine_agent_tools::{ToolDescriptor, ToolKind};

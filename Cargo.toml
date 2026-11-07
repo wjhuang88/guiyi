@@ -25,7 +25,8 @@ members = [
   "integrations/talos_runtime",
   "examples/minimal_project",
   "examples/tactical_demo",
-  "examples/mock_agent_workflow"
+  "examples/mock_agent_workflow",
+  "examples/talos_playable_slice"
 ]
 
 [workspace.package]
