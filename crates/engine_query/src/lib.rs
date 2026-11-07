@@ -707,6 +707,46 @@ mod tests {
     }
 
     #[test]
+    fn get_missing_document_and_successful_queries_preserve_authoritative_state() {
+        let mut store = DocumentStore::default();
+        store.insert(document("doc.present", None)).unwrap();
+        let before = store.clone();
+        let context = QueryContext {
+            actor: "eng019-direct-query".into(),
+            permissions: PermissionSet::read_only(),
+        };
+        let mut executor = executor();
+
+        let missing = executor.execute(
+            QueryRequest {
+                query: ToolId::from_static("project.document.get"),
+                input: json!({"document_id": "doc.missing"}),
+            },
+            &context,
+            &store,
+        );
+        assert!(matches!(missing, Err(QueryError::Failed(_))));
+        assert_eq!(
+            store, before,
+            "missing read mutated authoritative documents"
+        );
+
+        let found = executor
+            .execute(
+                QueryRequest {
+                    query: ToolId::from_static("project.document.get"),
+                    input: json!({"document_id": "doc.present"}),
+                },
+                &context,
+                &store,
+            )
+            .unwrap();
+        assert_eq!(found["header"]["id"], "doc.present");
+        assert_eq!(found["payload"], json!({}));
+        assert_eq!(store, before, "successful query mutated source documents");
+    }
+
+    #[test]
     fn targeted_queries_declare_document_access() {
         let executor = executor();
         let get = executor
