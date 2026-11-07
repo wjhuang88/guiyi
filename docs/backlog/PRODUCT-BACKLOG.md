@@ -317,6 +317,26 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 - Evidence: `docs/validation/ENG-023.md`; implementation-head CI run 308 (`41648591032`) passed the complete suite on exact head `f8bcfd6c156215279e20f220810a3ab57882d5d7`. Final clean-head full CI run 311 (`41649202665`) passed on exact head `bfa5175b591b2d543e4fdf04e3f51c5e8b90ee65` before PR #71 squash-merged as `d181a405e0578f0157621cf450ab878d33c38557`.
 - Rollback: remove the intent Tool/tests/golden/demo/docs while leaving primitive Stage Commands, validation, Project Graph, build/runtime, and Talos adapter intact; do not replace it with direct file mutation or Editor-private automation.
 
+## Ready — Parallel P1 quality evidence
+
+### ENG-019 Reconcile and close residual required test coverage
+
+- Type: Quality / CI regression evidence
+- Priority: P1
+- Status: Ready
+- GitHub: [#15](https://github.com/wjhuang88/guiyi/issues/15) — Open, implementation contract.
+- Primary ownership: GUIYI engine platform testing and CI; no Talos/provider or human-client ownership change.
+- Direction contribution: a mandatory P1 contract-evidence/reliability safety net parallel to ENG-030's independently blocked **real-provider human acceptance**; does not alter Gate-4 sequence, Editor roles or GUIYI/Talos responsibilities.
+- **Reconciled baseline / bounded scope:** [ENG-019 coverage inventory](../validation/ENG-019-COVERAGE-BASELINE.md) records already-tested command, graph, agent-host permission/budget/working-set, JSONL workbench, runtime lifecycle and ProjectStorage fault-recovery cases. Implementation adds only residual CLI/Preview subprocess contracts, AgentHost driver error, Query missing/nonmutation proof and category-by-category traceable test evidence. The old blanket 'mostly missing' characterization is superseded by this inventory.
+- Acceptance: `AGENTS.md §13` categories mapped to named executable tests, subprocess binary success/failure/exit/JSON/stdout/stderr, structured error and non-partial artifacts, host driver-failure termination, read-only missing Query, and count-by-category final validation with all original examples and full CI passing.
+- Dependencies: earlier ENG-006..017 and ENG-020..023 regression suites (Done). Independently scoped from ENG-030/PR #74; do not touch its feature branch or turn mock CI into real-provider acceptance.
+- Non-goals: production semantics/API changes, new Tool IDs, provider/session/planner, new SDK dependencies, UI, generalized test framework, migration work, ENG-027 reproducibility improvements.
+- Compatibility: test-only additions, no content/API/schema migration, no dependency direction change; a discovered product bug requires a separate authorized owning Story.
+- ADRs/reads: `AGENTS.md`, `docs/sop/QUALITY-GATES.md`, `docs/sop/DIRECTION-GOVERNANCE.md`, ADR-0007/0008/0010/0012/0013/0016, and relevant protocol/session/storage/artifact references.
+- Validation/rollback: full clean-head Rust, four repository Python gates, three mainline examples; per-category exact executable-test counts. Rollback only the newly added tests/inventory, never prior safety regressions.
+
+ENG-019 / Issue #15 is authorized for a bounded testing-only slice by its dedicated docs-only Ready PR; its implementation may start **only after that PR passes full CI and merges**. The Gate-4 ENG-030 real-provider acceptance remains a separate human blocker; ENG-024/025 and ENG-027 remain Proposed.
+
 ## Ready — Gate 4 real Talos-driven production proof
 
 ### ENG-030 Real Talos-driven tactical playable-slice demo
@@ -350,14 +370,7 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 - Goal: expose undo and redo through the same permission, working-set, dry-run, transaction, persistence, and audit model as normal mutations.
 - Promotion gate: select and document the journal reversal policy, including dependent transactions and restart behavior.
 
-### ENG-019 Close required test coverage gaps
 
-- Type: Quality
-- Priority: P1
-- Status: Proposed
-- GitHub: [#15](https://github.com/wjhuang88/guiyi/issues/15) — Open
-- Goal: map every test category required by `AGENTS.md` to executable unit, integration, process, lifecycle, failure, or golden tests.
-- Promotion gate: reconcile coverage already owned by ENG-006 through ENG-018 and scope only the remaining gaps.
 
 ### ENG-026 Enforce GitHub branch protection and Story/PR governance
 
