@@ -3,7 +3,7 @@
 // ENG-019: exercise the compiled CLI process, not private run() helpers.
 use serde_json::Value;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
