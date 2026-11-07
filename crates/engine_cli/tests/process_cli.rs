@@ -122,6 +122,6 @@ fn cli_subprocess_failures_use_stderr_and_never_emit_partial_artifacts() {
             .is_none(),
         "refused compile produced partial artifact output"
     );
-    assert!(!Path::new(root_arg).join("escape").exists());
+    assert!(!root.join("escape").exists());
     fs::remove_dir_all(&root).unwrap();
 }
