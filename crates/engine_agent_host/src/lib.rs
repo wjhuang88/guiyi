@@ -897,7 +897,8 @@ mod tests {
     fn exhausted_driver_marks_session_failed_without_losing_action_history() {
         let mut host = host();
         let mut session = session(PermissionSet::read_only());
-        let mut driver = ScriptedAgentDriver::new([AgentDirective::Tool(list_call("before-error"))]);
+        let mut driver =
+            ScriptedAgentDriver::new([AgentDirective::Tool(list_call("before-error"))]);
         let error = host.run(&mut driver, &mut session).unwrap_err();
 
         assert!(matches!(error, AgentHostError::Driver(_)));
