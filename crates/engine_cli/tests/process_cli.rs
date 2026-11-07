@@ -106,7 +106,7 @@ fn cli_subprocess_failures_use_stderr_and_never_emit_partial_artifacts() {
         "--project",
         root_arg,
         "--out",
-        "../escape",
+        "artifacts/../escape",
         "--json",
     ]);
     assert!(!invalid.status.success());
@@ -122,6 +122,6 @@ fn cli_subprocess_failures_use_stderr_and_never_emit_partial_artifacts() {
             .is_none(),
         "refused compile produced partial artifact output"
     );
-    assert!(!Path::new(root_arg).join("../escape").exists());
+    assert!(!Path::new(root_arg).join("escape").exists());
     fs::remove_dir_all(&root).unwrap();
 }
