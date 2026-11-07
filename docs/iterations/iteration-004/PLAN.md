@@ -1,5 +1,11 @@
 # Iteration 004 — Parallel P1 test-contract evidence (ENG-019)
 
+## Completion record (2026-11-07)
+
+ENG-019 / Issue #15 is **Done and closed**. Proposed→Ready docs-only PR #75 passed full CI 358 and squash-merged to `fee20353bc290140561715b840afed1477351848`. The separate test-only implementation PR #76 delivered six residual tests (CLI process 2, Preview process 2, AgentHost driver failure 1, Query missing/nonmutation 1), plus [the full per-category coverage report](../../validation/ENG-019.md). Final complete CI **run 369** (`42366056830`) passed on exact PR head `483a1ae940f4642a24cc3a190bd66adbb89ae8f1`, followed by exact-head squash merge `6b0648ccbbe880e0490d7dece0f7d0a3f7c216eb`. The eight categorized source groups contain 267 existing + 6 new = 273 Rust test attributes.
+
+The implementation changed tests and documentation only, with no production API/schema/migration, Tool IDs, SDK/provider responsibilities or new dependencies. ENG-030 real-model human acceptance remains **required and unperformed**; ENG-027 remains Proposed. This completion record is documentation-only and supersedes prospective Ready wording below.
+
 ## Scope and ownership
 
 **Primary Story:** ENG-019 / [Issue #15](https://github.com/wjhuang88/guiyi/issues/15) — Ready promotion **proposed in this docs-only PR**, no executable implementation is authorized until the complete CI passes and this PR merges.
