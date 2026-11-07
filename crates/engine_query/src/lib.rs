@@ -726,7 +726,10 @@ mod tests {
             &store,
         );
         assert!(matches!(missing, Err(QueryError::Failed(_))));
-        assert_eq!(store, before, "missing read mutated authoritative documents");
+        assert_eq!(
+            store, before,
+            "missing read mutated authoritative documents"
+        );
 
         let found = executor
             .execute(
