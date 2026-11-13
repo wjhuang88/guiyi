@@ -1,5 +1,14 @@
 # Iteration 005 — ENG-027 deterministic build and supply-chain hygiene
 
+## Completion evidence (2026-11-14)
+
+- **Governance:** documentation-only [Ready PR #78](https://github.com/wjhuang88/guiyi/pull/78) passed full exact-head CI 373 and squash-merged to `50de18d13186e61fbdda1620fab73f59049cdb96` before implementation.
+- **Implementation:** [ENG-027 Draft PR #79](https://github.com/wjhuang88/guiyi/pull/79) fixes metadata, pins Rust 1.99.1 and all third-party Actions to upstream verified commit SHAs, enforces locked Cargo, installs the complete Apache-2.0 terms, retires the stale July-2026 manifest, and verifies fail-closed static regressions; the existing Cargo.lock/Dependabot stay preserved.
+- **Code-run evidence:** complete pinned CI run **375** (`43465687598`) was green, including both jobs and three examples; a later checker refinement adds direct `uses:` reusable workflow pin enforcement. [The ENG-027 validation record](../../validation/ENG-027.md) details provenance, negative tests, compatibility and rollback; final exact-head success before squash merge is recorded in PR #79 and Issue #17.
+- **No behavior/migration:** purely build/meta/license/docs maintenance, no engine content/schema migration or Talos SDK changes. ENG-030 real-model human acceptance is still separate and NOT RUN.
+
+This completion record supersedes the prospective Ready stage below, which is retained as historical approved implementation sequencing.
+
 ## Day 0: scope and ownership
 
 **Primary Story:** ENG-027 / [Issue #17](https://github.com/wjhuang88/guiyi/issues/17). This **docs-only** branch proposes Ready authorization; no production/CI implementation starts before this PR passes full CI and exact-head squash-merges to main. Implementation is a separate branch from the new authorized main.
