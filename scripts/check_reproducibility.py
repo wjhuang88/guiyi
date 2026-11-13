@@ -12,8 +12,8 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXACT_COMMIT = re.compile(r"^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+@[0-9a-f]{40}$")
-USE = re.compile(r"(?m)^\s*-\s*uses:\s*([^\s#]+)")
+EXACT_COMMIT = re.compile(r"^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+(?:/[a-zA-Z0-9_.-]+)*@[0-9a-f]{40}$")
+USE = re.compile(r"(?m)^\s*(?:-\s*)?uses:\s*([^\s#]+)")
 CONCRETE_RUST = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 APACHE_SECTIONS = (
     "1. Definitions.",
@@ -34,8 +34,6 @@ def action_errors(workflow: str, name: str) -> list[str]:
     """Check all third-party actions, including ones added in later PRs."""
     errors: list[str] = []
     uses = USE.findall(workflow)
-    if not uses:
-        return [f"{name}: no actions were found by the pin validator"]
     for ref in uses:
         if ref.startswith("./"):
             continue  # Repository-local actions are source-tracked by checkout.
@@ -105,6 +103,10 @@ def self_test() -> list[str]:
         errors.append("self-test: full action SHA was rejected")
     if not action_errors("steps:\n  - uses: actions/checkout@v7\n", "bad"):
         errors.append("self-test: floating Action tag was accepted")
+    if not action_errors("jobs:\n  reusable:\n    uses: org/ci/.github/workflows/run.yml@main\n", "bad"):
+        errors.append("self-test: floating remote reusable workflow was accepted")
+    if action_errors(f"jobs:\n  reusable:\n    uses: org/ci/.github/workflows/run.yml@{full_sha}\n", "good"):
+        errors.append("self-test: pinned reusable workflow was rejected")
     if not toolchain_errors("stable", "    toolchain: stable\n"):
         errors.append("self-test: floating Rust stable was accepted")
     if toolchain_errors("1.99.1", "    toolchain: '1.99.1'\n"):
