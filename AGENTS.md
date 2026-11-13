@@ -574,15 +574,21 @@ Require:
 Before declaring a Story complete, run:
 
 ```bash
+cargo metadata --locked --format-version 1 >/dev/null
 cargo fmt --all -- --check
-cargo check --workspace --all-features
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features
-cargo doc --workspace --no-deps
+cargo check --workspace --all-features --locked
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --workspace --all-features --locked
+cargo doc --workspace --no-deps --locked
 python3 scripts/check_architecture.py
 python3 scripts/check_docs.py
 python3 scripts/validate_repository.py
+python3 scripts/static_rust_check.py
+python3 scripts/check_reproducibility.py --self-test
+python3 scripts/check_reproducibility.py
 ```
+
+The checked-in Rust `1.99.1` toolchain and `Cargo.lock` must remain pinned; run a reviewed CI-pinned upgrade rather than reverting to floating `stable` or unbounded dependency resolution. In this Story, `cargo fmt` is a rustfmt wrapper and therefore does not accept `--locked`.
 
 The convenience entry point is:
 
