@@ -337,14 +337,15 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 
 ENG-019 first passed docs-only Ready promotion PR #75 / CI run 358, then completed test-only implementation PR #76 with `docs/validation/ENG-019.md` category counts and full CI. This is a parallel P1 reliability improvement, **not** ENG-030 real-provider proof. ENG-030 still requires separate operator acceptance; ENG-024/025 and ENG-027 remain Proposed.
 
-## Ready — Parallel P1 reproducibility and supply-chain maintenance
+## Done — Parallel P1 reproducibility and supply-chain maintenance
 
 ### ENG-027 Pin builds, correct licensing and retire the stale package manifest
 
 - Type: GUIYI platform maintenance / CI supply-chain reproducibility
 - Priority: P1
-- Status: Ready
-- GitHub: [#17](https://github.com/wjhuang88/guiyi/issues/17) — Open, implementation contract
+- Status: Done
+- GitHub: [#17](https://github.com/wjhuang88/guiyi/issues/17) — close upon exact-head full-CI-verified PR #79 squash merge
+- Evidence: [ENG-027 validation record](../validation/ENG-027.md), docs-only Ready PR #78 / full CI 373, implementation PR #79 / pinned-workflow full CI 375 and final exact-head suite
 - Primary owner: GUIYI engine platform build/release and repository CI; protects the Agent-first workflow without affecting Talos/provider, toolkit or a second Editor truth.
 - Direction: parallel mandatory P1 reliability/compatibility gap while ENG-030's actual real-model acceptance is HUMAN REQUIRED / BLOCKED. Does not change the primary Gate-4→5 sequence.
 - **Reconciled baseline and Ready acceptance:** [ENG-027 contract](../validation/ENG-027-READY-CONTRACT.md). `Cargo.lock` is **already tracked**; Cargo/Actions Dependabot **already configured**. Required work fixes placeholder repository URL, pins Rust `1.99.1` and the CI Actions to reviewed immutable commit SHAs, uses Cargo `--locked`, installs complete Apache-2.0 alongside existing MIT text, retires stale `PACKAGE-MANIFEST.json`, documents fresh-release manifests, and adds a fail-closed stdlib-only reproducibility gate.
@@ -352,7 +353,7 @@ ENG-019 first passed docs-only Ready promotion PR #75 / CI run 358, then complet
 - Dependencies: ENG-019 Done, completed Talos integration and existing pinned Cargo dependency/lock; no dependency/features/version upgrades beyond toolchain pin.
 - Non-goals: new `cargo-deny` security advisory gate, release publishing, new tool or schema IDs, engine behavior, migration, provider changes, reinvention of package/project truth.
 - Compatibility/rollback: no serialized migrations; only meta/build scripts and license/docs. Rollback via reviewed immutable action/toolchain changes, never silently reintroducing floating dependency versions. If license or packaging policy requires new product behavior, stop and open an owning Story.
-- Implementation only from main after **this docs-only Ready PR** passes full CI and squash merges; this PR is authorization only.
+- Governance was followed: docs-only Ready promotion PR #78 passed complete CI 373 and squash-merged to main before feature PR #79 started. Implementation and tests on PR #79 are complete, subject to exact final-head green CI and review before squash merge; no human operator acceptance is required for this maintenance Story.
 
 ## Ready — Gate 4 real Talos-driven production proof
 
