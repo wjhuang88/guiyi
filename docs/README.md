@@ -44,7 +44,7 @@
 - [Iteration SOP](sop/ITERATION.md)
 - [Quality gates](sop/QUALITY-GATES.md)
 - [AI agent operation SOP](sop/AGENT-OPERATIONS.md)
-- [Release SOP](sop/RELEASE.md)
+- [Release SOP / reproducible build policy](sop/RELEASE.md)
 
 ## Architecture decisions
 
@@ -52,5 +52,5 @@ See [the ADR register](decisions/README.md).
 
 ## Bootstrap and verification
 
-- [Generated package report](bootstrap/PACKAGE-REPORT.md)
+- [Historical bootstrap package report (retired manifest)](bootstrap/PACKAGE-REPORT.md)
 - [First local run](bootstrap/FIRST-RUN.md)

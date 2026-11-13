@@ -45,19 +45,21 @@ The near-term product proof is a real Talos session that can discover GUIYI capa
 
 ## First commands
 
+The committed `Cargo.lock` and `rust-toolchain.toml` pin the dependency graph and Rust `1.99.1`. Allow the initial crates.io fetch; locked resolution is not a promise of offline availability.
+
 ```bash
-cargo run -p guiyi-engine-cli -- init --path ./my-game --name "My Game"
-cargo run -p guiyi-engine-cli -- doctor --project ./my-game
-cargo run -p guiyi-engine-cli -- capabilities --json
-cargo run -p guiyi-engine-cli -- validate --project ./my-game
-cargo run -p guiyi-engine-cli -- compile --project ./my-game --out ./my-game/artifacts
-cargo run -p guiyi-engine-preview -- --artifact ./my-game/artifacts/stage.demo.artifact.json
+cargo run --locked -p guiyi-engine-cli -- init --path ./my-game --name "My Game"
+cargo run --locked -p guiyi-engine-cli -- doctor --project ./my-game
+cargo run --locked -p guiyi-engine-cli -- capabilities --json
+cargo run --locked -p guiyi-engine-cli -- validate --project ./my-game
+cargo run --locked -p guiyi-engine-cli -- compile --project ./my-game --out ./my-game/artifacts
+cargo run --locked -p guiyi-engine-preview -- --artifact ./my-game/artifacts/stage.demo.artifact.json
 ```
 
 Run the direct machine-facing Workbench:
 
 ```bash
-cargo run -p guiyi-engine-workbench -- --project ./my-game
+cargo run --locked -p guiyi-engine-workbench -- --project ./my-game
 ```
 
 It accepts newline-delimited JSON Tool calls on stdin and returns structured Tool results on stdout. This direct client remains useful for tests and automation; ENG-014 adds the first-party Talos runtime adapter over the same GUIYI capability boundary.
@@ -65,14 +67,18 @@ It accepts newline-delimited JSON Tool calls on stdin and returns structured Too
 ## Quality gates
 
 ```bash
+cargo metadata --locked --format-version 1 >/dev/null
 cargo fmt --all -- --check
-cargo check --workspace --all-features
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features
-cargo doc --workspace --no-deps
+cargo check --workspace --all-features --locked
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --workspace --all-features --locked
+cargo doc --workspace --no-deps --locked
 python3 scripts/check_architecture.py
 python3 scripts/check_docs.py
 python3 scripts/validate_repository.py
+python3 scripts/static_rust_check.py
+python3 scripts/check_reproducibility.py --self-test
+python3 scripts/check_reproducibility.py
 ```
 
 See [the documentation index](docs/README.md), [the product backlog](docs/backlog/PRODUCT-BACKLOG.md), and [ADR-0016](docs/decisions/ADR-0016-TALOS-AGENT-RUNTIME.md).

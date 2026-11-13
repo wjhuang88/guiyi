@@ -1,39 +1,20 @@
-# Generated package report
+# Historical bootstrap package report (July 28, 2026)
 
-## Package identity
+> **Archive-only, not current authoritative package metadata.** This file preserves the existence and intentions of the original 2026-07-28 alpha bootstrap snapshot. The root `PACKAGE-MANIFEST.json` from that date was **retired in ENG-027** because its 123-file inventory, sizes and hashes no longer matched a real checkout. Do not use it as release evidence.
 
-- Name: GUIYI Engine
-- Version: `0.1.0-alpha.1`
-- Runtime baseline: Bevy `0.18.x`
-- License: `MIT OR Apache-2.0`
-- Generated: 2026-07-28
+## Historical snapshot
 
-## Delivered systems
+- Package name: GUIYI Engine, original `0.1.0-alpha.1` bootstrap.
+- Original reported Bevy baseline: `0.18.x` (**historical only; current workspace uses Bevy `0.19`**).
+- Dual licensing: `MIT OR Apache-2.0`.
+- Bootstrap goal: stable IDs, typed Commands, semantic Queries, transactions/audit, deterministic build, headless Bevy ECS preview, tactical-RPG toolkit, protocol/CLI/Workbench and CI documentation.
+- At bootstrap, the generated report stated no real Cargo resolution had been completed. **This is no longer true**: the current repository contains `Cargo.lock`, runs Rust `1.99.1` via the pinned toolchain and green GitHub Actions, and integrates Talos through the published `talos-runtime = 0.10.1` SDK.
 
-- Stable IDs and least-privilege permissions.
-- Machine-readable schema and diagnostic foundations.
-- Authoring Document and compiled Artifact envelopes.
-- Compiler registry and build pipeline.
-- Typed command registry with dry-run, atomic apply, diffs, and audit records.
-- Query registry and semantic reference/impact graph.
-- Agent Tool Catalog and JSONL protocol.
-- Agent sessions, budgets, permissions, host routing, and an external loop trait.
-- Asset manifest and slot indirection.
-- Bevy ECS Stage ownership, loading, unloading, and lifecycle regression tests.
-- Tactical RPG Stage document, high-level tools, validation, compiler, and runtime markers.
-- CLI project initialization, doctor, capabilities, validation, and compilation commands.
-- Headless preview runner and JSONL workbench.
-- Minimal, tactical, and scripted-agent examples.
-- CI, ADRs, SOP, roadmap, backlog, templates, and archived bootstrap guidance.
+## Authoritative current sources
 
-## Deliberate exclusions
+- `Cargo.toml` and **committed `Cargo.lock`** for workspace, Bevy/Talos and dependency resolution.
+- `rust-toolchain.toml` for the exact Rust version; `.github/workflows/ci.yml` for immutable Action pins and full quality gates.
+- `docs/backlog/PRODUCT-BACKLOG.md` and `docs/validation/` for Story implementation/acceptance truth.
+- Tracked Git tree for source inventory. A **real tagged release** must freshly produce its own artifact inventory and per-file hashes; do not restore a static repository-root list of unverified hashes.
 
-- No direct dependency or adapter for the wuxia game repository.
-- No game-specific concepts such as spirit altar, lifespan, lamp oil, medicine-body, factions, or concrete story content.
-- No embedded model provider or concrete external agent loop.
-- No full visual editor in the alpha package.
-- No fabricated `Cargo.lock`; it must be produced by the first real Cargo resolution.
-
-## Required acceptance action
-
-Run `./scripts/first_run.sh` on a machine with the Rust stable toolchain and dependency access. Repair any compiler, formatter, Clippy, or Bevy API issue before accepting Iteration 001 as fully green.
+See [release SOP](../sop/RELEASE.md) and [first-run](FIRST-RUN.md) for authoritative current procedures.
