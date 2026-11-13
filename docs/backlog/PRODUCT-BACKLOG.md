@@ -2,7 +2,7 @@
 
 This is the only executable requirement list.
 
-GitHub Issue state was last synchronized on 2026-11-04. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
+GitHub Issue status was last reconciled on 2026-11-14. GitHub `OPEN` means an Issue is unresolved; the `Status` field below remains the implementation authorization.
 
 ## Current direction and ownership
 
@@ -337,6 +337,23 @@ ENG-014 established the accepted Talos Runtime SDK baseline, ENG-012 established
 
 ENG-019 first passed docs-only Ready promotion PR #75 / CI run 358, then completed test-only implementation PR #76 with `docs/validation/ENG-019.md` category counts and full CI. This is a parallel P1 reliability improvement, **not** ENG-030 real-provider proof. ENG-030 still requires separate operator acceptance; ENG-024/025 and ENG-027 remain Proposed.
 
+## Ready — Parallel P1 reproducibility and supply-chain maintenance
+
+### ENG-027 Pin builds, correct licensing and retire the stale package manifest
+
+- Type: GUIYI platform maintenance / CI supply-chain reproducibility
+- Priority: P1
+- Status: Ready
+- GitHub: [#17](https://github.com/wjhuang88/guiyi/issues/17) — Open, implementation contract
+- Primary owner: GUIYI engine platform build/release and repository CI; protects the Agent-first workflow without affecting Talos/provider, toolkit or a second Editor truth.
+- Direction: parallel mandatory P1 reliability/compatibility gap while ENG-030's actual real-model acceptance is HUMAN REQUIRED / BLOCKED. Does not change the primary Gate-4→5 sequence.
+- **Reconciled baseline and Ready acceptance:** [ENG-027 contract](../validation/ENG-027-READY-CONTRACT.md). `Cargo.lock` is **already tracked**; Cargo/Actions Dependabot **already configured**. Required work fixes placeholder repository URL, pins Rust `1.99.1` and the CI Actions to reviewed immutable commit SHAs, uses Cargo `--locked`, installs complete Apache-2.0 alongside existing MIT text, retires stale `PACKAGE-MANIFEST.json`, documents fresh-release manifests, and adds a fail-closed stdlib-only reproducibility gate.
+- Acceptance: upstream tag→commit SHAs verified and pin comments documented; exact-head full CI/three mainline executable examples green; repository verifier negative tests for floating action/toolchain/truncated license; `cargo metadata --locked` succeeds; docs/release notes truthful.
+- Dependencies: ENG-019 Done, completed Talos integration and existing pinned Cargo dependency/lock; no dependency/features/version upgrades beyond toolchain pin.
+- Non-goals: new `cargo-deny` security advisory gate, release publishing, new tool or schema IDs, engine behavior, migration, provider changes, reinvention of package/project truth.
+- Compatibility/rollback: no serialized migrations; only meta/build scripts and license/docs. Rollback via reviewed immutable action/toolchain changes, never silently reintroducing floating dependency versions. If license or packaging policy requires new product behavior, stop and open an owning Story.
+- Implementation only from main after **this docs-only Ready PR** passes full CI and squash merges; this PR is authorization only.
+
 ## Ready — Gate 4 real Talos-driven production proof
 
 ### ENG-030 Real Talos-driven tactical playable-slice demo
@@ -380,15 +397,6 @@ ENG-019 first passed docs-only Ready promotion PR #75 / CI run 358, then complet
 - GitHub: [#16](https://github.com/wjhuang88/guiyi/issues/16) — Open
 - Goal: enforce pull requests, required checks, branch protection, Story linkage, repository labels, and auditable exceptions in GitHub.
 - Promotion gate: document a solo-maintainer review and emergency policy that cannot silently bypass required checks.
-
-### ENG-027 Fix repository reproducibility, licensing, and CI supply-chain metadata
-
-- Type: Maintenance
-- Priority: P1
-- Status: Proposed
-- GitHub: [#17](https://github.com/wjhuang88/guiyi/issues/17) — Open
-- Goal: correct repository metadata, pin the Rust toolchain and Actions, commit the lockfile, repair license files, and prevent package-manifest drift.
-- Promotion gate: separate any optional new dependency-audit capability from the required reproducibility corrections.
 
 ### ENG-028 Expand accepted ADRs into implementation-grade decisions
 
