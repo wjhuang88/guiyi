@@ -355,6 +355,21 @@ ENG-019 first passed docs-only Ready promotion PR #75 / CI run 358, then complet
 - Compatibility/rollback: no serialized migrations; only meta/build scripts and license/docs. Rollback via reviewed immutable action/toolchain changes, never silently reintroducing floating dependency versions. If license or packaging policy requires new product behavior, stop and open an owning Story.
 - Governance was followed: docs-only Ready promotion PR #78 passed complete CI 373 and squash-merged to main before feature PR #79 started. Implementation and tests in PR #79 passed exact-head CI 378 and were squash-merged; no human operator acceptance was required for this maintenance Story.
 
+## Ready — Parallel P2 architecture evidence
+
+### ENG-028 Expand nine priority ADRs into implementation-grade guidance
+
+- Type: Architecture documentation / safety and compatibility traceability
+- Priority: P2
+- Status: Ready
+- GitHub: [#18](https://github.com/wjhuang88/guiyi/issues/18) — Open; **manual architecture review required before Done**
+- Authorization: the docs-only Ready promotion PR must pass full CI and merge before implementation starts.
+- Primary owner: GUIYI engine platform architecture documentation; respect Talos outer-runtime responsibility and do not expand a second Agent framework.
+- Baseline and acceptance: [ENG-028 READY contract](../validation/ENG-028-READY-CONTRACT.md). Clarify nine priority ADRs (0002/0003/0007/0008/0009/0010/0011/0012/0013/0014) without changing status or prior decisions. For each: context/alternatives/costs, current invariants vs gaps, failure/recovery, compatibility/migration, performance assumptions, exact tests/Stories and supersession conditions.
+- Critical non-goals: no new code/features/CI, no undocumented nested or concurrent transaction guarantee, no claim that ENG-018 undo/redo is shipped, no Editor-only authoring source, no Talos model/provider/session implementation and no equivalent of ENG-030 real-provider acceptance.
+- **HUMAN REQUIRED / NOT RUN:** a separate human architecture review of consistency and independent implementability must record reviewer/date/exact head/PASS or FAIL before Done; docs link and CI green are necessary but insufficient.
+- Validation: exact-head full workspace and Python repository gates; complete [ENG-028 report](../validation/ENG-028-READY-CONTRACT.md) and operator review record; no serialized migration. Rollback is a reviewed documentation-only revert that preserves original accepted ADR history.
+
 ## Ready — Gate 4 real Talos-driven production proof
 
 ### ENG-030 Real Talos-driven tactical playable-slice demo
@@ -399,14 +414,7 @@ ENG-019 first passed docs-only Ready promotion PR #75 / CI run 358, then complet
 - Goal: enforce pull requests, required checks, branch protection, Story linkage, repository labels, and auditable exceptions in GitHub.
 - Promotion gate: document a solo-maintainer review and emergency policy that cannot silently bypass required checks.
 
-### ENG-028 Expand accepted ADRs into implementation-grade decisions
 
-- Type: Architecture
-- Priority: P2
-- Status: Proposed
-- GitHub: [#18](https://github.com/wjhuang88/guiyi/issues/18) — Open
-- Goal: add alternatives, invariants, failure behavior, compatibility, scaling assumptions, and exact evidence to the ADRs governing current safety and execution behavior.
-- Promotion gate: link known code violations to remediation Stories instead of retroactively describing them as compliant.
 
 ## Proposed — Product direction
 
