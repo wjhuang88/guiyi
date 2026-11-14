@@ -1,0 +1,46 @@
+# ENG-028 — ADR implementation-evidence baseline and Ready contract
+
+> **Status: Ready promotion proposal / documentation-only.** This file alone does not authorize implementing ENG-028. Authorization begins only after a docs-only Ready PR passes the full exact-head CI and is squash-merged into main. No accepted ADR is superseded by this proposal.
+>
+> **Mandatory review boundary:** The original [ENG-028 Issue #18](https://github.com/wjhuang88/guiyi/issues/18) requires **human architecture review** to certify that expanded ADRs are sufficient for independent implementation. This review is **HUMAN REQUIRED / NOT RUN** and must remain separately traceable. An automated docs/link gate cannot substitute for it.
+
+## Scope and known architecture
+
+**Primary layer:** GUIYI engine platform architecture documentation, with historical decisions and the Talos outer integration boundary preserved. This is an existing P2 documentation/compatibility quality gap, **not** a change to the Agent-first north star, the Gate-4 ENG-030 acceptance contract, Talos SDK, toolkit semantics, or the human Editor's authority.
+
+Read `AGENTS.md`, `docs/sop/DIRECTION-GOVERNANCE.md`, `docs/reference/ARCHITECTURE.md`, `docs/reference/COMMAND-QUERY-PROTOCOL.md`, `docs/reference/PROJECT-STORAGE.md`, `docs/reference/PROJECT-GRAPH.md`, `docs/reference/RUNTIME-ARTIFACT-CONTRACT.md`, `docs/reference/AGENT-SESSIONS.md`, `docs/sop/DEVELOPMENT.md`, `docs/sop/QUALITY-GATES.md`, and `docs/decisions/ADR-0015-*` / `ADR-0016-*` before implementation.
+
+The nine priority ADRs are currently short accepted statements. Their **status, original date, decision and supersession history must remain intact**. Add evidence-backed implementation-specific sections; do not retroactively make a known limitation sound solved.
+
+| ADR | Required concrete clarification | Existing source or exact test evidence to reference | Unresolved boundary |
+| --- | --- | --- | --- |
+| [0002](../decisions/ADR-0002-DOCUMENT-ARTIFACT-RUNTIME.md) Document→Artifact→Runtime | Authority/immutability separation, artifact type/compiler-version/hash gate, repeat-load ownership, failure cleanup, version/migration | `engine_content::ArtifactEnvelope`, `engine_runtime::StageRuntimeManager`; `wrong_artifact_type_is_rejected_atomically`, `corrupted_payload_hash_is_rejected_atomically`, `repeated_load_and_unload_does_not_leak_entities` | Serialized ECS `Entity` must never become source truth; the demo-specific preview is not a new stable Tool |
+| [0003](../decisions/ADR-0003-STABLE-IDS.md) Stable IDs | Content/document/object/artifact identity vs ephemeral Bevy entities, cross-reference validation, rename/remap policy, migration/error paths | `engine_core` ID types, `engine_content::DocumentEnvelope.references`, `engine_query::ProjectGraphIndex`, `engine_content` path tests | No unapproved stable-ID renumbering/migration framework (ENG-025 Proposed) |
+| [0007](../decisions/ADR-0007-TYPED-COMMANDS.md) Commands | Schema authority, access planning before mutation, validation+dry-run+permission+audit, rejection behavior and query boundary | `engine_command::CommandExecutor`, ADR-0015; `dry_run_does_not_mutate_state`, `failed_commands_are_atomic`, `scoped_execution_rejects_actual_cross_document_effects_atomically` | No raw file-patch bypass or alternate Editor truth |
+| [0008](../decisions/ADR-0008-TRANSACTIONS.md) Transactions | Actual current clone/diff/commit stages and durable ProjectStorage journal; nested/concurrent write policy, recovery, undo vs authoritative audited reversal, scale constraints | `engine_command::CommandExecutor`, `engine_content::ProjectStorage`, `engine_authoring` existing compatibility undo; `every_precommit_failure_recovers_the_previous_project_state`, `failures_after_commit_marker_preserve_new_state_and_restore_audit` | Full audited cross-session undo/redo is **ENG-018 Proposed**, not already shipped |
+| [0009](../decisions/ADR-0009-AGENT-LOOP-DECOUPLING.md) Historical agent loop | Mark historical contract and dependency evolution, preserve original supersession, no current implementation policy contradicting ADR-0016 | [ADR-0016](../decisions/ADR-0016-TALOS-AGENT-RUNTIME.md), ENG-014 validation, `integrations/talos_runtime` adapter | Never reauthorize generic GUIYI model/provider/turn loop |
+| [0010](../decisions/ADR-0010-DIAGNOSTICS.md) Diagnostics | Stable code/severity/location/field path, suggested-tool optionality and compatibility, deterministic machine results, remediation/error prioritization | `engine_validation::Diagnostic`, ADR-0015; `COMMAND_INPUT_REQUIRED` family, `STAGE_NO_SPAWN_POINT` | Distinguish stable codes from human message text; proposed new error families require owning Story |
+| [0011](../decisions/ADR-0011-PROJECT-GRAPH.md) Project Graph | Authoritative document references vs derived incremental index, invalidation/rebuild, unresolved target behavior, hidden working-set nodes | `engine_query::ProjectGraphIndex`; `incremental_index_refreshes_changed_sources_and_preserves_dangling_targets`, `indexed_queries_do_not_cross_hidden_working_set_nodes` | No durable second graph/source; no hidden-node leaks |
+| [0012](../decisions/ADR-0012-LEAST-PRIVILEGE.md) Least privilege | Tool entry enforcement, budget, working-set and actual diff scope, replay/deny behavior, permission before schema disclosure | `engine_agent_host::AgentHost`; `permission_denial_is_structured_and_recorded`, `working_set_blocks_reads_and_mutations_outside_the_set`, `budget_is_enforced_and_budget_rejection_is_audited`, `permission_denial_precedes_schema_validation` | Talos generic turn budgets differ from GUIYI domain authorization |
+| [0013](../decisions/ADR-0013-HEADLESS-FIRST.md) Headless | Real noninteractive CLI/Preview/workbench process JSON/exit/stdio, invalid fixture behavior, no rendering dependency inside domain crates | ENG-019 [validation](ENG-019.md), `engine_cli/tests/process_cli.rs`, `engine_preview/tests/process_preview.rs`, `engine_editor/tests/jsonl_workbench.rs` | Headless demos cannot prove real-model ENG-030 acceptance |
+| [0014](../decisions/ADR-0014-UI-CLIENT.md) UI as client | Same Commands/Queries/transactions/diagnostics, human review/approval client only, state authority, failure/permission equivalence | `engine_editor` JSONL Workbench; ADR-0016, direction SOP | ENG-024 Human Workbench remains Proposed; no Editor-only authoring source |
+
+## Work contract and acceptance
+
+1. Expand the **nine** priority ADRs with context/forces, at least one meaningful rejected alternative/rationale, exact current invariants, failure/recovery behavior, compatibility/versioning/migration, performance/scaling assumption and linked code/tests/Stories. Preserve status/history and differentiate **implemented** from **future policy / Proposed Story**; no ungrounded “already safe” assertions.
+2. Explicitly distinguish `engine_command` in-memory clones/diff from `ProjectStorage` durable journal, and document that audited restart-aware undo/redo is not granted by `engine_authoring` compatibility helpers (ENG-018 remains Proposed).
+3. Keep machine-readable diagnostics/working set/resource boundaries accurate and error codes more stable than human prose. Refuse to claim that unknown or missing performance limits are measured.
+4. Add a traceability matrix/validation report with links to exact tests and record documentation/CI evidence. No code files, Cargo manifests, dependencies, tests, schemas, Tool IDs, CI behavior or implementation rewrites in this Story.
+5. Full mainline `cargo fmt/check/clippy/test/doc --locked` (where applicable), repository Python gates including reproducibility, three example executables, plus docs-link checks must pass **on the final exact HEAD**.
+6. **HUMAN REQUIRED / BLOCKED:** a human architecture reviewer must explicitly check the priority ADRs for internal consistency, scope, and whether an independent developer can implement without inventing incompatible policy. Record PASS/FAIL, reviewer, date, exact head and review link in `docs/validation/ENG-028.md` / Issue #18 before marking Done; if no reviewer, leave implementation PR Draft/open.
+
+## Independence, rollback and stopping conditions
+
+- ADR-0009 remains superseded by ADR-0016. Do not change accepted ADR status, mutate unrelated decision text, or contradict current Bevy/Talos ownership.
+- Structural policy changes, new migration semantics, changing concurrency or undo behavior, or an implementation defect need **a separate owning Story / approved superseding ADR**. Document gaps rather than laundering alpha limitations into accepted invariants.
+- No human operator/provider credentials are required for drafting/tests; ENG-030 real-model acceptance remains a **separate** P0 human gate. ENG-024/025/018/026 remain Proposed.
+- Migration: none (documentation-only). Rollback: revert only ENG-028 additions through a reviewed docs PR; retain accepted ADR original decisions and supersession register. New accepted policy is out of scope.
+
+## Sequencing
+
+Docs-only Proposed→Ready PR (current task) → full exact-head CI → merge → implementation branch from new main → nine ADR expansions and validation report → full exact-head CI → **independent human architecture review** → merge, close Issue #18 and update Backlog to Done only on PASS.
