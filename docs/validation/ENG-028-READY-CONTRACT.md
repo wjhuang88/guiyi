@@ -10,7 +10,7 @@
 
 Read `AGENTS.md`, `docs/sop/DIRECTION-GOVERNANCE.md`, `docs/reference/ARCHITECTURE.md`, `docs/reference/COMMAND-QUERY-PROTOCOL.md`, `docs/reference/PROJECT-STORAGE.md`, `docs/reference/PROJECT-GRAPH.md`, `docs/reference/RUNTIME-ARTIFACT-CONTRACT.md`, `docs/reference/AGENT-SESSIONS.md`, `docs/sop/DEVELOPMENT.md`, `docs/sop/QUALITY-GATES.md`, and `docs/decisions/ADR-0015-*` / `ADR-0016-*` before implementation.
 
-The nine priority ADRs are currently short accepted statements. Their **status, original date, decision and supersession history must remain intact**. Add evidence-backed implementation-specific sections; do not retroactively make a known limitation sound solved.
+The ten priority ADRs are currently short accepted statements. Their **status, original date, decision and supersession history must remain intact**. Add evidence-backed implementation-specific sections; do not retroactively make a known limitation sound solved.
 
 | ADR | Required concrete clarification | Existing source or exact test evidence to reference | Unresolved boundary |
 | --- | --- | --- | --- |
@@ -27,7 +27,7 @@ The nine priority ADRs are currently short accepted statements. Their **status, 
 
 ## Work contract and acceptance
 
-1. Expand the **nine** priority ADRs with context/forces, at least one meaningful rejected alternative/rationale, exact current invariants, failure/recovery behavior, compatibility/versioning/migration, performance/scaling assumption and linked code/tests/Stories. Preserve status/history and differentiate **implemented** from **future policy / Proposed Story**; no ungrounded “already safe” assertions.
+1. Expand the **ten** priority ADRs with context/forces, at least one meaningful rejected alternative/rationale, exact current invariants, failure/recovery behavior, compatibility/versioning/migration, performance/scaling assumption and linked code/tests/Stories. Preserve status/history and differentiate **implemented** from **future policy / Proposed Story**; no ungrounded “already safe” assertions.
 2. Explicitly distinguish `engine_command` in-memory clones/diff from `ProjectStorage` durable journal, and document that audited restart-aware undo/redo is not granted by `engine_authoring` compatibility helpers (ENG-018 remains Proposed).
 3. Keep machine-readable diagnostics/working set/resource boundaries accurate and error codes more stable than human prose. Refuse to claim that unknown or missing performance limits are measured.
 4. Add a traceability matrix/validation report with links to exact tests and record documentation/CI evidence. No code files, Cargo manifests, dependencies, tests, schemas, Tool IDs, CI behavior or implementation rewrites in this Story.
@@ -43,4 +43,4 @@ The nine priority ADRs are currently short accepted statements. Their **status, 
 
 ## Sequencing
 
-Docs-only Proposed→Ready PR (current task) → full exact-head CI → merge → implementation branch from new main → nine ADR expansions and validation report → full exact-head CI → **independent human architecture review** → merge, close Issue #18 and update Backlog to Done only on PASS.
+Docs-only Proposed→Ready PR (current task) → full exact-head CI → merge → implementation branch from new main → ten ADR expansions and validation report → full exact-head CI → **independent human architecture review** → merge, close Issue #18 and update Backlog to Done only on PASS.
