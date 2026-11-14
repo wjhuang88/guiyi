@@ -357,7 +357,7 @@ ENG-019 first passed docs-only Ready promotion PR #75 / CI run 358, then complet
 
 ## Ready — Parallel P2 architecture evidence
 
-### ENG-028 Expand nine priority ADRs into implementation-grade guidance
+### ENG-028 Expand ten priority ADRs into implementation-grade guidance
 
 - Type: Architecture documentation / safety and compatibility traceability
 - Priority: P2
@@ -365,7 +365,7 @@ ENG-019 first passed docs-only Ready promotion PR #75 / CI run 358, then complet
 - GitHub: [#18](https://github.com/wjhuang88/guiyi/issues/18) — Open; **manual architecture review required before Done**
 - Authorization: the docs-only Ready promotion PR must pass full CI and merge before implementation starts.
 - Primary owner: GUIYI engine platform architecture documentation; respect Talos outer-runtime responsibility and do not expand a second Agent framework.
-- Baseline and acceptance: [ENG-028 READY contract](../validation/ENG-028-READY-CONTRACT.md). Clarify nine priority ADRs (0002/0003/0007/0008/0009/0010/0011/0012/0013/0014) without changing status or prior decisions. For each: context/alternatives/costs, current invariants vs gaps, failure/recovery, compatibility/migration, performance assumptions, exact tests/Stories and supersession conditions.
+- Baseline and acceptance: [ENG-028 READY contract](../validation/ENG-028-READY-CONTRACT.md). Clarify ten priority ADRs (0002/0003/0007/0008/0009/0010/0011/0012/0013/0014) without changing status or prior decisions. For each: context/alternatives/costs, current invariants vs gaps, failure/recovery, compatibility/migration, performance assumptions, exact tests/Stories and supersession conditions.
 - Critical non-goals: no new code/features/CI, no undocumented nested or concurrent transaction guarantee, no claim that ENG-018 undo/redo is shipped, no Editor-only authoring source, no Talos model/provider/session implementation and no equivalent of ENG-030 real-provider acceptance.
 - **HUMAN REQUIRED / NOT RUN:** a separate human architecture review of consistency and independent implementability must record reviewer/date/exact head/PASS or FAIL before Done; docs link and CI green are necessary but insufficient.
 - Validation: exact-head full workspace and Python repository gates; complete [ENG-028 report](../validation/ENG-028-READY-CONTRACT.md) and operator review record; no serialized migration. Rollback is a reviewed documentation-only revert that preserves original accepted ADR history.
